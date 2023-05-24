@@ -3,6 +3,11 @@ package labelled
 
 private[typify] trait LabelledPackageAux
 
+private[typify] final type Tuple = scala.Tuple
+private[typify] final type *:[H, T <: Tuple] = scala.*:[H, T]
+private[typify] final type EmptyTuple = scala.EmptyTuple
+private[typify] final val EmptyTuple: EmptyTuple = scala.EmptyTuple
+
 extension[K <: Singleton](k: K) {
   inline final def ->>[V](v: V): K ->> V = label[K](v)
 }

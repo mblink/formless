@@ -1,8 +1,6 @@
 package typify
 package labelled
 
-private[typify] trait SelectorPackageAux
-
 trait Selector[A, Key] {
   type Out
   def apply(a: A): Out
