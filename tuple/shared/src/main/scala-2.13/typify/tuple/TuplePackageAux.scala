@@ -25,6 +25,9 @@ private[typify] trait TuplePackageAux {
   final type MapFolder[T <: Tuple, R, F] = shapeless.ops.hlist.MapFolder[T, R, F]
   final val MapFolder: shapeless.ops.hlist.MapFolder.type = shapeless.ops.hlist.MapFolder
 
+  final type Prepend[L <: Tuple, R <: Tuple] = shapeless.ops.hlist.Prepend[L, R]
+  final val Prepend: shapeless.ops.hlist.Prepend.type = shapeless.ops.hlist.Prepend
+
   final type Reify[T <: Tuple] = shapeless.ops.hlist.Reify[T]
   final val Reify: shapeless.ops.hlist.Reify.type = shapeless.ops.hlist.Reify
 
