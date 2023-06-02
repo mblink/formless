@@ -10,6 +10,10 @@ final class LabelledOps[K, V](private val labelled: K ->> V) extends AnyVal {
 }
 
 private[typify] trait LabelledPackageAux {
+  final type ->>[K, +V] = tagged.TranslucentTagged[V, K]
+
+  @inline final def label[T]: tagged.TranslucentTagged.Of[T] = tagged.translucentTag[T]
+
   @inline final implicit def singletonToSingletonOps(t: Any): shapeless.syntax.SingletonOps =
     macro shapeless.SingletonTypeMacros.mkSingletonOps
 
