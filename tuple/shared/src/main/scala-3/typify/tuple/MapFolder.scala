@@ -7,12 +7,12 @@ trait MapFolder[L <: Tuple, R, F] {
 object MapFolder {
   inline def apply[L <: Tuple, R, F](using f: MapFolder[L, R, F]): MapFolder[L, R, F] = f
 
-  implicit def hnilMapFolder[R, F]: MapFolder[EmptyTuple, R, F] =
+  given mapFolderEmptyTuple[R, F]: MapFolder[EmptyTuple, R, F] =
     new MapFolder[EmptyTuple, R, F] {
       def apply(l: EmptyTuple, in: R, op: (R, R) => R): R = in
     }
 
-  implicit def hlistMapFolder[H, T <: Tuple, R, F <: Poly](
+  given mapFolderTupleCons[H, T <: Tuple, R, F <: Poly](
     using hc: Case1[F, H, R],
     tf: MapFolder[T, R, F],
   ): MapFolder[H *: T, R, F] =

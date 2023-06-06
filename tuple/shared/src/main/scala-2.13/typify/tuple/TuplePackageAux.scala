@@ -1,20 +1,20 @@
-package typify
-package tuple
+package typify.tuple
 
-import scala.language.implicitConversions
-
-final class TupleOps[T <: Tuple](private val t: T) extends AnyVal {
-  final def *:[H](h: H): H *: T = shapeless.::(h, t)
-}
-
-private[typify] trait TuplePackageAux {
+trait TuplePackageAux {
   final type Tuple = shapeless.HList
   final type *:[H, T <: Tuple] = shapeless.::[H, T]
+  final val *: : shapeless.::.type = shapeless.::
   final type EmptyTuple = shapeless.HNil
   final val EmptyTuple: EmptyTuple = shapeless.HNil
 
-  @inline final implicit def tupleToTupleOps[T <: Tuple](t: T): TupleOps[T] =
-    new TupleOps[T](t)
+  final implicit class TypifyTupleOps[T <: Tuple](t: T) {
+    final def *:[H](h: H): H *: T = shapeless.::(h, t)
+    final def mapPoly(f: Poly)(implicit m: Mapper[f.type, T]): m.Out = m(t)
+    final def toList[Lub](implicit tl: ToList[T, Lub]): List[Lub] = tl(t)
+  }
+
+  final type FillWith[F, L <: Tuple] = shapeless.ops.hlist.FillWith[F, L]
+  final val FillWith: shapeless.ops.hlist.FillWith.type = shapeless.ops.hlist.FillWith
 
   final type IsNonEmptyTuple[T <: Tuple] = shapeless.ops.hlist.IsHCons[T]
   final val IsNonEmptyTuple: shapeless.ops.hlist.IsHCons.type = shapeless.ops.hlist.IsHCons
@@ -24,6 +24,9 @@ private[typify] trait TuplePackageAux {
 
   final type MapFolder[T <: Tuple, R, F] = shapeless.ops.hlist.MapFolder[T, R, F]
   final val MapFolder: shapeless.ops.hlist.MapFolder.type = shapeless.ops.hlist.MapFolder
+
+  final type Mapper[F, In <: Tuple] = shapeless.ops.hlist.Mapper[F, In]
+  final val Mapper: shapeless.ops.hlist.Mapper.type = shapeless.ops.hlist.Mapper
 
   final type Prepend[L <: Tuple, R <: Tuple] = shapeless.ops.hlist.Prepend[L, R]
   final val Prepend: shapeless.ops.hlist.Prepend.type = shapeless.ops.hlist.Prepend
@@ -42,6 +45,7 @@ private[typify] trait TuplePackageAux {
   final type DepFn0 = shapeless.DepFn0
   final type DepFn1[T] = shapeless.DepFn1[T]
   final type DepFn2[T, U] = shapeless.DepFn2[T, U]
+  final type Poly = shapeless.Poly
 
   trait Poly0 extends shapeless.Poly {
     final type Case[A] = shapeless.PolyDefns.Case0.Aux[this.type, A]

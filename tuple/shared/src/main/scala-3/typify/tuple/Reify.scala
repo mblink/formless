@@ -7,7 +7,7 @@ object Reify {
 
   type Aux[T <: Tuple, Out0] = Reify[T] { type Out = Out0 }
 
-  inline given inst[T <: Tuple]: Aux[T, T] =
+  inline given reifyInst[T <: Tuple]: Aux[T, T] =
     new Reify[T] {
       type Out = T
       def apply(): T =

@@ -14,7 +14,7 @@ object IsNonEmptyTuple {
 
   type Aux[L <: Tuple, H0, T0 <: Tuple] = IsNonEmptyTuple[L] { type H = H0; type T = T0 }
 
-  given tupleN[H0, T0 <: Tuple]: Aux[H0 *: T0, H0, T0] =
+  given isNonEmptyTupleInst[H0, T0 <: Tuple]: Aux[H0 *: T0, H0, T0] =
     new IsNonEmptyTuple[H0 *: T0] {
       type H = H0
       type T = T0
