@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting access to the all elements of this `Tuple` of type `U`.

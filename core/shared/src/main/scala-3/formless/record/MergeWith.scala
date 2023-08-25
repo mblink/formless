@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.{Case2, DepFn2}
+import formless.tuple.{Case2, DepFn2}
 
 /**
  * Type class support record merging with a polymorphic function.

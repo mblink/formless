@@ -1,18 +1,18 @@
-package typify
+package formless
 package record
 
 import scala.language.implicitConversions
-import typify.tuple.Tuple
+import formless.tuple.Tuple
 
-final class TypifySingletonOps[K <: Singleton](private val k: K) extends AnyVal {
+final class FormlessSingletonOps[K <: Singleton](private val k: K) extends AnyVal {
   @inline final def ->>[V](v: V): K ->> V = label[K](v)
 }
 
-final class TypifyLabelledOps[K, V](private val kv: K ->> V) extends AnyVal {
+final class FormlessLabelledOps[K, V](private val kv: K ->> V) extends AnyVal {
   @inline final def label(implicit k: ValueOf[K]): K = k.value
 }
 
-private[typify] trait RecordPackageCompat {
+private[formless] trait RecordPackageCompat {
   final type ->>[K, +V] = tagged.TranslucentTagged[V, K]
 
   final class LabelPartialAp[K] {
@@ -22,8 +22,8 @@ private[typify] trait RecordPackageCompat {
   @inline final def field[K]: LabelPartialAp[K] = new LabelPartialAp[K]
   @inline final def label[K]: LabelPartialAp[K] = new LabelPartialAp[K]
 
-  @inline final implicit def toTypifySingletonOps[K <: Singleton](k: K): TypifySingletonOps[K] = new TypifySingletonOps[K](k)
-  @inline final implicit def toTypifyLabelledOps[K, V](kv: K ->> V): TypifyLabelledOps[K, V] = new TypifyLabelledOps[K, V](kv)
+  @inline final implicit def toFormlessSingletonOps[K <: Singleton](k: K): FormlessSingletonOps[K] = new FormlessSingletonOps[K](k)
+  @inline final implicit def toFormlessLabelledOps[K, V](kv: K ->> V): FormlessLabelledOps[K, V] = new FormlessLabelledOps[K, V](kv)
 
   @inline final implicit def tupleToRecordOps[T <: Tuple](t: T): shapeless.syntax.RecordOps[T] =
     new shapeless.syntax.RecordOps[T](t)

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class witnessing the least upper bound of a pair of types and providing conversions from each to their common supertype.

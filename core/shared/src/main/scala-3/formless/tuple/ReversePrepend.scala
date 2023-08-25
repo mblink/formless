@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting prepending `L` in reverse order to `R`.

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 type ReverseT[T <: Tuple] <: Tuple = T match {
   case EmptyTuple => EmptyTuple

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting permuting this `Tuple` into the same order as another `Tuple` with the same element types.

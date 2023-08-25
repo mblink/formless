@@ -1,6 +1,6 @@
-package typify.tagged
+package formless.tagged
 
-private[typify] trait TranslucentPackageAux
+private[formless] trait TranslucentPackageAux
 
 type TranslucentTagged[+A, T] = A with TranslucentTag[A, T]
 type TranslucentTag[+A, T]

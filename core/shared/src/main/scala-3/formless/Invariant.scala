@@ -1,3 +1,3 @@
-package typify
+package formless
 
-private[typify] trait Invariant[A]
+private[formless] trait Invariant[A]

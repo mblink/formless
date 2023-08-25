@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting removal of a sublist from this `Tuple`. Available only if this `Tuple` contains a

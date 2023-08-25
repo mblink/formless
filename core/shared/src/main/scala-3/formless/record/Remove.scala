@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.DepFn1
+import formless.tuple.DepFn1
 
 /**
  * Type class supporting removal and re-insertion of an element (possibly unlabelled).

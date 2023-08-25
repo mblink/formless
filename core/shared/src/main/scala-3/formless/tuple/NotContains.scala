@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class witnessing that `L` doesn't contain elements of type `U`

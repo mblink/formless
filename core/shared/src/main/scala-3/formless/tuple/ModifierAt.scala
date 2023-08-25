@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting replacement of the `N`th element of this `Tuple` with the result of calling `F` on it.

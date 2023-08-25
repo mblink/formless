@@ -1,7 +1,7 @@
-package typify.record
+package formless.record
 
 import scala.deriving.Mirror
-import typify.tuple.ZipWithT
+import formless.tuple.ZipWithT
 
 trait LabelledGeneric[A] extends Serializable {
   type Repr

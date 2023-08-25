@@ -1,4 +1,4 @@
-package typify
+package formless
 
 package object tagged extends OpaquePackageAux with TranslucentPackageAux {
   type Tagged[+A, T] = OpaqueTagged[A, T]

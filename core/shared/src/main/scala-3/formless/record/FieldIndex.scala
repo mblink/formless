@@ -1,4 +1,4 @@
-package typify
+package formless
 package record
 
 import compiletime.ops.int.S
@@ -9,7 +9,7 @@ import compiletime.ops.int.S
 type FieldIndex[T <: Tuple, K] = FieldIndex0[T, K, 0]
 
 private[record] type FieldIndex0[T <: Tuple, K, I <: Int] <: Int = T match {
-  case (k ->> _) *: t => typify.Invariant[k] match {
+  case (k ->> _) *: t => Invariant[k] match {
     case Invariant[K] => I
     case _ => FieldIndex0[t, K, S[I]]
   }

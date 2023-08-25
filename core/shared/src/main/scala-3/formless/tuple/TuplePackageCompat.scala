@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 import scala.language.implicitConversions
 
@@ -13,7 +13,7 @@ trait TuplePackageCompat {
   final type EmptyTuple = scala.EmptyTuple
   final val EmptyTuple: EmptyTuple = scala.EmptyTuple
 
-  @inline final implicit def toTypifyTupleOps[L <: Tuple](l: L): TypifyTupleOps[L] = new TypifyTupleOps[L](l)
+  @inline final implicit def toFormlessTupleOps[L <: Tuple](l: L): FormlessTupleOps[L] = new FormlessTupleOps[L](l)
 
   extension(t: Tuple.type) {
     /**

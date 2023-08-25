@@ -1,4 +1,4 @@
-package typify.record
+package formless.record
 
 /**
  * Match type to check if all fields of a `Tuple` of type `T` are instances of `->>`.

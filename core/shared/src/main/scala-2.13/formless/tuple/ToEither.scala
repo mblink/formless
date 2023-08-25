@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 trait ToEither[T] extends Serializable {
   type Out

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting zipping this `Tuple` of monomorphic function values with its argument `Tuple` of

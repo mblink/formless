@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 type SelectManyT[L <: Tuple, Ids <: Tuple] <: Tuple = Ids match {
   case h *: t => Tuple.Elem[L, h] *: SelectManyT[L, t]

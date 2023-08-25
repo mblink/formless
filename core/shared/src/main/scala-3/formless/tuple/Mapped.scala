@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class witnessing that the result of wrapping each element of `Tuple` `L` in type constructor `F` is `Out`.

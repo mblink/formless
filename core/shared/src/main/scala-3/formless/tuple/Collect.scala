@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class witnessing that a `Tuple` can be collected with a `Poly` of type `F` to produce a `Tuple`

@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.{Case1, DepFn1}
+import formless.tuple.{Case1, DepFn1}
 
 /**
  * Type class supporting mapping a higher rank function over the values of a record.

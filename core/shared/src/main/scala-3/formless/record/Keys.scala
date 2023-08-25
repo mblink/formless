@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.DepFn0
+import formless.tuple.DepFn0
 
 type KeysT[T <: Tuple] <: Tuple = T match {
   case (k ->> _) *: t => k *: KeysT[t]

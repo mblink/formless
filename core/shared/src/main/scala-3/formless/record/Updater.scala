@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.{AppendT, ElemIndexWithFallback, DepFn2, IfEq}
+import formless.tuple.{AppendT, ElemIndexWithFallback, DepFn2, IfEq}
 
 /**
  * Type class supporting record update and extension.

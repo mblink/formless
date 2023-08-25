@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.DepFn2
+import formless.tuple.DepFn2
 
 /**
  * Type class supporting modification of a record field by given function.

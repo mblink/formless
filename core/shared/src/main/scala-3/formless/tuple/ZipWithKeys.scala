@@ -1,6 +1,6 @@
-package typify.tuple
+package formless.tuple
 
-import typify.record.{->>, label}
+import formless.record.{->>, label}
 
 /**
  * Type class supporting zipping a `Tuple` of values with a `Tuple` of keys to create a record.

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting splitting this `Tuple` at the last occurrence of an element of type `U` returning the reverse

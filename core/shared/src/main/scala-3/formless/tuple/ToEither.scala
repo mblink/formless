@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 type ToEitherT[T <: Tuple] = T match {
   case EmptyTuple => Nothing

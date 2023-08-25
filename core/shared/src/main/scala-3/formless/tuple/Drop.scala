@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 import compiletime.ops.int.>=
 

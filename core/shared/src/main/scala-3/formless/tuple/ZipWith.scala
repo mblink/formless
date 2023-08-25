@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 type ZipWithT[T1 <: Tuple, T2 <: Tuple, F[_, _]] <: Tuple = (T1, T2) match {
   case (h1 *: t1, h2 *: t2) => F[h1, h2] *: ZipWithT[t1, t2, F]

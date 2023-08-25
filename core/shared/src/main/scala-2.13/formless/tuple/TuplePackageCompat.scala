@@ -1,8 +1,8 @@
-package typify.tuple
+package formless.tuple
 
 import scala.language.implicitConversions
 
-final class TypifyTupleOps[T <: Tuple](private val t: T) extends AnyVal {
+final class FormlessTupleOps[T <: Tuple](private val t: T) extends AnyVal {
   final def *:[H](h: H): shapeless.::[H, T] = new shapeless.::(h, t)
   final def mapPoly(f: Poly)(implicit m: Mapper[f.type, T]): m.Out = m(t)
   final def toList[Lub](implicit tl: ToList[T, Lub]): List[Lub] = tl(t)
@@ -15,7 +15,7 @@ trait TuplePackageCompat {
   final type EmptyTuple = shapeless.HNil
   final val EmptyTuple: EmptyTuple = shapeless.HNil
 
-  @inline final implicit def toTypifyTupleOps[T <: Tuple](t: T): TypifyTupleOps[T] = new TypifyTupleOps[T](t)
+  @inline final implicit def toFormlessTupleOps[T <: Tuple](t: T): FormlessTupleOps[T] = new FormlessTupleOps[T](t)
 
   final type Align[L <: Tuple, M <: Tuple] = shapeless.ops.hlist.Align[L, M]
   final val Align: shapeless.ops.hlist.Align.type = shapeless.ops.hlist.Align

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting right-reducing a polymorphic binary function over this `Tuple`.

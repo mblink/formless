@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.Poly1
+import formless.tuple.Poly1
 
 /**
  * Polymorphic function that allows modifications on record fields while preserving the original key types.

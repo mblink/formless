@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package typify
+package formless
 
 import scala.quoted.*
 

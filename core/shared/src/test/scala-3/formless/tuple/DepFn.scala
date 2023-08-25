@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /** Polymorphic identity function */
 object id extends Poly1 {

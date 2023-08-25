@@ -1,6 +1,6 @@
-package typify.tagged
+package formless.tagged
 
-private[typify] trait OpaquePackageAux
+private[formless] trait OpaquePackageAux
 
 opaque type OpaqueTagged[+A, T] = A
 

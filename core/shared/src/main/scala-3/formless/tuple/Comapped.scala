@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class witnessing that the result of stripping type constructor `F` off each element of `Tuple` `L` is `Out`.

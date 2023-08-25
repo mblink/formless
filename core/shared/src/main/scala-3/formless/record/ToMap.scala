@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.{DepFn1, Lub}
+import formless.tuple.{DepFn1, Lub}
 
 /**
  * Type class supporting converting this record to a `Map` whose keys and values

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class witnessing that there exists at least one element of a `Tuple` for which a `Poly` of type `F` can be applied.

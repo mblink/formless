@@ -1,9 +1,9 @@
-package typify
+package formless
 package tuple
 
 import munit.{FunSuite, Location}
-import typify.test.*
-import typify.testutil.*
+import formless.test.*
+import formless.testutil.*
 
 class TupleTests extends FunSuite {
   type SI = Set[Int] *: EmptyTuple
@@ -1861,7 +1861,7 @@ class TupleTests extends FunSuite {
   }
 
   test("WithKeys") {
-    import typify.record.*
+    import formless.record.*
 
     val orig =
       ("intField" ->> 1) *:
@@ -2537,7 +2537,7 @@ class TupleTests extends FunSuite {
   // }
 
   test("SelectAll") {
-    import typify.record.{SelectAll => _, *}
+    import formless.record.{SelectAll => _, *}
 
     //is there any way to do it without runtime overhead?
     class TypeCaptured[T](val value: T) {

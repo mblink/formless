@@ -1,7 +1,7 @@
-package typify
+package formless
 package record
 
-import typify.tuple.DepFn1
+import formless.tuple.DepFn1
 
 type RemoveField[T <: Tuple, K] <: Tuple = T match {
   case (k ->> v) *: t => Invariant[k] match {

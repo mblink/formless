@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 type ZipConstT[C, L <: Tuple] <: Tuple = L match {
   case EmptyTuple => EmptyTuple

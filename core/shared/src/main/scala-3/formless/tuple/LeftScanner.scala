@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting left scanning of this `Tuple` with a binary polymorphic function.

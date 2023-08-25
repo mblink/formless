@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting access to all but the last element of this `Tuple`. Available only if this `Tuple` has at least one element.

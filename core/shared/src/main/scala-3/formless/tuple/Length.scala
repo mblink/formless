@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting computing the singleton `Int` corresponding to the length of this `Tuple`.

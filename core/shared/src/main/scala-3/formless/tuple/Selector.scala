@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting access to the first element of type `U` in this `Tuple`. Available only if this `Tuple`

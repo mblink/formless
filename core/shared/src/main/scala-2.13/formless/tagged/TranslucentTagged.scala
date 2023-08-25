@@ -1,6 +1,6 @@
-package typify.tagged
+package formless.tagged
 
-private[typify] trait TranslucentPackageAux {
+private[formless] trait TranslucentPackageAux {
   final type TranslucentTagged[+A, T] = shapeless.labelled.FieldType[T, A]
 
   @inline def translucentTag[T]: TranslucentTagged.Of[T] = TranslucentTagged[T]

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting mapping a polymorphic function over this `Tuple` and then folding the result using a

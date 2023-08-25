@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Match type that will only reduce if `A` is a subtype of `Tuple`.

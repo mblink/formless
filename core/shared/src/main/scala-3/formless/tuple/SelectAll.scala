@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting that a `Tuple` of type `T` contains a set of elements of type `S`.

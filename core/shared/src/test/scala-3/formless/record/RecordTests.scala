@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package typify
+package formless
 package record
 
 import munit.FunSuite
-import typify.tagged.{TranslucentTag => @@, translucentTag}
-import typify.test.*
-import typify.testutil.*
-import typify.tuple.*
+import formless.tagged.{TranslucentTag => @@, translucentTag}
+import formless.test.*
+import formless.testutil.*
+import formless.tuple.*
 
 class RecordTests extends FunSuite {
   object intField1 extends FieldOf[Int]
@@ -570,8 +570,8 @@ class RecordTests extends FunSuite {
 
     val r = ("i" ->> 10) *: ("s" ->> "foo") *: ("c" ->> 'x') *: ("j" ->> 42) *: EmptyTuple
 
-    val removeAll1 = typify.record.RemoveAll[R, A1]
-    val removeAll2 = typify.record.RemoveAll[R, A2]
+    val removeAll1 = record.RemoveAll[R, A1]
+    val removeAll2 = record.RemoveAll[R, A2]
 
     val (removed1, remaining1) = removeAll1(r)
     val (removed2, remaining2) = removeAll2(r)
@@ -946,7 +946,7 @@ class RecordTests extends FunSuite {
   test("SelectorForSwappedRecord") {
     val gen = LabelledGeneric[Bar]
     val swap = SwapRecord[gen.Repr]
-    val select = typify.record.Selector[swap.Out, Int]
+    val select = record.Selector[swap.Out, Int]
     val swapped = swap()
 
     assertTypedEquals["a"](swapped.head, select(swapped))

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting `Tuple` union. In case of duplicate types, this operation is a order-preserving multi-set union.

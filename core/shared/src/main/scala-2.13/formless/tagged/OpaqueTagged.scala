@@ -1,8 +1,8 @@
-package typify.tagged
+package formless.tagged
 
 import scala.language.implicitConversions
 
-private[typify] trait OpaquePackageAux {
+private[formless] trait OpaquePackageAux {
   final type OpaqueTagged[+A, T] = OpaqueTagged.Type[A, T]
 
   @inline final def opaqueTag[T]: OpaqueTagged.Of[T] = new OpaqueTagged.Of[T]

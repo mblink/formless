@@ -1,4 +1,4 @@
-package typify.record
+package formless.record
 
 /**
  * Field with values of type `V`.

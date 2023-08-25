@@ -1,4 +1,4 @@
-package typify.record
+package formless.record
 
 import scala.compiletime.{erasedValue, summonInline}
 import scala.reflect.TypeTest

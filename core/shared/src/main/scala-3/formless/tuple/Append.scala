@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Match type to append an element `A` to a `Tuple` of type `T`

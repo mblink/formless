@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting replacement of the first element of type `U` in this `Tuple` with the result of

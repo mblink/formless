@@ -1,4 +1,4 @@
-package typify.record
+package formless.record
 
 import scala.util.NotGiven
 

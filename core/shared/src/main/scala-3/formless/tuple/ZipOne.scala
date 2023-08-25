@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting zipping this `Tuple` with a `Tuple` of `Tuple`s returning a `Tuple` of `Tuple`s with each

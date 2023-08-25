@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 type ZipWithIndexT[L <: Tuple] = ZipWithIndexT0[L, 0]
 

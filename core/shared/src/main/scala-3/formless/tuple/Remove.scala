@@ -1,4 +1,4 @@
-package typify
+package formless
 package tuple
 
 type RemoveT[L <: Tuple, E] <: Tuple = L match {

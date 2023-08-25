@@ -1,7 +1,7 @@
-package typify.record
+package formless.record
 
 import scala.language.implicitConversions
-import typify.tuple.DepFn1
+import formless.tuple.DepFn1
 
 /**
  * Type class supporting record field selection.

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 type MapConsT[A, M <: Tuple] <: Tuple = M match {
   case EmptyTuple => EmptyTuple

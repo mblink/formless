@@ -1,6 +1,6 @@
-package typify.record
+package formless.record
 
-import typify.tuple.DepFn0
+import formless.tuple.DepFn0
 
 type SwapRecordT[L <: Tuple] <: Tuple = L match {
   case (k ->> v) *: t => (v ->> k) *: SwapRecordT[t]

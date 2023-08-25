@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 final class ReinsertAux[L, O](private val l: L) extends AnyVal {
   final def apply[U](u: U)(using r: Remove[O, U], ev: (U, L) =:= r.Out): O = r.reinsert((u, l))
@@ -24,7 +24,7 @@ final class PatchAux[L, N, M](private val l: L) extends AnyVal {
   final def apply[In <: Tuple](in: In)(using p: Patcher[N, M, L, In]): p.Out = p(l, in)
 }
 
-final class TypifyTupleOps[L <: Tuple](private val l: L) extends AnyVal {
+final class FormlessTupleOps[L <: Tuple](private val l: L) extends AnyVal {
   /**
    * Prepend the argument element to this `Tuple`.
    */

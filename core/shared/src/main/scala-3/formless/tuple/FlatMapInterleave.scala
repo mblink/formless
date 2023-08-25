@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting interleaving an element into each row of this `Tuple` of `Tuple`s.

@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 /**
  * Type class supporting flatmapping a higher ranked function of type `F` over this `Tuple`.

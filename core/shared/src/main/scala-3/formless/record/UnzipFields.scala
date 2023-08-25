@@ -1,4 +1,4 @@
-package typify.record
+package formless.record
 
 /**
  * Type class combining `Keys` and `Values` for convenience.

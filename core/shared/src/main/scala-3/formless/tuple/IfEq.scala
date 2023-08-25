@@ -1,4 +1,4 @@
-package typify.tuple
+package formless.tuple
 
 type IfEq[A, B, IfTrue, IfFalse] <: IfTrue | IfFalse = A match {
   case B => IfTrue

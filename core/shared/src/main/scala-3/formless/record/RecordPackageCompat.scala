@@ -1,4 +1,4 @@
-package typify
+package formless
 package record
 
 import scala.language.implicitConversions
@@ -20,7 +20,7 @@ trait RecordPackageCompat {
     inline final def label(using k: ValueOf[K]): K = k.value
   }
 
-  final implicit def toTypifyRecordOps[T <: Tuple](t: T): TypifyRecordOps[T] = new TypifyRecordOps(t)
+  final implicit def toFormlessRecordOps[T <: Tuple](t: T): FormlessRecordOps[T] = new FormlessRecordOps(t)
 
-  final implicit def toTypifyMapOps[K, V](m: Map[K, V]): TypifyMapOps[K, V] = new TypifyMapOps(m)
+  final implicit def toFormlessMapOps[K, V](m: Map[K, V]): FormlessMapOps[K, V] = new FormlessMapOps(m)
 }
