@@ -13,7 +13,7 @@ Add the following to your `build.sbt`:
 
 ```scala
 resolvers += "bondlink-maven-repo" at "https://raw.githubusercontent.com/mblink/maven-repo/main"
-libraryDependencies += "com.bondlink" %%"formless" % "0.1.0-SNAPSHOT"
+libraryDependencies += "com.bondlink" %%"formless" % "0.1.0"
 ```
 
 If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the following:
@@ -25,7 +25,7 @@ def repositoriesTask = T.task {
   super.repositoriesTask() ++ Seq(MavenRepository("https://raw.githubusercontent.com/mblink/maven-repo/main"))
 }
 
-def ivyDeps = Agg(ivy"com.bondlink::formless:0.1.0-SNAPSHOT")
+def ivyDeps = Agg(ivy"com.bondlink::formless:0.1.0")
 ```
 
 ## Usage
@@ -348,9 +348,9 @@ val fns =
   ((b: Boolean) => if (b) "yes" else "no") *:
   EmptyTuple
 // fns: *:[Function1[Int, Boolean], *:[Function1[String, Int], *:[Function1[Boolean, String], EmptyTuple]]] = (
-//   repl.MdocSession$MdocApp$$Lambda$13940/0x00000070029a64d0@6b7908ba,
-//   repl.MdocSession$MdocApp$$Lambda$13939/0x00000070029a6100@565c9c02,
-//   repl.MdocSession$MdocApp$$Lambda$13938/0x00000070029a5d30@5a5deaef
+//   repl.MdocSession$MdocApp$$Lambda$28403/0x00000070033b22c8@7061001a,
+//   repl.MdocSession$MdocApp$$Lambda$28402/0x00000070033b1ef8@39152272,
+//   repl.MdocSession$MdocApp$$Lambda$28401/0x00000070033b1b28@5b19ebbf
 // )
 
 fns.zipApply(x)
