@@ -66,6 +66,14 @@ lazy val noPublishSettings = Seq(
   gitRelease := {},
 )
 
+lazy val root = project.in(file("."))
+  .aggregate(
+    (core.componentProjects ++ Seq(docs)).map(p => p: ProjectReference):_*
+  )
+  .settings(baseSettings)
+  .settings(noPublishSettings)
+  .disablePlugins(MimaPlugin)
+
 lazy val munit = Def.setting("org.scalameta" %% "munit" % "1.0.0-M8" % Test)
 lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.10")
 lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.17.0" % Test)
