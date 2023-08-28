@@ -18,10 +18,11 @@ ThisBuild / githubWorkflowBuildMatrixFailFast := Some(false)
 ThisBuild / githubWorkflowTargetBranches := Seq("main")
 
 val isJava8 = s"matrix.java == '${javaVersions.find(_.version == "8").get.render}'"
+val isScala3 = s"matrix.scala == '$scala3'"
 
 ThisBuild / githubWorkflowBuild ++= Seq(
   WorkflowStep.Sbt(List("mimaReportBinaryIssues"), name = Some("Check binary compatibility"), cond = Some(isJava8)),
-  WorkflowStep.Sbt(List("docs/mdoc"), name = Some("Build docs"), cond = Some(isJava8)),
+  WorkflowStep.Sbt(List("docs/mdoc"), name = Some("Build docs"), cond = Some(isJava8 ++ " && " ++ isScala3)),
 )
 
 ThisBuild / githubWorkflowPublishTargetBranches := Seq()
