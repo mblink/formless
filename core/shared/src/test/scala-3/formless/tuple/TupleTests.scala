@@ -1137,16 +1137,16 @@ class TupleTests extends FunSuite {
   test("SelectMany") {
     val si = 1 *: true *: "foo" *: 2.0 *: EmptyTuple
 
-    val si1 = si.selectMany[EmptyTuple]
+    val si1 = si.selectManyType[EmptyTuple]
     assertTypedEquals[EmptyTuple](EmptyTuple, si1)
 
-    val si2 = si.selectMany[0 *: EmptyTuple]
+    val si2 = si.selectManyType[0 *: EmptyTuple]
     assertTypedEquals[Int *: EmptyTuple](1 *: EmptyTuple, si2)
 
-    val si3 = si.selectMany[2 *: EmptyTuple]
+    val si3 = si.selectManyType[2 *: EmptyTuple]
     assertTypedEquals[String *: EmptyTuple]("foo" *: EmptyTuple, si3)
 
-    val si4 = si.selectMany[0 *: 1 *: 2 *: 3 *: EmptyTuple]
+    val si4 = si.selectManyType[0 *: 1 *: 2 *: 3 *: EmptyTuple]
     assertTypedEquals[Int *: Boolean *: String *: Double *: EmptyTuple](1 *: true *: "foo" *: 2.0 *: EmptyTuple, si4)
 
     // val si5 = si.selectMany(0 *: EmptyTuple)

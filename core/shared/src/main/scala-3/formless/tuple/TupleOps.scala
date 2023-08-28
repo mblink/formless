@@ -59,6 +59,7 @@ final class FormlessTupleOps[L <: Tuple](private val l: L) extends AnyVal {
    * Returns the `N`th element of this `Tuple`. An explicit type argument must be provided. Available only if there is
    * evidence that this `Tuple` has at least `N` elements.
    */
+  // TODO - this doesn't work b/c `Tuple#apply` already exists in scala 3
   final def apply[N <: Int](using n: ValueOf[N]): Tuple.Elem[L, N] = l.productElement(n.value).asInstanceOf[Tuple.Elem[L, N]]
 
   /**
@@ -77,7 +78,7 @@ final class FormlessTupleOps[L <: Tuple](private val l: L) extends AnyVal {
    * Returns the `N`th element of this `Tuple`. Available only if there is evidence that this `Tuple` has at least `N`
    * elements.
    */
-  final def at[N <: Int](n: N): Tuple.Elem[L, N] = l.productElement(n).asInstanceOf[Tuple.Elem[L, N]]
+  final def at(n: Int): Tuple.Elem[L, n.type] = l.productElement(n).asInstanceOf[Tuple.Elem[L, n.type]]
 
   /**
    * Returns the last element of this `Tuple`. Available only if there is evidence that this `Tuple` is composite.
@@ -96,7 +97,7 @@ final class FormlessTupleOps[L <: Tuple](private val l: L) extends AnyVal {
    */
   final def select[U](using s: Selector[L, U]): U = s(l)
 
-  final def selectMany[Ids <: Tuple](using s: SelectMany[L, Ids]): s.Out = s(l)
+  final def selectManyType[Ids <: Tuple](using s: SelectMany[L, Ids]): s.Out = s(l)
 
   // TODO - this doesn't work well because e.g. `0 *: EmptyTuple` is typed as `Int *: EmptyTuple`
   // instead of a preserving the singleton type of `0 *: EmptyTuple`
@@ -332,7 +333,7 @@ final class FormlessTupleOps[L <: Tuple](private val l: L) extends AnyVal {
   final def flatMap(f: Poly)(using m: FlatMapper[f.type, L]): m.Out = m(l)
 
   /**
-   * Conses an element onto each row of this HMatrix (Tuple of Tuples).
+   * Conses an element onto each row of this matrix (`Tuple` of `Tuple`s).
    */
   final def mapCons[A](a: A)(using m: MapCons[A, L]): m.Out = m(a, l)
 

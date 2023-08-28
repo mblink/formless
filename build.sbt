@@ -7,6 +7,7 @@ lazy val scala3 = "3.3.0"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3)
 ThisBuild / scalaVersion := scala3
+ThisBuild / version := "0.1.0-SNAPSHOT"
 
 // GitHub Actions config
 val javaVersions = Seq(8, 11, 17).map(v => JavaSpec.temurin(v.toString))
@@ -31,12 +32,13 @@ def foldScalaV[A](scalaVersion: String)(_213: => A, _3: => A): A =
     case Some((3, _)) => _3
   }
 
+lazy val mavenRepoUrl = "https://raw.githubusercontent.com/mblink/maven-repo/main"
+
 lazy val baseSettings = Seq(
   scalaVersion := scala3,
   crossScalaVersions := Seq(scala213, scala3),
   organization := "com.bondlink",
-  version := "0.1.0-SNAPSHOT",
-  resolvers += "bondlink-maven-repo" at "https://raw.githubusercontent.com/mblink/maven-repo/main",
+  resolvers += "bondlink-maven-repo" at mavenRepoUrl,
   mimaPreviousArtifacts := Set(),
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.patch)),
@@ -71,7 +73,7 @@ lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.17.0" %
 lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("core"))
   .settings(baseSettings)
   .settings(
-    name := "formless-core",
+    name := "formless",
     libraryDependencies ++= Seq(munit.value, scalacheck.value),
     libraryDependencies ++= foldScalaV(scalaVersion.value)(
       Seq(
@@ -106,6 +108,11 @@ lazy val docs = project.in(file("formless-docs"))
   .settings(noPublishSettings)
   .settings(
     mdocOut := file("."),
+    mdocVariables ++= Map(
+      "VERSION" -> version.value,
+      "BL_MAVEN_REPO_URL" -> mavenRepoUrl,
+      "SHAPELESS_NAT_PREFIX" -> foldScalaV(scalaVersion.value)("shapeless.nat._", ""),
+    ),
     scalacOptions -= "-Xfatal-warnings",
   )
   .dependsOn(core.jvm)
