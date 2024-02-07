@@ -2,8 +2,8 @@ import formless._
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val scala213 = "2.13.11"
-lazy val scala3 = "3.3.0"
+lazy val scala213 = "2.13.12"
+lazy val scala3 = "3.3.1"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3)
 ThisBuild / scalaVersion := scala3
