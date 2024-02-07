@@ -75,7 +75,7 @@ lazy val root = project.in(file("."))
   .settings(noPublishSettings)
   .disablePlugins(MimaPlugin)
 
-lazy val munit = Def.setting("org.scalameta" %% "munit" % "1.0.0-M8" % Test)
+lazy val munit = Def.setting("org.scalameta" %% "munit" % "1.0.0-M11" % Test)
 lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.10")
 lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.17.0" % Test)
 
