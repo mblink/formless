@@ -21,7 +21,7 @@ object Updater extends UpdaterLP {
   inline def apply[T, F](using u: Updater[T, F]): Updater.Aux[T, F, u.Out] = u
   inline def apply[T, F](t: T, f: F)(using u: Updater[T, F]): u.Out = u(t, f)
 
-  given updaterFound[T <: Tuple, F](using ff: FindField[T, F]): Updater.Aux[T, F, ff.Replaced[F]] =
+  given updaterFound[T <: Tuple, F](using ff: FindField[T, F, =:=]): Updater.Aux[T, F, ff.Replaced[F]] =
     new Updater[T, F] {
       type Out = ff.Replaced[F]
       def apply(t: T, f: F): Out = {

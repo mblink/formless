@@ -12,7 +12,7 @@ object Modifier {
 
   inline def apply[T <: Tuple, K, A, B](using m: Modifier[T, K, A, B]): Modifier.Aux[T, K, A, B, m.Out] = m
 
-  given modifierInst[T <: Tuple, K, A, B](using ff: FindField[T, K ->> A]): Modifier.Aux[T, K, A, B, ff.Replaced[K ->> B]] =
+  given modifierInst[T <: Tuple, K, A, B](using ff: FindField[T, K ->> A, =:=]): Modifier.Aux[T, K, A, B, ff.Replaced[K ->> B]] =
     new Modifier[T, K, A, B] {
       type Out = ff.Replaced[K ->> B]
       def apply(t: T, f: A => B): Out = {

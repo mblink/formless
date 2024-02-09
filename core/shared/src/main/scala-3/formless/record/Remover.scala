@@ -15,7 +15,7 @@ object Remover {
   inline def apply[T, K](t: T, k: K)(using r: Remover[T, K]): r.Out = r(t)
 
   given removerInst[T <: Tuple, K](
-    using f: FindField[T, K ->> Any]
+    using f: FindField[T, K ->> Any, <:<]
   ): Remover.Aux[T, K, (f.Value, f.Removed)] =
     new Remover[T, K] {
       type Out = (f.Value, f.Removed)

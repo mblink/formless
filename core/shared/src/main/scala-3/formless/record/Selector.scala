@@ -13,7 +13,7 @@ object Selector {
 
   inline def apply[T, K](using s: Selector[T, K]): Selector.Aux[T, K, s.Out] = s
 
-  given selectorInst[T <: Tuple, K](using f: FindField[T, K ->> Any]): Selector.Aux[T, K, f.Value] =
+  given selectorInst[T <: Tuple, K](using f: FindField[T, K ->> Any, <:<]): Selector.Aux[T, K, f.Value] =
     new Selector[T, K] {
       type Out = f.Value
       def apply(t: T): Out = t.productElement(f.index).asInstanceOf[Out]

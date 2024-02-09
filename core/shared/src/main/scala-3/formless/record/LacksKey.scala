@@ -12,6 +12,6 @@ object LacksKey {
 
   private val singleton = new LacksKey[Tuple, Any] {}
 
-  given lacksKeyInst[T <: Tuple, K](using nf: NotGiven[FindField[T, K ->> Any]]): LacksKey[T, K] =
+  given lacksKeyInst[T <: Tuple, K](using nf: NotGiven[FindField[T, K ->> Any, <:<]]): LacksKey[T, K] =
     singleton.asInstanceOf[LacksKey[T, K]]
 }
