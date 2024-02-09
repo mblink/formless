@@ -1,6 +1,5 @@
 package formless.record
 
-import scala.compiletime.{erasedValue, summonInline}
 import scala.reflect.TypeTest
 
 trait FromMap[R] extends Serializable {
@@ -10,19 +9,22 @@ trait FromMap[R] extends Serializable {
 object FromMap {
   inline def apply[R](using f: FromMap[R]): FromMap[R] = f
 
-  private inline def tupleFromMapRec[T <: Tuple, K, V](m: Map[K, V]): Option[Tuple] =
-    inline erasedValue[T] match {
-      case _: EmptyTuple => Some(EmptyTuple)
-      case _: ((k, v) *: t) =>
-        for {
-          v <- m.get(summonInline[ValueOf[k]].value.asInstanceOf[K])
-          typed <- summonInline[TypeTest[V, v]].unapply(v)
-          rest <- tupleFromMapRec[t, K, V](m)
-        } yield label[k](typed) *: rest
+  given emptyTupleFromMap: FromMap[EmptyTuple] =
+    new FromMap[EmptyTuple] {
+      def apply[K, V](m: Map[K, V]): Option[EmptyTuple] = Some(EmptyTuple)
     }
 
-  inline given tupleFromMap[T <: Tuple](using ev: IsRecord[T] =:= true): FromMap[T] =
-    new FromMap[T] {
-      def apply[K, V](m: Map[K, V]): Option[T] = tupleFromMapRec[FieldsT[T], K, V](m).asInstanceOf[Option[T]]
+  given tupleNFromMap[K0, V0, T <: Tuple](
+    using k: ValueOf[K0],
+    tv: TypeTest[Any, V0],
+    fmt: FromMap[T],
+  ): FromMap[(K0 ->> V0) *: T] =
+    new FromMap[(K0 ->> V0) *: T] {
+      def apply[K, V](m: Map[K, V]): Option[(K0 ->> V0) *: T] =
+        for {
+          v <- m.get(k.value.asInstanceOf[K])
+          v0 <- tv.unapply(v)
+          t <- fmt(m)
+        } yield label[K0](v0) *: t
     }
 }

@@ -19,7 +19,7 @@ object ZipConst {
   private def zipConst[C, T <: Tuple](c: C, t: T): ZipConstT[C, T] =
     t match {
       case _: EmptyTuple => EmptyTuple
-      case x: (h *: t) => (x.head, c) *: zipConst[C, t](c, x.tail)
+      case x: (h *: t) => (x.head.asInstanceOf[h], c) *: zipConst[C, t](c, x.tail.asInstanceOf[t])
     }
 
   given tupleZipConst[C, L <: Tuple]: ZipConst.Aux[C, L, ZipConstT[C, L]] =

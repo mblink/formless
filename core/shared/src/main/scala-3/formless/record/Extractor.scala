@@ -10,14 +10,15 @@ trait Extractor[L, E] extends (L => E) with Serializable
 trait ExtractorLP {
   given extract[L <: Tuple, K, V, ET <: Tuple, V1, LR <: Tuple](
     using ev0: NotGiven[L =:= ((K ->> V) *: ET)],
-    r: Remover.Aux[L, K, (V1, LR)],
-    ev: V1 <:< V,
+    r: Remover[L, K],
+    rEv: r.Out <:< (V1, LR),
+    vEv: V1 <:< V,
     ds: Extractor[LR, ET]
   ): Extractor[L, (K ->> V) *: ET] =
   new Extractor[L, (K ->> V) *: ET] {
     def apply(c: L): (K ->> V) *: ET = {
-      val (h, t) = r(c)
-      label[K](ev(h)) *: ds(t)
+      val (h, t) = rEv(r(c))
+      label[K](vEv(h)) *: ds(t)
     }
   }
 }
@@ -36,13 +37,14 @@ object Extractor extends ExtractorLP {
 
   given descend[L <: Tuple, K, V <: Tuple, V1 <: Tuple, LR <: Tuple, ET <: Tuple](
     using ev0: NotGiven[L =:= ((K ->> V) *: ET)],
-    r: Remover.Aux[L, K, (V1, LR)],
+    r: Remover[L, K],
+    rEv: r.Out <:< (V1, LR),
     ds1: Extractor[V1, V],
     ds2: Extractor[LR, ET]
   ): Extractor[L, (K ->> V) *: ET] =
     new Extractor[L, (K ->> V) *: ET] {
       def apply(c: L): (K ->> V) *: ET = {
-        val (h, t) = r(c)
+        val (h, t) = rEv(r(c))
         label[K](ds1(h)) *: ds2(t)
       }
     }

@@ -3,7 +3,7 @@ import formless._
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.12"
-lazy val scala3 = "3.3.1"
+lazy val scala3 = "3.4.0-RC4"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3)
 ThisBuild / scalaVersion := scala3
@@ -79,7 +79,8 @@ lazy val munit = Def.setting("org.scalameta" %% "munit" % "1.0.0-M11" % Test)
 lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.10")
 lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.17.0" % Test)
 
-lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("core"))
+// Scala native commented out until this is fixed: https://github.com/lampepfl/dotty/issues/19648
+lazy val core = crossProject(JSPlatform, JVMPlatform/*, NativePlatform*/).in(file("core"))
   .settings(baseSettings)
   .settings(
     name := "formless",

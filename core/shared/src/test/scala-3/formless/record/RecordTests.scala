@@ -608,7 +608,7 @@ class RecordTests extends FunSuite {
     }
 
     val r = ("foo" ->> "joe") *: ("bar" ->> true) *: ("baz" ->> 2.0) *: EmptyTuple
-    val r2 = r mapPoly toUpper
+    val r2 = r.mapPoly(toUpper)
 
     val v1 = r2("foo")
     typed[String](v1)
@@ -873,7 +873,7 @@ class RecordTests extends FunSuite {
       }
 
       val r = ("foo" ->> "joe") *: ("bar" ->> true) *: ("baz" ->> 2.0) *: EmptyTuple
-      val r2 = r mapValues toUpper
+      val r2 = r.mapValues(toUpper)
 
       val v1 = r2("foo")
       typed[String](v1)

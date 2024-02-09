@@ -12,16 +12,23 @@ object Modifier {
 
   inline def apply[L, U, V](using r: Modifier[L, U, V]): Modifier.Aux[L, U, V, r.Out] = r
 
-  given modifierTuple[L <: Tuple, U, V](
-    using idx: ValueOf[ElemIndex[L, U]],
-  ): Modifier.Aux[L, U, V, (U, ReplaceElem[L, U, V])] =
-    new Modifier[L, U, V] {
-      type Out = (U, ReplaceElem[L, U, V])
-      private lazy val i = idx.value
-      def apply(l: L, f: U => V): Out = {
-        val a = l.toArray
-        val u = a(i).asInstanceOf[U]
-        (u, Tuple.fromArray(a.patch(i, List(f(u).asInstanceOf[Object]), 1))).asInstanceOf[Out]
+  inline given tupleModifier1[T <: Tuple, U, V]: Modifier.Aux[U *: T, U, V, (U, V *: T)] =
+    new Modifier[U *: T, U, V] {
+      type Out = (U, V *: T)
+      def apply(l : U *: T, f : U => V): Out = {
+        val u = l.head
+        (u, f(u) *: l.tail)
+      }
+    }
+
+  inline given tupleModifier2[H, T <: Tuple, U, V, OutT <: Tuple](
+    using t: Modifier.Aux[T, U, V, (U, OutT)],
+  ): Modifier.Aux[H *: T, U, V, (U, H *: OutT)] =
+    new Modifier[H *: T, U, V] {
+      type Out = (U, H *: OutT)
+      def apply(l : H *: T, f : U => V): Out = {
+        val (u, outT) = t(l.tail, f)
+        (u, l.head *: outT)
       }
     }
 }

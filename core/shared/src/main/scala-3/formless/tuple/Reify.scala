@@ -15,7 +15,7 @@ object Reify {
       type Out = T
       def apply(): T =
         compiletime.summonAll[Tuple.Map[T, ValueOf]]
-          .map[[a] =>> Any]([t] => (t: t) => t.asInstanceOf[ValueOf[_]].value)
+          .map[[a] =>> Any]([t] => (t: t) => t.asInstanceOf[ValueOf[?]].value)
           .asInstanceOf[T]
     }
 }

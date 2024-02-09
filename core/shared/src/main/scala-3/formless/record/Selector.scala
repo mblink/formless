@@ -1,6 +1,7 @@
 package formless.record
 
 import scala.language.implicitConversions
+import scala.quoted.*
 import formless.tuple.DepFn1
 
 /**
@@ -13,13 +14,26 @@ object Selector {
 
   inline def apply[T, K](using s: Selector[T, K]): Selector.Aux[T, K, s.Out] = s
 
-  inline given selectorInst[T <: Tuple, K](
-    using idx: ValueOf[FieldIndex[T, K]],
-  ): Selector.Aux[T, K, FieldValue[T, K]] =
-    new Selector[T, K] {
-      type Out = FieldValue[T, K]
-      def apply(t: T): Out = t.productElement(idx.value).asInstanceOf[Out]
-    }
+  private def selectorInstImpl[T <: Tuple: Type, K: Type](using Quotes): Expr[Selector[T, K]] =
+    new SelectorMacros().inst[T, K]
+
+  transparent inline given selectorInst[T <: Tuple, K]: Selector[T, K] = ${ selectorInstImpl[T, K] }
+}
+
+private[formless] final class SelectorMacros()(using override val ctx: Quotes) extends MacroUtils {
+  import ctx.reflect.*
+
+  final def inst[T <: Tuple: Type, K: Type]: Expr[formless.record.Selector[T, K]] =
+    withField[T, K ->> Any, Expr[formless.record.Selector[T, K]]](
+      [ReplaceField[_] <: Tuple, RemoveField <: Tuple, k, V] =>
+        (_: Type[ReplaceField], _: Type[RemoveField], _: Type[k], _: Type[V]) ?=> (idx: Int) => '{
+          (new formless.record.Selector[T, K] {
+            type Out = V
+            def apply(t: T): Out = t.productElement(${ Expr(idx) }).asInstanceOf[V]
+          }).asInstanceOf[formless.record.Selector.Aux[T, K, V]]
+        },
+      () => report.errorAndAbort(s"Failed to find field ${Type.show[K]} in record ${Type.show[T]}")
+    )
 }
 
 sealed trait SelectorFromKey[T <: Tuple, K] extends Selector[T, K]

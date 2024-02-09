@@ -27,6 +27,6 @@ object ReverseSplitLeft {
       type Prefix = ReverseT[Tuple.Take[L, ElemIndex[L, U]]]
       type Suffix = Tuple.Drop[L, ElemIndex[L, U]]
       private lazy val n = idxv.value
-      def apply(l: L): Out = (l.take(n).reverse.asInstanceOf[Prefix], l.drop(n).asInstanceOf[Suffix])
+      def apply(l: L): Out = (Tuple.fromArray(l.take(n).toArray.reverse).asInstanceOf[Prefix], l.drop(n).asInstanceOf[Suffix])
     }
 }

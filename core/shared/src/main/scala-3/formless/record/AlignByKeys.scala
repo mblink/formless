@@ -19,13 +19,14 @@ object AlignByKeys {
     }
 
   given tupleNAlign[T <: Tuple, KH, KT <: Tuple, V, R <: Tuple, TA <: Tuple](
-    using rh: Remover.Aux[T, KH, (V, R)],
+    using rh: Remover[T, KH],
+    ev: rh.Out <:< (V, R),
     at: AlignByKeys.Aux[R, KT, TA]
   ): AlignByKeys.Aux[T, KH *: KT, (KH ->> V) *: TA] =
     new AlignByKeys[T, KH *: KT] {
       type Out = (KH ->> V) *: TA
       def apply(t: T): (KH ->> V) *: TA = {
-        val (v, r) = rh(t)
+        val (v, r) = ev(rh(t))
         label[KH](v) *: at(r)
       }
     }
