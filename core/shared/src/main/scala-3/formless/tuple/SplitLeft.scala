@@ -20,13 +20,10 @@ object SplitLeft {
 
   inline def apply[T, U](using s: SplitLeft[T, U]): SplitLeft.Aux[T, U, s.Prefix, s.Suffix] = s
 
-  given splitLeftTuple[L <: Tuple, U](
-    using idxv: ValueOf[ElemIndex[L, U]],
-  ): SplitLeft.Aux[L, U, Tuple.Take[L, ElemIndex[L, U]], Tuple.Drop[L, ElemIndex[L, U]]] =
+  given tupleSplitLeft[L <: Tuple, U](using f: FindField[L, U]): SplitLeft.Aux[L, U, f.Head, U *: f.Tail] =
     new SplitLeft[L, U] {
-      type Prefix = Tuple.Take[L, ElemIndex[L, U]]
-      type Suffix = Tuple.Drop[L, ElemIndex[L, U]]
-      private lazy val n = idxv.value
-      def apply(l: L): Out = (l.take(n).asInstanceOf[Prefix], l.drop(n).asInstanceOf[Suffix])
+      type Prefix = f.Head
+      type Suffix = U *: f.Tail
+      def apply(l: L): Out = (l.take(f.index).asInstanceOf[Prefix], l.drop(f.index).asInstanceOf[Suffix])
     }
 }

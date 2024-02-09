@@ -12,23 +12,14 @@ object Modifier {
 
   inline def apply[L, U, V](using r: Modifier[L, U, V]): Modifier.Aux[L, U, V, r.Out] = r
 
-  inline given tupleModifier1[T <: Tuple, U, V]: Modifier.Aux[U *: T, U, V, (U, V *: T)] =
-    new Modifier[U *: T, U, V] {
-      type Out = (U, V *: T)
-      def apply(l : U *: T, f : U => V): Out = {
-        val u = l.head
-        (u, f(u) *: l.tail)
-      }
-    }
-
-  inline given tupleModifier2[H, T <: Tuple, U, V, OutT <: Tuple](
-    using t: Modifier.Aux[T, U, V, (U, OutT)],
-  ): Modifier.Aux[H *: T, U, V, (U, H *: OutT)] =
-    new Modifier[H *: T, U, V] {
-      type Out = (U, H *: OutT)
-      def apply(l : H *: T, f : U => V): Out = {
-        val (u, outT) = t(l.tail, f)
-        (u, l.head *: outT)
+  given tupleModifier[T <: Tuple, U, V](using ff: FindField[T, U]): Modifier.Aux[T, U, V, (U, ff.Replaced[V])] =
+    new Modifier[T, U, V] {
+      type Out = (U, ff.Replaced[V])
+      def apply(t: T, f: U => V): Out = {
+        val a = t.toArray
+        val u = a(ff.index).asInstanceOf[U]
+        a.update(ff.index, f(u).asInstanceOf[Object])
+        (u, Tuple.fromArray(a)).asInstanceOf[Out]
       }
     }
 }

@@ -19,20 +19,14 @@ object Replacer {
 
   inline def apply[L, U, V](using r: Replacer[L, U, V]): Replacer.Aux[L, U, V, r.Out] = r
 
-  given tupleReplacer1[T <: Tuple, U, V]: Replacer.Aux[U *: T, U, V, (U, V *: T)] =
-    new Replacer[U *: T, U, V] {
-      type Out = (U, V *: T)
-      def apply(l : U *: T, v : V): Out = (l.head, v *: l.tail)
-    }
-
-  given tupleReplacer2[H, T <: Tuple, U, V, OutT <: Tuple](
-    using t: Replacer.Aux[T, U, V, (U, OutT)],
-  ): Replacer.Aux[H *: T, U, V, (U, H *: OutT)] =
-      new Replacer[H *: T, U, V] {
-        type Out = (U, H *: OutT)
-        def apply(l : H *: T, v : V): Out = {
-          val (u, outT) = t(l.tail, v)
-          (u, l.head *: outT)
-        }
+  given tupleReplacer[T <: Tuple, U, V](using f: FindField[T, U]): Replacer.Aux[T, U, V, (U, f.Replaced[V])] =
+    new Replacer[T, U, V] {
+      type Out = (U, f.Replaced[V])
+      def apply(t: T, v: V): Out = {
+        val a = t.toArray
+        val u = a(f.index)
+        a.update(f.index, v.asInstanceOf[Object])
+        (u, Tuple.fromArray(a)).asInstanceOf[Out]
       }
+    }
 }
