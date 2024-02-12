@@ -80,8 +80,7 @@ lazy val munit = Def.setting("org.scalameta" %% "munit" % "1.0.0-M11" % Test)
 lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.10")
 lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.17.0" % Test)
 
-// Scala native commented out until this is fixed: https://github.com/lampepfl/dotty/issues/19648
-lazy val core = crossProject(JSPlatform, JVMPlatform/*, NativePlatform*/).in(file("core"))
+lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("core"))
   .settings(baseSettings)
   .settings(
     name := "formless",
@@ -116,6 +115,11 @@ lazy val core = crossProject(JSPlatform, JVMPlatform/*, NativePlatform*/).in(fil
     publish := { if (scalaVersion.value == scala3_4_RC) () else publish.value },
     publishLocal := { if (scalaVersion.value == scala3_4_RC) () else publishLocal.value },
     gitRelease := { if (scalaVersion.value == scala3_4_RC) () else gitRelease.value },
+  )
+  // Disable scala native on Scala 3.4 RC until fix is released: https://github.com/lampepfl/dotty/issues/19648
+  .nativeSettings(
+    Compile / sources := { if (scalaVersion.value == scala3_4_RC) Seq() else (Compile / sources).value },
+    Test / sources := { if (scalaVersion.value == scala3_4_RC) Seq() else (Test / sources).value },
   )
 
 lazy val docs = project.in(file("formless-docs"))
