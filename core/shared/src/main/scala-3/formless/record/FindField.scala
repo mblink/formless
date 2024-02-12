@@ -23,7 +23,7 @@ object FindField {
     using f: FindField[T, F, Cmp],
   ): FindField.Aux[T, F, Cmp, f.Key, f.Value, f.Replaced, f.Removed] = f
 
-  private def foundFieldInstImpl[T <: Tuple: Type, F: Type, Cmp[_, _]: Type](using q: Quotes): Expr[FindField[T, F, Cmp]] = {
+  private def findFieldInstImpl[T <: Tuple: Type, F: Type, Cmp[_, _]: Type](using q: Quotes): Expr[FindField[T, F, Cmp]] = {
     import q.reflect.*
 
     def go[
@@ -55,5 +55,5 @@ object FindField {
     go[[a] =>> a *: EmptyTuple, EmptyTuple, T](0)
   }
 
-  transparent inline given foundFieldInst[T <: Tuple, F, Cmp[_, _]]: FindField[T, F, Cmp] = ${ foundFieldInstImpl[T, F, Cmp] }
+  transparent inline given findFieldInst[T <: Tuple, F, Cmp[_, _]]: FindField[T, F, Cmp] = ${ findFieldInstImpl[T, F, Cmp] }
 }
