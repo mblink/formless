@@ -3,11 +3,12 @@ import formless._
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.12"
-lazy val scala3 = "3.4.0-RC4"
+lazy val scala3 = "3.3.1"
+lazy val scala3_4_RC = "3.4.0-RC4"
 
-ThisBuild / crossScalaVersions := Seq(scala213, scala3)
+ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_4_RC)
 ThisBuild / scalaVersion := scala3
-ThisBuild / version := "0.1.0"
+ThisBuild / version := "0.2.0-SNAPSHOT"
 
 // GitHub Actions config
 val javaVersions = Seq(8, 11, 17).map(v => JavaSpec.temurin(v.toString))
@@ -37,7 +38,7 @@ lazy val mavenRepoUrl = "https://raw.githubusercontent.com/mblink/maven-repo/mai
 
 lazy val baseSettings = Seq(
   scalaVersion := scala3,
-  crossScalaVersions := Seq(scala213, scala3),
+  crossScalaVersions := Seq(scala213, scala3, scala3_4_RC),
   organization := "com.bondlink",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
   mimaPreviousArtifacts := Set(organization.value %%% name.value % "0.1.0"),
@@ -110,7 +111,11 @@ lazy val core = crossProject(JSPlatform, JVMPlatform/*, NativePlatform*/).in(fil
         gen("RenamerTest.scala", SourceGenerator.RenamerTest),
         gen("RemoverTest.scala", SourceGenerator.RemoverTest),
       )
-    }
+    },
+    // Disable publishing for Scala 3.4 RC
+    publish := { if (scalaVersion.value == scala3_4_RC) () else publish.value },
+    publishLocal := { if (scalaVersion.value == scala3_4_RC) () else publishLocal.value },
+    gitRelease := { if (scalaVersion.value == scala3_4_RC) () else gitRelease.value },
   )
 
 lazy val docs = project.in(file("formless-docs"))
