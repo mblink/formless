@@ -12,16 +12,14 @@ object Modifier {
 
   inline def apply[L, U, V](using r: Modifier[L, U, V]): Modifier.Aux[L, U, V, r.Out] = r
 
-  given modifierTuple[L <: Tuple, U, V](
-    using idx: ValueOf[ElemIndex[L, U]],
-  ): Modifier.Aux[L, U, V, (U, ReplaceElem[L, U, V])] =
-    new Modifier[L, U, V] {
-      type Out = (U, ReplaceElem[L, U, V])
-      private lazy val i = idx.value
-      def apply(l: L, f: U => V): Out = {
-        val a = l.toArray
-        val u = a(i).asInstanceOf[U]
-        (u, Tuple.fromArray(a.patch(i, List(f(u).asInstanceOf[Object]), 1))).asInstanceOf[Out]
+  given tupleModifier[T <: Tuple, U, V](using ff: FindField[T, U]): Modifier.Aux[T, U, V, (U, ff.Replaced[V])] =
+    new Modifier[T, U, V] {
+      type Out = (U, ff.Replaced[V])
+      def apply(t: T, f: U => V): Out = {
+        val a = t.toArray
+        val u = a(ff.index).asInstanceOf[U]
+        a.update(ff.index, f(u).asInstanceOf[Object])
+        (u, Tuple.fromArray(a)).asInstanceOf[Out]
       }
     }
 }

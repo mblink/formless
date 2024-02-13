@@ -20,18 +20,17 @@ object SplitRight {
 
   inline def apply[T, U](using s: SplitRight[T, U]): SplitRight.Aux[T, U, s.Prefix, s.Suffix] = s
 
-  given splitRightTuple[L <: Tuple, U](
-    using idxv: ValueOf[ElemIndex[ReverseT[L], U]],
-  ): SplitRight.Aux[L, U, ReverseT[Tuple.Drop[ReverseT[L], ElemIndex[ReverseT[L], U]]], ReverseT[Tuple.Take[ReverseT[L], ElemIndex[ReverseT[L], U]]]] =
+  given tupleSplitRight[L <: Tuple, U](
+    using f: FindField[ReverseT[L], U],
+  ): SplitRight.Aux[L, U, Tuple.Append[ReverseT[f.Tail], U], ReverseT[f.Head]] =
     new SplitRight[L, U] {
-      type Prefix = ReverseT[Tuple.Drop[ReverseT[L], ElemIndex[ReverseT[L], U]]]
-      type Suffix = ReverseT[Tuple.Take[ReverseT[L], ElemIndex[ReverseT[L], U]]]
-      private lazy val n = idxv.value
+      type Prefix = Tuple.Append[ReverseT[f.Tail], U]
+      type Suffix = ReverseT[f.Head]
       def apply(l: L): Out = {
         val a = l.toArray.reverse
         (
-          Tuple.fromArray(a.drop(n).reverse).asInstanceOf[Prefix],
-          Tuple.fromArray(a.take(n).reverse).asInstanceOf[Suffix],
+          Tuple.fromArray(a.drop(f.index + 1).reverse :+ a(f.index)).asInstanceOf[Prefix],
+          Tuple.fromArray(a.take(f.index).reverse).asInstanceOf[Suffix],
         )
       }
     }

@@ -33,7 +33,7 @@ final class FormlessRecordOps[T <: Tuple](private val t: T) extends AnyVal {
    * keyType equal to the singleton type K and valueType equal to V.
    */
   final def replace[K <: Singleton, V](k: K, v: V)(
-    using s: Selector[T, K] { type Out <: V },
+    using s: Selector.Aux[T, K, V],
     u: Updater[T, K ->> V],
   ): u.Out = u(t, label[K](v))
 

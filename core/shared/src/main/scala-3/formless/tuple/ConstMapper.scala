@@ -18,7 +18,7 @@ object ConstMapper {
   private def constMap[C, T <: Tuple](c: C, t: T): ConstMapperT[C, T] =
     t match {
       case _: EmptyTuple => EmptyTuple
-      case x: (_ *: t) => c *: constMap[C, t](c, x.tail)
+      case x: (_ *: t) => c *: constMap[C, t](c, x.tail.asInstanceOf[t])
     }
 
   given constMapperTuple[C, T <: Tuple]: ConstMapper.Aux[C, T, ConstMapperT[C, T]] =

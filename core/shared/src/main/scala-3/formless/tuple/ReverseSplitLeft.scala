@@ -20,13 +20,13 @@ object ReverseSplitLeft {
 
   inline def apply[T, U](using s: ReverseSplitLeft[T, U]): ReverseSplitLeft.Aux[T, U, s.Prefix, s.Suffix] = s
 
-  given reverseSplitLeftTuple[L <: Tuple, U](
-    using idxv: ValueOf[ElemIndex[L, U]],
-  ): ReverseSplitLeft.Aux[L, U, ReverseT[Tuple.Take[L, ElemIndex[L, U]]], Tuple.Drop[L, ElemIndex[L, U]]] =
+  given tupleReverseSplitLeft[L <: Tuple, U](
+    using f: FindField[L, U],
+  ): ReverseSplitLeft.Aux[L, U, ReverseT[f.Head], U *: f.Tail] =
     new ReverseSplitLeft[L, U] {
-      type Prefix = ReverseT[Tuple.Take[L, ElemIndex[L, U]]]
-      type Suffix = Tuple.Drop[L, ElemIndex[L, U]]
-      private lazy val n = idxv.value
-      def apply(l: L): Out = (l.take(n).reverse.asInstanceOf[Prefix], l.drop(n).asInstanceOf[Suffix])
+      type Prefix = ReverseT[f.Head]
+      type Suffix = U *: f.Tail
+      def apply(l: L): Out =
+        (Tuple.fromArray(l.take(f.index).toArray.reverse).asInstanceOf[Prefix], l.drop(f.index).asInstanceOf[Suffix])
     }
 }

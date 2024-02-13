@@ -1,13 +1,6 @@
 package formless
 package tuple
 
-type ReplaceElem[L <: Tuple, U, V] = L match {
-  case h *: t => Invariant[h] match {
-    case Invariant[U] => V *: t
-    case _ => h *: ReplaceElem[t, U, V]
-  }
-}
-
 type ReplaceAtIndex[L <: Tuple, I <: Int, A] = ReplaceAtIndex0[L, I, A, 0]
 
 type ReplaceAtIndex0[L <: Tuple, I <: Int, A, Curr <: Int] <: Tuple = (L, Curr) match {
@@ -26,15 +19,14 @@ object Replacer {
 
   inline def apply[L, U, V](using r: Replacer[L, U, V]): Replacer.Aux[L, U, V, r.Out] = r
 
-  given replacerTuple[L <: Tuple, U, V](
-    using idx: ValueOf[ElemIndex[L, U]],
-  ): Replacer.Aux[L, U, V, (U, ReplaceElem[L, U, V])] =
-    new Replacer[L, U, V] {
-      type Out = (U, ReplaceElem[L, U, V])
-      private lazy val i = idx.value
-      def apply(l: L, v: V): Out = {
-        val a = l.toArray
-        (a(i), Tuple.fromArray(a.patch(i, List(v.asInstanceOf[Object]), 1))).asInstanceOf[Out]
+  given tupleReplacer[T <: Tuple, U, V](using f: FindField[T, U]): Replacer.Aux[T, U, V, (U, f.Replaced[V])] =
+    new Replacer[T, U, V] {
+      type Out = (U, f.Replaced[V])
+      def apply(t: T, v: V): Out = {
+        val a = t.toArray
+        val u = a(f.index)
+        a.update(f.index, v.asInstanceOf[Object])
+        (u, Tuple.fromArray(a)).asInstanceOf[Out]
       }
     }
 }

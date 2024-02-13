@@ -12,16 +12,12 @@ object Modifier {
 
   inline def apply[T <: Tuple, K, A, B](using m: Modifier[T, K, A, B]): Modifier.Aux[T, K, A, B, m.Out] = m
 
-  inline given modifierInst[T <: Tuple, K, A, B](
-    using ev: FieldValue[T, K] <:< A,
-    idx: ValueOf[FieldIndex[T, K]],
-  ): Modifier.Aux[T, K, A, B, ReplaceValue[T, K, B]] =
+  given modifierInst[T <: Tuple, K, A, B](using ff: FindField[T, K ->> A, =:=]): Modifier.Aux[T, K, A, B, ff.Replaced[K ->> B]] =
     new Modifier[T, K, A, B] {
-      type Out = ReplaceValue[T, K, B]
+      type Out = ff.Replaced[K ->> B]
       def apply(t: T, f: A => B): Out = {
         val a = t.toArray
-        val i = idx.value
-        a.update(i, f(a(i).asInstanceOf[A]).asInstanceOf[Object])
+        a.update(ff.index, f(a(ff.index).asInstanceOf[A]).asInstanceOf[Object])
         Tuple.fromArray(a).asInstanceOf[Out]
       }
     }

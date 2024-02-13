@@ -320,7 +320,7 @@ final class FormlessTupleOps[L <: Tuple](private val l: L) extends AnyVal {
   /**
    * Reverses this `Tuple`.
    */
-  final def reverse(using r: Reverse[L]): r.Out = r(l)
+  final def reverse_(using r: Reverse[L]): r.Out = r(l)
 
   /**
    * Maps a higher rank function across this `Tuple`.

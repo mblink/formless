@@ -2,7 +2,7 @@ package formless.tuple
 
 type ReverseT[T <: Tuple] <: Tuple = T match {
   case EmptyTuple => EmptyTuple
-  case h *: t => AppendT[ReverseT[t], h]
+  case h *: t => Tuple.Append[ReverseT[t], h]
 }
 
 /**

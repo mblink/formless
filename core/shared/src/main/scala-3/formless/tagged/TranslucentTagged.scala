@@ -2,7 +2,7 @@ package formless.tagged
 
 private[formless] trait TranslucentPackageAux
 
-type TranslucentTagged[+A, T] = A with TranslucentTag[A, T]
+type TranslucentTagged[+A, T] = A & TranslucentTag[A, T]
 type TranslucentTag[+A, T]
 
 inline def translucentTag[T]: TranslucentTagged.Of[T] = TranslucentTagged[T]

@@ -5,12 +5,13 @@ import scala.util.NotGiven
 /**
  * Type class to witness that a record of type `T` does not contain a key of type `K`.
  */
-opaque type LacksKey[T <: Tuple, K] = NotGiven[Selector[T, K]]
+trait LacksKey[L <: Tuple, K]
 
 object LacksKey {
-  inline def apply[T <: Tuple, K]: LacksKey[T, K] =
-    compiletime.summonInline[NotGiven[Selector[T, K]]]
+  inline def apply[T <: Tuple, K](using l: LacksKey[T, K]): LacksKey[T, K] = l
 
-  inline given inst[T <: Tuple, K]: LacksKey[T, K] =
-    apply[T, K]
+  private val singleton = new LacksKey[Tuple, Any] {}
+
+  given lacksKeyInst[T <: Tuple, K](using nf: NotGiven[FindField[T, K ->> Any, <:<]]): LacksKey[T, K] =
+    singleton.asInstanceOf[LacksKey[T, K]]
 }

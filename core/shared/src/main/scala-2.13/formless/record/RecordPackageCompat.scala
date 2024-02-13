@@ -12,15 +12,15 @@ final class FormlessLabelledOps[K, V](private val kv: K ->> V) extends AnyVal {
   @inline final def label(implicit k: ValueOf[K]): K = k.value
 }
 
+final class FormlessLabelPartialAp[K](private val dummy: Boolean = false) extends AnyVal {
+  @inline final def apply[V](v: V): K ->> V = shapeless.labelled.field[K].apply[V](v)
+}
+
 private[formless] trait RecordPackageCompat {
   final type ->>[K, +V] = tagged.TranslucentTagged[V, K]
 
-  final class LabelPartialAp[K] {
-    @inline final def apply[V](v: V): K ->> V = shapeless.labelled.field[K].apply[V](v)
-  }
-
-  @inline final def field[K]: LabelPartialAp[K] = new LabelPartialAp[K]
-  @inline final def label[K]: LabelPartialAp[K] = new LabelPartialAp[K]
+  final def field[K]: FormlessLabelPartialAp[K] = new FormlessLabelPartialAp[K]
+  final def label[K]: FormlessLabelPartialAp[K] = new FormlessLabelPartialAp[K]
 
   @inline final implicit def toFormlessSingletonOps[K <: Singleton](k: K): FormlessSingletonOps[K] = new FormlessSingletonOps[K](k)
   @inline final implicit def toFormlessLabelledOps[K, V](kv: K ->> V): FormlessLabelledOps[K, V] = new FormlessLabelledOps[K, V](kv)

@@ -75,10 +75,10 @@ class TupleTests extends FunSuite {
   val mimsmimimd: MIMSMIMIMD = mi *: ms *: mi *: mi *: md *: EmptyTuple
 
   import language.existentials
-  val mExist: M[_] = new M[Double] {}
-  type MIMSMIMEMD = M[Int] *: M[String] *: M[Int] *: M[_] *: M[Double] *: EmptyTuple
+  val mExist: M[?] = new M[Double] {}
+  type MIMSMIMEMD = M[Int] *: M[String] *: M[Int] *: M[?] *: M[Double] *: EmptyTuple
   val mimsmimemdList = List(mi, ms, mi, mExist, md)
-  val mimsmimemdArray = Array[M[_]](mi, ms, mi, mExist, md)
+  val mimsmimemdArray = Array[M[?]](mi, ms, mi, mExist, md)
   val mimsmimemd: MIMSMIMEMD = mi *: ms *: mi *: mExist *: md *: EmptyTuple
 
   trait M2[A,B]
@@ -91,10 +91,10 @@ class TupleTests extends FunSuite {
   val m2im2sm2im2im2dArray = Array(m2i, m2s, m2i, m2i, m2d)
   val m2im2sm2im2im2d: M2IM2SM2IM2IM2D = m2i *: m2s *: m2i *: m2i *: m2d *: EmptyTuple
 
-  val m2iExist: M2[Int, _] = new M2[Int, Unit] {}
-  val m2sExist: M2[String, _] = new M2[String, Unit] {}
-  val m2dExist: M2[Double, _] = new M2[Double, Unit] {}
-  type M2EIM2ESM2EIM2EEM2ED = M2[Int, _] *: M2[String, _] *: M2[Int, _] *: M2[Int, _] *: M2[Double, _] *: EmptyTuple
+  val m2iExist: M2[Int, ?] = new M2[Int, Unit] {}
+  val m2sExist: M2[String, ?] = new M2[String, Unit] {}
+  val m2dExist: M2[Double, ?] = new M2[Double, Unit] {}
+  type M2EIM2ESM2EIM2EEM2ED = M2[Int, ?] *: M2[String, ?] *: M2[Int, ?] *: M2[Int, ?] *: M2[Double, ?] *: EmptyTuple
   val m2eim2esm2eim2eem2edList = List(m2iExist, m2sExist, m2iExist, m2iExist, m2dExist)
   val m2eim2esm2eim2eem2edArray = Array(m2iExist, m2sExist, m2iExist, m2iExist, m2dExist)
   val m2eim2esm2eim2eem2ed: M2EIM2ESM2EIM2EEM2ED = m2iExist *: m2sExist *: m2iExist *: m2iExist *: m2dExist *: EmptyTuple
@@ -133,24 +133,24 @@ class TupleTests extends FunSuite {
     summon[Mapper.Aux[choose.type, Set[Int] *: EmptyTuple, Option[Int] *: EmptyTuple]]
 
     val s1 = Set(1) *: EmptyTuple
-    val o1 = s1 mapPoly choose
+    val o1 = s1.mapPoly(choose)
     assertTypedEquals[OI](Option(1) *: EmptyTuple, o1)
 
     val s2 = Set(1) *: Set("foo") *: EmptyTuple
-    val o2 = s2 mapPoly choose
+    val o2 = s2.mapPoly(choose)
     assertTypedEquals[OIOS](Option(1) *: Option("foo") *: EmptyTuple, o2)
 
     val l1 = 1 *: "foo" *: 2 *: 3 *: EmptyTuple
 
-    val l2 = l1 mapPoly singleton
+    val l2 = l1.mapPoly(singleton)
     assertTypedEquals[SISSSISI](Set(1) *: Set("foo") *: Set(2) *: Set(3) *: EmptyTuple, l2)
 
-    val l3 = l1 mapPoly option
+    val l3 = l1.mapPoly(option)
     assertTypedEquals[OIOSOIOI](Option(1) *: Option("foo") *: Option(2) *: Option(3) *: EmptyTuple, l3)
 
     val l4 = Option(1) *: Option("foo") *: Option(2) *: Option(3) *: EmptyTuple
 
-    val l5 = l4 mapPoly get
+    val l5 = l4.mapPoly(get)
     assertTypedEquals[ISII](1 *: "foo" *: 2 *: 3 *: EmptyTuple, l5)
 
     typed[Int](l5.head)
@@ -158,20 +158,20 @@ class TupleTests extends FunSuite {
     typed[Int](l5.tail.tail.head)
     typed[Int](l5.tail.tail.tail.head)
 
-    val l6 = l1 mapPoly id
+    val l6 = l1.mapPoly(id)
     assertTypedEquals[ISII](1 *: "foo" *: 2 *: 3 *: EmptyTuple, l6)
 
-    val l7 = l4 mapPoly isDefined
+    val l7 = l4.mapPoly(isDefined)
     assertTypedEquals[BBBB](true *: true *: true *: true *: EmptyTuple, l7)
 
     val l8 = 23 *: "foo" *: true *: EmptyTuple
-    val l9 = l8 mapPoly mkString
+    val l9 = l8.mapPoly(mkString)
     assertTypedEquals[String *: String *: String *: EmptyTuple]("23" *: "foo" *: "true" *: EmptyTuple, l9)
 
-    val l10 = apbp mapPoly fruit
+    val l10 = apbp.mapPoly(fruit)
     assertTypedEquals[Fruit *: Fruit *: Fruit *: Fruit *: EmptyTuple](apbp, l10)
 
-    val l11 = apbp mapPoly mkString
+    val l11 = apbp.mapPoly(mkString)
     assertTypedEquals[String *: String *: String *: String *: EmptyTuple]("Apple()" *: "Pear()" *: "Banana()" *: "Pear()" *: EmptyTuple, l11)
   }
 
@@ -202,18 +202,18 @@ class TupleTests extends FunSuite {
   test("FlatMap") {
     val l1 = 1 *: "foo" *: true *: EmptyTuple
 
-    val l2 = l1 flatMap dup
+    val l2 = l1.flatMap(dup)
     assertTypedEquals[Int *: Int *: String *: String *: Boolean *: Boolean *: EmptyTuple](
       1 *: 1 *: "foo" *: "foo" *: true *: true *: EmptyTuple, l2)
 
     val l3 = (1 *: "foo" *: EmptyTuple) *: (EmptyTuple: EmptyTuple) *: (2.0 *: true *: EmptyTuple) *: ("bar" *: EmptyTuple) *: EmptyTuple
 
-    val l4 = l3 flatMap id
+    val l4 = l3.flatMap(id)
     assertTypedEquals[Int *: String *: Double *: Boolean *: String *: EmptyTuple](
       1 *: "foo" *: 2.0 *: true *: "bar" *: EmptyTuple, l4)
 
     val l5 = 23 *: "foo" *: 7 *: true *: 0 *: EmptyTuple
-    val l6 = l5 flatMap incInt
+    val l6 = l5.flatMap(incInt)
     assertTypedEquals[Int *: Int *: Int *: EmptyTuple](24 *: 8 *: 1 *: EmptyTuple, l6)
   }
 
@@ -359,11 +359,11 @@ class TupleTests extends FunSuite {
   }
 
   test("Reverse") {
-    val pbpa = apbp.reverse
+    val pbpa = apbp.reverse_
     assertTypedEquals[PBPA](p *: b *: p *: a *: EmptyTuple, pbpa)
 
     val al = a *: EmptyTuple
-    val ral = al.reverse
+    val ral = al.reverse_
     assertTypedEquals[Apple *: EmptyTuple](a *: EmptyTuple, ral)
   }
 
@@ -417,7 +417,7 @@ class TupleTests extends FunSuite {
       val r4 = reversePrependWithEmptyTuple(ap)
       assertTypedEquals[AP](ap, r4)
       val r5 = reversePrependToEmptyTuple(ap)
-      assertTypedEquals[Pear *: Apple *: EmptyTuple](ap.reverse, r5)
+      assertTypedEquals[Pear *: Apple *: EmptyTuple](ap.reverse_, r5)
       val r6 = EmptyTuple reverse_::: EmptyTuple
       assertTypedEquals[EmptyTuple](EmptyTuple, r6)
     }
@@ -539,7 +539,7 @@ class TupleTests extends FunSuite {
 
     val invar1 = Set(23) *: Set("foo") *: EmptyTuple
     val uinvar1 = invar1.unify
-    typed[Set[_ >: Int with String] *: Set[_ >: Int with String] *: EmptyTuple](uinvar1)
+    typed[Set[? >: Int & String] *: Set[? >: Int & String] *: EmptyTuple](uinvar1)
 
     // Unifying three or more elements which have an invariant outer type constructor and differing type
     // arguments fails, presumably due to a failure to compute a sensible LUB.
@@ -568,7 +568,7 @@ class TupleTests extends FunSuite {
 
     {
       summon[ToTraversable.Aux[M[Int] *: EmptyTuple, List, M[Int]]]
-      summon[ToTraversable.Aux[M[Int] *: EmptyTuple, List, M[_]]]
+      summon[ToTraversable.Aux[M[Int] *: EmptyTuple, List, M[?]]]
     }
 
     val r2 = apap.to[List]
@@ -581,7 +581,7 @@ class TupleTests extends FunSuite {
     assertTypedEquals[List[Any]](List(1, "foo", 2, 3), stuff)
 
     val l4 = Option(1) *: Option("foo") *: Option(2) *: Option(3) *: EmptyTuple
-    val l7 = l4 mapPoly isDefined
+    val l7 = l4.mapPoly(isDefined)
     assertTypedEquals[BBBB](true *: true *: true *: true *: EmptyTuple, l7)
 
     val ll2 = l7.to[List]
@@ -595,23 +595,23 @@ class TupleTests extends FunSuite {
 
     val ctv = cicscicicd.to[List]
     equalInferredTypes(cicscicicdList, ctv)
-    assertTypedEquals[List[Ctv[Int with String with Double]]](cicscicicdList, ctv)
+    assertTypedEquals[List[Ctv[Int & String & Double]]](cicscicicdList, ctv)
 
     val m = mimsmimimd.to[List]
     equalInferredTypes(mimsmimimdList, m)
-    assertTypedEquals[List[M[_ >: Int with String with Double]]](mimsmimimdList, m)
+    assertTypedEquals[List[M[? >: Int & String & Double]]](mimsmimimdList, m)
 
     val mWithEx = mimsmimemd.to[List]
     //  equalType(mimsmimemdList, mWithEx)
-    assertTypedEquals[List[M[_]]](mimsmimemdList, mWithEx)
+    assertTypedEquals[List[M[?]]](mimsmimemdList, mWithEx)
 
     val m2 = m2im2sm2im2im2d.to[List]
     equalInferredTypes(m2im2sm2im2im2dList, m2)
-    assertTypedEquals[List[M2[_ >: Int with String with Double, Unit]]](m2im2sm2im2im2dList, m2)
+    assertTypedEquals[List[M2[? >: Int & String & Double, Unit]]](m2im2sm2im2im2dList, m2)
 
     val m2e = m2eim2esm2eim2eem2ed.to[List]
     // equalType(m2eim2esm2eim2eem2edList, m2e)
-    assertTypedEquals[List[M2[_ >: Int with String with Double, _]]](m2eim2esm2eim2eem2edList, m2e)
+    assertTypedEquals[List[M2[? >: Int & String & Double, ?]]](m2eim2esm2eim2eem2edList, m2e)
   }
 
   test("ToList") {
@@ -623,10 +623,10 @@ class TupleTests extends FunSuite {
 
     {
       val l1 = (mi *: EmptyTuple).toListLub[M[Int]]
-      val l2 = (mi *: EmptyTuple).toListLub[M[_]]
+      val l2 = (mi *: EmptyTuple).toListLub[M[?]]
 
       assertTypedEquals[List[M[Int]]](List(mi), l1)
-      assertTypedEquals[List[M[_]]](List(mi), l2)
+      assertTypedEquals[List[M[?]]](List(mi), l2)
     }
 
     val fruits1 = apap.toListLub
@@ -641,7 +641,7 @@ class TupleTests extends FunSuite {
     assertTypedEquals[List[Any]](List(1, "foo", 2, 3), stuff)
 
     val l4 = Option(1) *: Option("foo") *: Option(2) *: Option(3) *: EmptyTuple
-    val l7 = l4 mapPoly isDefined
+    val l7 = l4.mapPoly(isDefined)
     assertTypedEquals[BBBB](true *: true *: true *: true *: EmptyTuple, l7)
 
     val ll2 = l7.toListLub
@@ -655,30 +655,30 @@ class TupleTests extends FunSuite {
 
     val ctv = cicscicicd.toListLub
     equalInferredTypes(cicscicicdList, ctv)
-    assertTypedEquals[List[Ctv[Int with String with Double]]](cicscicicdList, ctv)
+    assertTypedEquals[List[Ctv[Int & String & Double]]](cicscicicdList, ctv)
 
     val m = mimsmimimd.toListLub
     equalInferredTypes(mimsmimimdList, m)
-    assertTypedEquals[List[M[_ >: Int with String with Double]]](mimsmimimdList, m)
+    assertTypedEquals[List[M[? >: Int & String & Double]]](mimsmimimdList, m)
 
     // With existentials, it gets more tricky
     val mWithEx = mimsmimemd.toListLub
     // Compiler fails complaining that it
-    //    Cannot prove that List[TupleTests.this.M[_ >: Double with _$1 with Int with String]] =:= List[TupleTests.this.M[_]]
+    //    Cannot prove that List[TupleTests.this.M[? >: Double & _$1 & Int & String]] =:= List[TupleTests.this.M[?]]
     //  equalType(mimsmimemdList, mWithEx)
-    assertTypedEquals[List[M[_]]](mimsmimemdList, mWithEx)
+    assertTypedEquals[List[M[?]]](mimsmimemdList, mWithEx)
 
     // Second order higher kinded types are ok...
     val m2 = m2im2sm2im2im2d.toListLub
     equalInferredTypes(m2im2sm2im2im2dList, m2)
-    assertTypedEquals[List[M2[_ >: Int with String with Double, Unit]]](m2im2sm2im2im2dList, m2)
+    assertTypedEquals[List[M2[? >: Int & String & Double, Unit]]](m2im2sm2im2im2dList, m2)
 
     // ...as long as existentials are not involved.
     val m2e = m2eim2esm2eim2eem2ed.toListLub
     // Compiler complains that it
-    //    Cannot prove that List[TupleTests.this.M2[_ >: Double with Int with Int with String with Int, _ >: _$5 with _$3 with _$3 with _$4 with _$3]] =:= List[TupleTests.this.M2[35,36] forSome { type _$10; type _$9; type 34 >: _$10 with _$9; type _$8; type _$7; type 32 >: _$8 with _$7; type 35 >: Double with Int with Int with String; type 36 >: _34 with 32 }]
+    //    Cannot prove that List[TupleTests.this.M2[? >: Double & Int & Int & String & Int, ? >: _$5 & _$3 & _$3 & _$4 & _$3]] =:= List[TupleTests.this.M2[35,36] forSome { type _$10; type _$9; type 34 >: _$10 & _$9; type _$8; type _$7; type 32 >: _$8 & _$7; type 35 >: Double & Int & Int & String; type 36 >: _34 & 32 }]
     // equalType(m2eim2esm2eim2eem2edList, m2e)
-    assertTypedEquals[List[M2[_ >: Int with String with Double, _]]](m2eim2esm2eim2eem2edList, m2e)
+    assertTypedEquals[List[M2[? >: Int & String & Double, ?]]](m2eim2esm2eim2eem2edList, m2e)
   }
 
   test("ToTraversableArray") {
@@ -694,7 +694,7 @@ class TupleTests extends FunSuite {
 
     {
       summon[ToTraversable.Aux[M[Int] *: EmptyTuple, Array, M[Int]]]
-      summon[ToTraversable.Aux[M[Int] *: EmptyTuple, Array, M[_]]]
+      summon[ToTraversable.Aux[M[Int] *: EmptyTuple, Array, M[?]]]
     }
 
     val fruits1 = apap.to[Array]
@@ -712,7 +712,7 @@ class TupleTests extends FunSuite {
     assertArrayEquals2(Array(1, "foo", 2, 3), stuff)
 
     val l4 = Option(1) *: Option("foo") *: Option(2) *: Option(3) *: EmptyTuple
-    val l7 = l4 mapPoly isDefined
+    val l7 = l4.mapPoly(isDefined)
     assertTypedEquals[BBBB](true *: true *: true *: true *: EmptyTuple, l7)
 
     val ll2: Array[Boolean] = l7.to[Array]
@@ -727,27 +727,27 @@ class TupleTests extends FunSuite {
 
     val ctv = cicscicicd.to[Array]
     equalInferredTypes(cicscicicdArray, ctv)
-    typed[Array[Ctv[Int with String with Double]]](ctv)
+    typed[Array[Ctv[Int & String & Double]]](ctv)
     assertArrayEquals2(cicscicicdArray, ctv)
 
     val m = mimsmimimd.to[Array]
     equalInferredTypes(mimsmimimdArray, m)
-    typed[Array[M[_ >: String & Int & Double <: String | Int | Double]]](m)
+    typed[Array[M[? >: String & Int & Double <: String | Int | Double]]](m)
     assertArrayEquals2(mimsmimimdArray, m)
 
     val mWithEx = mimsmimemd.to[Array]
     //  equalType(mimsmimemdArray, mWithEx)
-    typed[Array[M[_]]](mWithEx)
+    typed[Array[M[?]]](mWithEx)
     assertArrayEquals2(mimsmimemdArray, mWithEx)
 
     val m2 = m2im2sm2im2im2d.to[Array]
     equalInferredTypes(m2im2sm2im2im2dArray, m2)
-    typed[Array[M2[_ >: String & Int & Double <: String | Int | Double, Unit]]](m2)
+    typed[Array[M2[? >: String & Int & Double <: String | Int | Double, Unit]]](m2)
     assertArrayEquals2(m2im2sm2im2im2dArray, m2)
 
     val m2e = m2eim2esm2eim2eem2ed.to[Array]
     equalInferredTypes(m2eim2esm2eim2eem2edArray, m2e)
-    typed[Array[M2[_ >: String & Int & Double <: String | Int | Double, _]]](m2e)
+    typed[Array[M2[? >: String & Int & Double <: String | Int | Double, ?]]](m2e)
     assertArrayEquals2(m2eim2esm2eim2eem2edArray, m2e)
   }
 
@@ -764,12 +764,12 @@ class TupleTests extends FunSuite {
 
     {
       val a1 = (mi *: EmptyTuple).toArrayLub[M[Int]]
-      val a2 = (mi *: EmptyTuple).toArrayLub[M[_]]
+      val a2 = (mi *: EmptyTuple).toArrayLub[M[?]]
 
       typed[Array[M[Int]]](a1)
-      typed[Array[M[_]]](a2)
+      typed[Array[M[?]]](a2)
       assertArrayEquals2(Array[M[Int]](mi), a1)
-      assertArrayEquals2(Array[M[_]](mi), a2)
+      assertArrayEquals2(Array[M[?]](mi), a2)
     }
 
     val fruits1 = apap.toArrayLub[Fruit]
@@ -792,7 +792,7 @@ class TupleTests extends FunSuite {
     assertArrayEquals2(Array("foo", "bar", 1L), ssla)
 
     val l4 = Option(1) *: Option("foo") *: Option(2) *: Option(3) *: EmptyTuple
-    val l7 = l4 mapPoly isDefined
+    val l7 = l4.mapPoly(isDefined)
     assertTypedEquals[BBBB](true *: true *: true *: true *: EmptyTuple, l7)
 
     val ll2 = l7.toArrayLub[Boolean]
@@ -812,22 +812,22 @@ class TupleTests extends FunSuite {
 
     val m = mimsmimimd.toArrayLub
     equalInferredTypes(mimsmimimdArray, m)
-    typed[Array[M[_ >: String & Int & Double <: String | Int | Double]]](m)
+    typed[Array[M[? >: String & Int & Double <: String | Int | Double]]](m)
     assertArrayEquals2(mimsmimimdArray, m)
 
-    val mWithEx = mimsmimemd.toArrayLub[M[_]]
+    val mWithEx = mimsmimemd.toArrayLub[M[?]]
     //  equalType(mimsmimemdArray, mWithEx)
-    typed[Array[M[_]]](mWithEx)
+    typed[Array[M[?]]](mWithEx)
     assertArrayEquals2(mimsmimemdArray, mWithEx)
 
     val m2 = m2im2sm2im2im2d.toArrayLub
     equalInferredTypes(m2im2sm2im2im2dArray, m2)
-    typed[Array[M2[_ >: String & Int & Double <: String | Int | Double, Unit]]](m2)
+    typed[Array[M2[? >: String & Int & Double <: String | Int | Double, Unit]]](m2)
     assertArrayEquals2(m2im2sm2im2im2dArray, m2)
 
     val m2e = m2eim2esm2eim2eem2ed.toArrayLub
     equalInferredTypes(m2eim2esm2eim2eem2edArray, m2e)
-    typed[Array[M2[_ >: String & Int & Double <: String | Int | Double, _]]](m2e)
+    typed[Array[M2[? >: String & Int & Double <: String | Int | Double, ?]]](m2e)
     assertArrayEquals2(m2eim2esm2eim2eem2edArray, m2e)
   }
 
@@ -838,9 +838,9 @@ class TupleTests extends FunSuite {
     val tl1 = Option(1) *: Option("foo") *: Option(2) *: Option(3) *: EmptyTuple
     val tl2 = Option(1) *: Option("foo") *: (None: Option[Int]) *: Option(3) *: EmptyTuple
 
-    val mlfl1 = (tl1 mapPoly isDefined).toListLub.foldLeft(true)(_ && _)
+    val mlfl1 = (tl1.mapPoly(isDefined)).toListLub.foldLeft(true)(_ && _)
     assert(mlfl1)
-    val mlfl2 = (tl2 mapPoly isDefined).toListLub.foldLeft(true)(_ && _)
+    val mlfl2 = (tl2.mapPoly(isDefined)).toListLub.foldLeft(true)(_ && _)
     assert(!mlfl2)
 
     val fl1 = tl1.foldMap(true)(isDefined)(_ && _)
@@ -1459,7 +1459,7 @@ class TupleTests extends FunSuite {
 
     val nil: EmptyTuple = EmptyTuple
 
-    val r9 = nil zipOne nil
+    val r9 = nil.zipOne(nil)
     assertTypedEquals[EmptyTuple](EmptyTuple, r9)
 
     val r10 = nil.transpose
@@ -1468,7 +1468,7 @@ class TupleTests extends FunSuite {
     val r11 = (EmptyTuple *: EmptyTuple *: EmptyTuple: EmptyTuple *: EmptyTuple *: EmptyTuple).transpose
     assertTypedEquals[EmptyTuple](EmptyTuple, r11)
 
-    val r12 = (1 *: EmptyTuple) zipOne ((2 *: EmptyTuple) *: EmptyTuple)
+    val r12 = (1 *: EmptyTuple).zipOne((2 *: EmptyTuple) *: EmptyTuple)
     assertTypedEquals[(Int *: Int *: EmptyTuple) *: EmptyTuple]((1 *: 2 *: EmptyTuple) *: EmptyTuple, r12)
   }
 
@@ -1502,7 +1502,7 @@ class TupleTests extends FunSuite {
     assertTypedEquals[(Int *: String *: Double *: EmptyTuple, Int *: String *: Double *: EmptyTuple)](
       (1 *: "a" *: 1.0 *: EmptyTuple, 2 *: "b" *: 2.0 *: EmptyTuple), r1)
 
-    val r2 = l1 zip l2
+    val r2 = l1.zip(l2)
     assertTypedEquals[(Int, Int) *: (String, String) *: (Double, Double) *: EmptyTuple](
       (1, 2) *: ("a", "b") *: (1.0, 2.0) *: EmptyTuple, r2)
 
@@ -1512,7 +1512,7 @@ class TupleTests extends FunSuite {
 
     val l3 = intInc *: stringInc *: doubleInc *: EmptyTuple
 
-    val z5 = l3 zipApply l1
+    val z5 = l3.zipApply(l1)
     assertTypedEquals[Int *: String *: Int *: EmptyTuple](2 *: "a*" *: 2 *: EmptyTuple, z5)
   }
 
@@ -2580,30 +2580,30 @@ class TupleTests extends FunSuite {
     ) = mapper(range())
 
     // group EmptyTuple
-    assertEquals(EmptyTuple: EmptyTuple, (EmptyTuple: EmptyTuple) group(2, 1))
+    assertEquals(EmptyTuple: EmptyTuple, (EmptyTuple: EmptyTuple).group(2, 1))
     // group a Tuple of 4 items into 2 (4/2) tuples of 2 items
     assertEquals(
       (0, 1) *: (2, 3) *: EmptyTuple,
-      range(0, 4) group(2, 2)
+      range(0, 4).group(2, 2)
     )
 
     // group a Tuple of 5 items into 2 (5/2) tuples of 2 items
     // the last item does not make a complete partition and is dropped.
     assertEquals(
       (0, 1) *: (2, 3) *: EmptyTuple,
-      range(0, 5) group(2, 2)
+      range(0, 5).group(2, 2)
     )
 
     // uses the step to select the starting point for each partition
     assertEquals(
       (0, 1) *: (4, 5) *: EmptyTuple,
-      range(0, 6) group(2, 4)
+      range(0, 6).group(2, 4)
     )
 
     // if the step is smaller than the partition size, items will be reused
     assertEquals(
       (0, 1) *: (1, 2) *: (2, 3) *: EmptyTuple,
-      range(0, 4) group(2, 1)
+      range(0, 4).group(2, 1)
     )
   }
 

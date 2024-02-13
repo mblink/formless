@@ -1,10 +1,10 @@
 package formless.tuple
 
-import compiletime.ops.int.{+, >=}
+import compiletime.ops.int.{>=, S}
 
 type RangeT[N <: Int, M <: Int] <: Tuple = N match {
   case M => EmptyTuple
-  case _ => N *: RangeT[N + 1, M]
+  case _ => N *: RangeT[S[N], M]
 }
 
 /**
@@ -22,6 +22,6 @@ object Range {
   ): Range.Aux[N, M, RangeT[N, M]] =
     new Range[N, M] {
       type Out = RangeT[N, M]
-      def apply(): Out = compiletime.constValueTuple[Out]
+      def apply(): Out = compiletime.constValueTuple[RangeT[N, M]]
     }
 }
