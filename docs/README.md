@@ -150,7 +150,7 @@ x.splitRight[String]
 x.align[Boolean *: Int *: String *: EmptyTuple]
 
 // Reverse the `Tuple`
-x.reverse
+x.reverse_
 
 // Map a polymorphic function (a `Poly`) over the `Tuple`
 object mapFn extends Poly1 {

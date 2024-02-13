@@ -13,7 +13,7 @@ Add the following to your `build.sbt`:
 
 ```scala
 resolvers += "bondlink-maven-repo" at "https://raw.githubusercontent.com/mblink/maven-repo/main"
-libraryDependencies += "com.bondlink" %%"formless" % "0.1.0"
+libraryDependencies += "com.bondlink" %%"formless" % "0.2.0"
 ```
 
 If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the following:
@@ -25,7 +25,7 @@ def repositoriesTask = T.task {
   super.repositoriesTask() ++ Seq(MavenRepository("https://raw.githubusercontent.com/mblink/maven-repo/main"))
 }
 
-def ivyDeps = Agg(ivy"com.bondlink::formless:0.1.0")
+def ivyDeps = Agg(ivy"com.bondlink::formless:0.2.0")
 ```
 
 ## Usage
@@ -233,7 +233,7 @@ x.align[Boolean *: Int *: String *: EmptyTuple]
 // res33: *:[Boolean, *:[Int, *:[String, EmptyTuple]]] = (true, 1, "foo")
 
 // Reverse the `Tuple`
-x.reverse
+x.reverse_
 // res34: *:[Boolean, *:[String, *:[Int, EmptyTuple]]] = (true, "foo", 1)
 
 // Map a polymorphic function (a `Poly`) over the `Tuple`
@@ -348,9 +348,9 @@ val fns =
   ((b: Boolean) => if (b) "yes" else "no") *:
   EmptyTuple
 // fns: *:[Function1[Int, Boolean], *:[Function1[String, Int], *:[Function1[Boolean, String], EmptyTuple]]] = (
-//   repl.MdocSession$MdocApp$$Lambda$28403/0x00000070033b22c8@7061001a,
-//   repl.MdocSession$MdocApp$$Lambda$28402/0x00000070033b1ef8@39152272,
-//   repl.MdocSession$MdocApp$$Lambda$28401/0x00000070033b1b28@5b19ebbf
+//   repl.MdocSession$MdocApp$$Lambda$16448/0x00000006032787a0@260cfbde,
+//   repl.MdocSession$MdocApp$$Lambda$16447/0x00000006032783d0@a338ff3,
+//   repl.MdocSession$MdocApp$$Lambda$16446/0x0000000603278000@6d2211b0
 // )
 
 fns.zipApply(x)

@@ -8,7 +8,7 @@ lazy val scala3_4_RC = "3.4.0-RC4"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_4_RC)
 ThisBuild / scalaVersion := scala3
-ThisBuild / version := "0.2.0-SNAPSHOT"
+ThisBuild / version := "0.2.0"
 
 // GitHub Actions config
 val javaVersions = Seq(8, 11, 17).map(v => JavaSpec.temurin(v.toString))
