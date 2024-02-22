@@ -4,9 +4,9 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.12"
 lazy val scala3 = "3.3.1"
-lazy val scala3_4_RC = "3.4.0-RC4"
+lazy val scala3_4 = "3.4.0"
 
-ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_4_RC)
+ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_4)
 ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.2.0"
 
@@ -38,7 +38,7 @@ lazy val mavenRepoUrl = "https://raw.githubusercontent.com/mblink/maven-repo/mai
 
 lazy val baseSettings = Seq(
   scalaVersion := scala3,
-  crossScalaVersions := Seq(scala213, scala3, scala3_4_RC),
+  crossScalaVersions := Seq(scala213, scala3, scala3_4),
   organization := "com.bondlink",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
   mimaPreviousArtifacts := Set(),
@@ -113,14 +113,14 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("c
       )
     },
     // Disable publishing for Scala 3.4 RC
-    publish := { if (scalaVersion.value == scala3_4_RC) () else publish.value },
-    publishLocal := { if (scalaVersion.value == scala3_4_RC) () else publishLocal.value },
-    gitRelease := { if (scalaVersion.value == scala3_4_RC) () else gitRelease.value },
+    publish := { if (scalaVersion.value == scala3_4) () else publish.value },
+    publishLocal := { if (scalaVersion.value == scala3_4) () else publishLocal.value },
+    gitRelease := { if (scalaVersion.value == scala3_4) () else gitRelease.value },
   )
   // Disable scala native on Scala 3.4 RC until fix is released: https://github.com/lampepfl/dotty/issues/19648
   .nativeSettings(
-    Compile / sources := { if (scalaVersion.value == scala3_4_RC) Seq() else (Compile / sources).value },
-    Test / sources := { if (scalaVersion.value == scala3_4_RC) Seq() else (Test / sources).value },
+    Compile / sources := { if (scalaVersion.value == scala3_4) Seq() else (Compile / sources).value },
+    Test / sources := { if (scalaVersion.value == scala3_4) Seq() else (Test / sources).value },
   )
 
 lazy val docs = project.in(file("formless-docs"))
