@@ -11,7 +11,7 @@ ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.2.0"
 
 // GitHub Actions config
-val javaVersions = Seq(8, 11, 17).map(v => JavaSpec.temurin(v.toString))
+val javaVersions = Seq(8, 11, 17, 21).map(v => JavaSpec.temurin(v.toString))
 
 ThisBuild / githubWorkflowJavaVersions := javaVersions
 ThisBuild / githubWorkflowArtifactUpload := false
