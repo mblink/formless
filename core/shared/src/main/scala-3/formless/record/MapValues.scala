@@ -1,6 +1,6 @@
 package formless.record
 
-import formless.tuple.{Case1, DepFn1}
+import formless.hlist.{::, Case1, DepFn1, HList, HNil}
 
 /**
  * Type class supporting mapping a higher rank function over the values of a record.
@@ -12,18 +12,18 @@ object MapValues {
 
   inline def apply[F, L](using m: MapValues[F, L]): MapValues.Aux[F, L, m.Out] = m
 
-  given emptyTupleMapValues[F, L <: EmptyTuple]: MapValues.Aux[F, L, EmptyTuple] =
+  given mapValuesHNil[F, L <: HNil]: MapValues.Aux[F, L, HNil] =
     new MapValues[F, L] {
-      type Out = EmptyTuple
-      def apply(l: L) = EmptyTuple
+      type Out = HNil
+      def apply(l: L) = HNil
     }
 
-  given tupleNMapValues[F, K, V, T <: Tuple](
+  given mapValuesHCons[F, K, V, T <: HList](
     using ch: Case1[F, V],
-    mt: MapValues[F, T] { type Out <: Tuple },
-  ): MapValues.Aux[F, (K ->> V) *: T, (K ->> ch.Result) *: mt.Out] =
-    new MapValues[F, (K ->> V) *: T] {
-      type Out = (K ->> ch.Result) *: mt.Out
-      def apply(l: (K ->> V) *: T) = label[K](ch(l.head: V)) *: mt(l.tail)
+    mt: MapValues[F, T] { type Out <: HList },
+  ): MapValues.Aux[F, (K ->> V) :: T, (K ->> ch.Result) :: mt.Out] =
+    new MapValues[F, (K ->> V) :: T] {
+      type Out = (K ->> ch.Result) :: mt.Out
+      def apply(l: (K ->> V) :: T) = label[K](ch(l.head: V)) :: mt(l.tail)
     }
 }

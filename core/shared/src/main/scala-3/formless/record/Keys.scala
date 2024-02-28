@@ -1,26 +1,26 @@
 package formless.record
 
-import formless.tuple.DepFn0
+import formless.hlist.{::, DepFn0, HList, HNil}
 
 /**
- * Type class supporting collecting the keys of a record as a `Tuple`.
+ * Type class supporting collecting the keys of a record as a `HList`.
  */
-trait Keys[T <: Tuple] extends DepFn0 with Serializable
+trait Keys[T <: HList] extends DepFn0 with Serializable
 
 object Keys {
-  type Aux[T <: Tuple, Out0] = Keys[T] { type Out = Out0 }
+  type Aux[T <: HList, Out0] = Keys[T] { type Out = Out0 }
 
-  inline def apply[T <: Tuple](using k: Keys[T]): Keys.Aux[T, k.Out] = k
+  inline def apply[T <: HList](using k: Keys[T]): Keys.Aux[T, k.Out] = k
 
-  given emptyTupleKeys[L <: EmptyTuple]: Keys.Aux[L, EmptyTuple] =
+  given keysHNil[L <: HNil]: Keys.Aux[L, HNil] =
     new Keys[L] {
-      type Out = EmptyTuple
-      def apply(): Out = EmptyTuple
+      type Out = HNil
+      def apply(): Out = HNil
     }
 
-  given tupleNKeys[K, V, T <: Tuple](using k: ValueOf[K], t: Keys[T] { type Out <: Tuple }): Keys.Aux[(K ->> V) *: T, K *: t.Out] =
-    new Keys[(K ->> V) *: T] {
-      type Out = K *: t.Out
-      def apply(): Out = k.value *: t()
+  given keysHCons[K, V, T <: HList](using k: ValueOf[K], t: Keys[T] { type Out <: HList }): Keys.Aux[(K ->> V) :: T, K :: t.Out] =
+    new Keys[(K ->> V) :: T] {
+      type Out = K :: t.Out
+      def apply(): Out = k.value :: t()
     }
 }

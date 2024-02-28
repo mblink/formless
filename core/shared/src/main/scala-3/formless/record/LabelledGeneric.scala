@@ -1,7 +1,7 @@
 package formless.record
 
 import scala.deriving.Mirror
-import formless.tuple.ZipWithT
+import formless.hlist.HList
 
 trait LabelledGeneric[A] extends LabelledGeneric.Inst[A]
 
@@ -27,13 +27,18 @@ object LabelledGeneric {
   object Inst {
     type Aux[A, R] = Inst[A] { type Repr = R }
 
+    type ZipWithTuple[T1 <: Tuple, T2 <: Tuple, F[_, _]] <: Tuple = (T1, T2) match {
+      case (h1 *: t1, h2 *: t2) => F[h1, h2] *: ZipWithTuple[t1, t2, F]
+      case (EmptyTuple, EmptyTuple) => EmptyTuple
+    }
+
     inline given productInst[A <: Product](
       using m: Mirror.ProductOf[A]
-    ): Inst.Aux[A, ZipWithT[m.MirroredElemLabels, m.MirroredElemTypes, ->>]] =
+    ): Inst.Aux[A, HList.FromTuple[ZipWithTuple[m.MirroredElemLabels, m.MirroredElemTypes, ->>]]] =
       new Inst[A] {
-        type Repr = Tuple & ZipWithT[m.MirroredElemLabels, m.MirroredElemTypes, ->>]
-        def from(r: Repr): A = m.fromTuple(r.asInstanceOf[m.MirroredElemTypes])
-        def to(a: A): Repr = Tuple.fromProductTyped(a).asInstanceOf[Repr]
+        type Repr = HList.FromTuple[ZipWithTuple[m.MirroredElemLabels, m.MirroredElemTypes, ->>]]
+        def from(r: Repr): A = m.fromTuple(HList.toTuple(r).asInstanceOf[m.MirroredElemTypes])
+        def to(a: A): Repr = HList.fromTuple(Tuple.fromProductTyped(a)).asInstanceOf[Repr]
       }
   }
 }

@@ -3,7 +3,7 @@ import formless._
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.12"
-lazy val scala3 = "3.3.1"
+lazy val scala3 = "3.3.2"
 lazy val scala3_4 = "3.4.0"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_4)
@@ -104,7 +104,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("c
 
       Seq(
         gen("Util.scala", SourceGenerator.Util),
-        gen("TupleSelectorTest.scala", SourceGenerator.TupleSelectorTest),
+        gen("HListSelectorTest.scala", SourceGenerator.HListSelectorTest),
         gen("RecordSelectorTest.scala", SourceGenerator.RecordSelectorTest),
         gen("UpdaterTest.scala", SourceGenerator.UpdaterTest),
         gen("ModifierTest.scala", SourceGenerator.ModifierTest),
