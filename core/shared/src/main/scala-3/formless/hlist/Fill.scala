@@ -24,7 +24,7 @@ object Fill {
   ): Fill.Aux[N, A, HList.Fill[N, A]] =
     new Fill[N, A] {
       type Out = HList.Fill[N, A]
-      def apply(a: A): Out = HList.fill0(n.value, a, HNil).asInstanceOf[Out]
+      def apply(a: A): Out = HList.fill0[N, A, HNil](n.value, a, HNil)
     }
 
   given fillHList2[N <: Int, M <: Int, A](

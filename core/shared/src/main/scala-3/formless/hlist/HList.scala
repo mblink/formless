@@ -117,16 +117,20 @@ object HList {
     case _ => A :: Fill[N - 1, A]
   }
 
+  private[formless] type FillConcat[N <: Int, A, Acc <: HList] <: HList = Acc match {
+    case HNil => Fill[N, A]
+    case _ => Concat[Fill[N, A], Acc]
+  }
+
   @annotation.tailrec
-  private[formless] def fill0[N <: Int, A](n: N, a: A, acc: HList): HList =
-    if (n <= 0) acc
-    else fill0(n - 1, a, a :: acc)
+  private[formless] def fill0[N <: Int, A, H <: HList](n: N, a: A, acc: H): FillConcat[N, A, H] =
+    (if (n <= 0) acc else fill0(n - 1, a, a :: acc)).asInstanceOf[FillConcat[N, A, H]]
 
   /**
    * Produces an `HList` of length `n` filled with `elem`.
    */
   def fill[A](n: Int)(a: A)(using ev: (n.type >= 0) =:= true): Fill[n.type, A] =
-    fill0(n, a, HNil).asInstanceOf[Fill[n.type, A]]
+    fill0[n.type, A, HNil](n, a, HNil)
 
   type Map[H <: HList, F[_]] <: HList = H match {
     case HNil => HNil
