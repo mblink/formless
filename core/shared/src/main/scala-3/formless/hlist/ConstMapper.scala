@@ -24,6 +24,6 @@ object ConstMapper {
   given constMapperHList[C, T <: HList]: ConstMapper.Aux[C, T, ConstMapperT[C, T]] =
     new ConstMapper[C, T] {
       type Out = ConstMapperT[C, T]
-      def apply(c: C, t: T): Out = constMap[C, T](c, t)
+      def apply(c: C, t: T): Out = constMap(c, t)
     }
 }

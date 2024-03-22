@@ -112,6 +112,16 @@ object HList {
     case h :: t => h | ToUnion[t]
   }
 
+  type Length[H <: HList] <: Int = H match {
+    case HNil => 0
+    case _ :: t => S[Length[t]]
+  }
+
+  def length[H <: HList](h: H): Length[H] = h match {
+    case _: HNil => 0
+    case x: (_ :: t) => (1 + length[t](x.tail)).asInstanceOf[S[Length[t]]]
+  }
+
   type Fill[N <: Int, A] <: HList = N match {
     case 0 => HNil
     case _ => A :: Fill[N - 1, A]
