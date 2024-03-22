@@ -18,7 +18,7 @@ object ConstMapper {
   private def constMap[C, T <: HList](c: C, t: T): ConstMapperT[C, T] =
     t match {
       case _: HNil => HNil
-      case x: (_ :: t) => c :: constMap[C, t](c, x.tail.asInstanceOf[t])
+      case x: (_ :: t) => c :: constMap[C, t](c, x.tail)
     }
 
   given constMapperHList[C, T <: HList]: ConstMapper.Aux[C, T, ConstMapperT[C, T]] =

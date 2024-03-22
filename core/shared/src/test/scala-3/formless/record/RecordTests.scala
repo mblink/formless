@@ -328,7 +328,7 @@ class RecordTests extends FunSuite {
     assertTypedEquals(extRes)(outer1.extract[("e" ->> i) :: ("d" ->> Int) :: HNil])
     //covariance
     type e1 = ("e" ->> i1) :: ("d" ->> Any) :: HNil
-    assertEquals(extRes.asInstanceOf[e1], outer1.extract[e1])
+    assertEquals(extRes, outer1.extract[e1])
 
     @annotation.unused type ill1 = ("d" ->> Int) :: ("z" ->> Int) :: HNil
     @annotation.unused type ill2 = ("x" ->> i) :: HNil

@@ -28,12 +28,12 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
   /**
    * Prepend the argument element to this `HList`.
    */
-  def ::[H](h : H) : H :: L = formless.hlist.::(h, l)
+  def ::[H](h : H): H :: L = formless.hlist.::(h, l)
 
   /**
    * Prepend the argument element to this `HList`.
    */
-  def +:[H](h : H) : H :: L = formless.hlist.::(h, l)
+  def +:[H](h : H): H :: L = formless.hlist.::(h, l)
 
   /**
    * Append the argument element to this `HList`.
