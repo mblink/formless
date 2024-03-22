@@ -40,7 +40,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   /**
    * Updates a field having a value with type A by given function.
    */
-  final def updateWith[K, A, B](s: SelectorFromKey.Aux[T, K, A])(f: A => B)(using m: Modifier[T, K, A, B]): m.Out = m(t, f)
+  final def updateWith[K, B](k: K)(using s: Selector[T, k.type])(f: s.Out => B)(using m: Modifier[T, k.type, s.Out, B]): m.Out = m(t, f)
 
   /**
    * Remove the field associated with the singleton typed key k, returning both the corresponding value and the updated

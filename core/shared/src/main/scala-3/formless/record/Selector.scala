@@ -19,15 +19,3 @@ object Selector {
       def apply(t: T): Out = t.unsafeApply(f.index).asInstanceOf[Out]
     }
 }
-
-sealed trait SelectorFromKey[T <: HList, K] extends Selector[T, K]
-
-object SelectorFromKey {
-  type Aux[T <: HList, K, O] = SelectorFromKey[T, K] { type Out = O }
-
-  implicit def selectorFromKeyInst[T <: HList, K <: Singleton](k: K)(using s: Selector[T, K]): SelectorFromKey.Aux[T, K, s.Out] =
-    new SelectorFromKey[T, K] {
-      type Out = s.Out
-      def apply(t: T): Out = s(t)
-    }
-}
