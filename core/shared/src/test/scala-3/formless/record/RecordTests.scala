@@ -543,7 +543,7 @@ class RecordTests extends FunSuite {
   }
 
   test("LacksKey") {
-    def without[R <: HList, O <: HList](k: String)(r: R)(f: R => O)(implicit ev: LacksKey[R, k.type]): O = f(r)
+    def without[R <: HList, O <: HList](k: String)(r: R)(f: R => O)(using ev: LacksKey[R, k.type]): O = f(r)
 
     type R1 = ("a" ->> Int) :: ("b" ->> String) :: ("c" ->> Boolean) :: HNil
     type R2 = ("c" ->> Boolean) :: ("a" ->> Int) :: ("b" ->> String) :: HNil

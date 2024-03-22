@@ -12,7 +12,7 @@ object Zip {
 
   inline def apply[L](using z: Zip[L]): Zip.Aux[L, z.Out] = z
 
-  implicit def zipHList[L <: HList, OutT <: HList, OutM <: HList](
+  given zipHList[L <: HList, OutT <: HList, OutM <: HList](
     using t: Transposer.Aux[L, OutT],
     m: Mapper.Aux[tupled.type, OutT, OutM],
   ): Zip.Aux[L, OutM] =

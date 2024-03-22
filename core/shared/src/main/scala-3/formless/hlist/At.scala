@@ -10,7 +10,7 @@ trait At[L, N] extends DepFn1[L] with Serializable
 object At {
   type Aux[L, N, O] = At[L, N] { type Out = O }
 
-  inline def apply[L, N](implicit a: At[L, N]): At.Aux[L, N, a.Out] = a
+  inline def apply[L, N](using a: At[L, N]): At.Aux[L, N, a.Out] = a
 
   given hlistAtZero[H, T <: HList]: At.Aux[H :: T, 0, H] =
     new At[H :: T, 0] {

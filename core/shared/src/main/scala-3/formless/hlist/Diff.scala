@@ -20,7 +20,7 @@ sealed trait DiffLP {
 }
 
 object Diff extends DiffLP {
-  inline def apply[L, M](implicit d: Diff[L, M]): Diff.Aux[L, M, d.Out] = d
+  inline def apply[L, M](using d: Diff[L, M]): Diff.Aux[L, M, d.Out] = d
 
   given diffHNil[L]: Diff.Aux[L, HNil, L] =
     new Diff[L, HNil] {

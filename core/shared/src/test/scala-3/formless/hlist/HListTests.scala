@@ -2620,8 +2620,8 @@ class HListTests extends FunSuite {
 
   test("LiftAll") {
     trait F[A]
-    implicit object FInt extends F[Int]
-    implicit object FString extends F[String]
+    given FInt: F[Int] = new F[Int] {}
+    given FString: F[String] = new F[String] {}
 
     assertEquals(HNil, summon[LiftAll[F, HNil]].instances)
     assertEquals(FInt :: HNil, summon[LiftAll[F, Int :: HNil]].instances)

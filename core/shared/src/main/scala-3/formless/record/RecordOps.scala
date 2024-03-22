@@ -126,5 +126,5 @@ final class FormlessDynamicRecordOps[T <: HList](t: T) extends Dynamic {
   /**
    * Allows dynamic-style access to fields of the record whose keys are `Strings`.
    */
-  def selectDynamic(k: String)(implicit s: Selector[T, k.type]): s.Out = s(t)
+  def selectDynamic(k: String)(using s: Selector[T, k.type]): s.Out = s(t)
 }
