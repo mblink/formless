@@ -2,8 +2,8 @@ import formless._
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val scala213 = "2.13.12"
-lazy val scala3 = "3.3.2"
+lazy val scala213 = "2.13.13"
+lazy val scala3 = "3.3.3"
 lazy val scala3_4 = "3.4.0"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_4)
@@ -44,7 +44,7 @@ lazy val baseSettings = Seq(
   mimaPreviousArtifacts := Set(),
   mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
-    Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.patch)),
+    Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.patch)),
     Seq(),
   ),
   scalacOptions ++= foldScalaV(scalaVersion.value)(
