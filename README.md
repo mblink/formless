@@ -13,7 +13,7 @@ Add the following to your `build.sbt`:
 
 ```scala
 resolvers += "bondlink-maven-repo" at "https://raw.githubusercontent.com/mblink/maven-repo/main"
-libraryDependencies += "com.bondlink" %% "formless" % "0.2.0"
+libraryDependencies += "com.bondlink" %% "formless" % "0.3.0"
 ```
 
 If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the following:
@@ -25,7 +25,7 @@ def repositoriesTask = T.task {
   super.repositoriesTask() ++ Seq(MavenRepository("https://raw.githubusercontent.com/mblink/maven-repo/main"))
 }
 
-def ivyDeps = Agg(ivy"com.bondlink::formless:0.2.0")
+def ivyDeps = Agg(ivy"com.bondlink::formless:0.3.0")
 ```
 
 ## Usage
@@ -310,7 +310,7 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x0000008802b70d30@7ee7e4cc :: repl.MdocSession$MdocApp$$Lambda/0x0000008802b70968@572bfcbb :: repl.MdocSession$MdocApp$$Lambda/0x0000008802b705a0@5ae6a3fc :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x000000030272a028@c3bec22 :: repl.MdocSession$MdocApp$$Lambda/0x0000000302729c60@3c72f62f :: repl.MdocSession$MdocApp$$Lambda/0x0000000302729898@2991ea67 :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil

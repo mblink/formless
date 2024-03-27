@@ -8,7 +8,7 @@ lazy val scala3_4 = "3.4.0"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_4)
 ThisBuild / scalaVersion := scala3
-ThisBuild / version := "0.3.0-RC1"
+ThisBuild / version := "0.3.0"
 
 // GitHub Actions config
 val javaVersions = Seq(8, 11, 17, 21).map(v => JavaSpec.temurin(v.toString))
@@ -41,7 +41,7 @@ lazy val baseSettings = Seq(
   crossScalaVersions := Seq(scala213, scala3, scala3_4),
   organization := "com.bondlink",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
-  mimaPreviousArtifacts := Set(),
+  mimaPreviousArtifacts := Set("com.bondlink" %% "formless" % "0.3.0"),
   mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.patch)),
