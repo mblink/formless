@@ -41,7 +41,7 @@ lazy val baseSettings = Seq(
   crossScalaVersions := Seq(scala213, scala3, scala3_4),
   organization := "com.bondlink",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
-  mimaPreviousArtifacts := Set("com.bondlink" %% "formless" % "0.3.0"),
+  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.3.0"),
   mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.patch)),
@@ -121,6 +121,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("c
   .nativeSettings(
     Compile / sources := { if (scalaVersion.value == scala3_4) Seq() else (Compile / sources).value },
     Test / sources := { if (scalaVersion.value == scala3_4) Seq() else (Test / sources).value },
+    mimaPreviousArtifacts := { if (scalaVersion.value == scala3_4) Set() else mimaPreviousArtifacts.value },
   )
 
 lazy val docs = project.in(file("formless-docs"))
