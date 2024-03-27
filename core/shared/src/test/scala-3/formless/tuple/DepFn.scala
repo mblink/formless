@@ -1,4 +1,4 @@
-package formless.tuple
+package formless.hlist
 
 /** Polymorphic identity function */
 object id extends Poly1 {

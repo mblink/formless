@@ -1,6 +1,6 @@
 package formless.record
 
-import formless.tuple.DepFn1
+import formless.hlist.{::, DepFn1, HList, HNil}
 
 /**
  * Type class supporting multiple record field selection.
@@ -12,18 +12,18 @@ object SelectAll {
 
   inline def apply[L, K](using s: SelectAll[L, K]): SelectAll.Aux[L, K, s.Out] = s
 
-  given emptyTupleSelectAll[L]: SelectAll.Aux[L, EmptyTuple, EmptyTuple] =
-    new SelectAll[L, EmptyTuple] {
-      type Out = EmptyTuple
-      def apply(l: L): Out = EmptyTuple
+  given selectAllHNil[L]: SelectAll.Aux[L, HNil, HNil] =
+    new SelectAll[L, HNil] {
+      type Out = HNil
+      def apply(l: L): Out = HNil
     }
 
-  given tupleNSelectAll[L <: Tuple, KH, KT <: Tuple](
+  given selectAllHCons[L <: HList, KH, KT <: HList](
     using sh: Selector[L, KH],
-    st: SelectAll[L, KT] { type Out <: Tuple },
-  ): SelectAll.Aux[L, KH *: KT, sh.Out *: st.Out] =
-    new SelectAll[L, KH *: KT] {
-      type Out = sh.Out *: st.Out
-      def apply(l: L): Out = sh(l) *: st(l)
+    st: SelectAll[L, KT] { type Out <: HList },
+  ): SelectAll.Aux[L, KH :: KT, sh.Out :: st.Out] =
+    new SelectAll[L, KH :: KT] {
+      type Out = sh.Out :: st.Out
+      def apply(l: L): Out = sh(l) :: st(l)
     }
 }

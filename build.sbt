@@ -2,13 +2,13 @@ import formless._
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val scala213 = "2.13.12"
-lazy val scala3 = "3.3.1"
+lazy val scala213 = "2.13.13"
+lazy val scala3 = "3.3.3"
 lazy val scala3_4 = "3.4.0"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_4)
 ThisBuild / scalaVersion := scala3
-ThisBuild / version := "0.2.0"
+ThisBuild / version := "0.3.0-RC1"
 
 // GitHub Actions config
 val javaVersions = Seq(8, 11, 17, 21).map(v => JavaSpec.temurin(v.toString))
@@ -44,7 +44,7 @@ lazy val baseSettings = Seq(
   mimaPreviousArtifacts := Set(),
   mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
-    Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.patch)),
+    Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.patch)),
     Seq(),
   ),
   scalacOptions ++= foldScalaV(scalaVersion.value)(
@@ -104,7 +104,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("c
 
       Seq(
         gen("Util.scala", SourceGenerator.Util),
-        gen("TupleSelectorTest.scala", SourceGenerator.TupleSelectorTest),
+        gen("HListSelectorTest.scala", SourceGenerator.HListSelectorTest),
         gen("RecordSelectorTest.scala", SourceGenerator.RecordSelectorTest),
         gen("UpdaterTest.scala", SourceGenerator.UpdaterTest),
         gen("ModifierTest.scala", SourceGenerator.ModifierTest),

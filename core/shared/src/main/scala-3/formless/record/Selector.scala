@@ -1,7 +1,7 @@
 package formless.record
 
 import scala.language.implicitConversions
-import formless.tuple.DepFn1
+import formless.hlist.{DepFn1, HList}
 
 /**
  * Type class supporting record field selection.
@@ -13,21 +13,9 @@ object Selector {
 
   inline def apply[T, K](using s: Selector[T, K]): Selector.Aux[T, K, s.Out] = s
 
-  given selectorInst[T <: Tuple, K](using f: FindField[T, K ->> Any, <:<]): Selector.Aux[T, K, f.Value] =
+  given selectorInst[T <: HList, K](using f: FindField[T, K ->> Any, <:<]): Selector.Aux[T, K, f.Value] =
     new Selector[T, K] {
       type Out = f.Value
-      def apply(t: T): Out = t.productElement(f.index).asInstanceOf[Out]
-    }
-}
-
-sealed trait SelectorFromKey[T <: Tuple, K] extends Selector[T, K]
-
-object SelectorFromKey {
-  type Aux[T <: Tuple, K, O] = SelectorFromKey[T, K] { type Out = O }
-
-  implicit def selectorFromKeyInst[T <: Tuple, K <: Singleton](k: K)(using s: Selector[T, K]): SelectorFromKey.Aux[T, K, s.Out] =
-    new SelectorFromKey[T, K] {
-      type Out = s.Out
-      def apply(t: T): Out = s(t)
+      def apply(t: T): Out = t.unsafeApply(f.index).asInstanceOf[Out]
     }
 }

@@ -1,6 +1,7 @@
 package formless
 package record
 
+import formless.hlist.HList
 import scala.language.implicitConversions
 
 trait RecordPackageCompat {
@@ -20,7 +21,7 @@ trait RecordPackageCompat {
     inline final def label(using k: ValueOf[K]): K = k.value
   }
 
-  final implicit def toFormlessRecordOps[T <: Tuple](t: T): FormlessRecordOps[T] = new FormlessRecordOps(t)
+  final implicit def toFormlessRecordOps[T <: HList](t: T): FormlessRecordOps[T] = new FormlessRecordOps(t)
 
   final implicit def toFormlessMapOps[K, V](m: Map[K, V]): FormlessMapOps[K, V] = new FormlessMapOps(m)
 }

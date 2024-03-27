@@ -1,6 +1,6 @@
 package formless.record
 
-import formless.tuple.DepFn2
+import formless.hlist.{::, DepFn2, HList, HNil}
 
 /**
  * Type class support record merging.
@@ -12,25 +12,25 @@ object Merger {
 
   inline def apply[L, M](using m: Merger[L, M]): Merger.Aux[L, M, m.Out] = m
 
-  given emptyTupleMergerL[L]: Merger.Aux[L, EmptyTuple, L] =
-    new Merger[L, EmptyTuple] {
+  given mergerHNilL[L]: Merger.Aux[L, HNil, L] =
+    new Merger[L, HNil] {
       type Out = L
-      def apply(l: L, m: EmptyTuple): Out = l
+      def apply(l: L, m: HNil): Out = l
     }
 
-  given emptyTupleMergerR[M]: Merger.Aux[EmptyTuple, M, M] =
-    new Merger[EmptyTuple, M] {
+  given mergerHNilR[M]: Merger.Aux[HNil, M, M] =
+    new Merger[HNil, M] {
       type Out = M
-      def apply(l: EmptyTuple, m: M): Out = m
+      def apply(l: HNil, m: M): Out = m
     }
 
-  given updateTupleMerger[K <: Singleton, V, L, M <: Tuple, U](
+  given updateMerger[K <: Singleton, V, L, M <: HList, U](
     using u: Updater.Aux[L, K ->> V, U],
     mu: Merger[U, M],
-  ): Merger.Aux[L, (K ->> V) *: M, mu.Out] =
-    new Merger[L, (K ->> V) *: M] {
+  ): Merger.Aux[L, (K ->> V) :: M, mu.Out] =
+    new Merger[L, (K ->> V) :: M] {
       type Out = mu.Out
-      def apply(l: L, m: (K ->> V) *: M): Out =
+      def apply(l: L, m: (K ->> V) :: M): Out =
         mu(u(l, m.head), m.tail)
     }
 }

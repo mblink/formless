@@ -1,9 +1,9 @@
 package formless.record
 
 import scala.language.dynamics
-import formless.tuple.Poly
+import formless.hlist.{HList, Poly}
 
-final class FormlessRecordOps[T <: Tuple](private val t: T) extends AnyVal {
+final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   /**
    * Returns the value associated with the singleton typed key k. Only available if this record has a field with
    * with keyType equal to the singleton type K.
@@ -40,7 +40,7 @@ final class FormlessRecordOps[T <: Tuple](private val t: T) extends AnyVal {
   /**
    * Updates a field having a value with type A by given function.
    */
-  final def updateWith[K, A, B](s: SelectorFromKey.Aux[T, K, A])(f: A => B)(using m: Modifier[T, K, A, B]): m.Out = m(t, f)
+  final def updateWith[K, B](k: K)(using s: Selector[T, k.type])(f: s.Out => B)(using m: Modifier[T, k.type, s.Out, B]): m.Out = m(t, f)
 
   /**
    * Remove the field associated with the singleton typed key k, returning both the corresponding value and the updated
@@ -83,17 +83,17 @@ final class FormlessRecordOps[T <: Tuple](private val t: T) extends AnyVal {
   final def renameField[K1 <: Singleton, K2 <: Singleton](oldKey: K1, newKey: K2)(using r: Renamer[T, K1, K2]): r.Out = r(t)
 
   /**
-   * Returns the keys of this record as a `Tuple` of singleton typed values.
+   * Returns the keys of this record as a `HList` of singleton typed values.
    */
   final def keys(using k: Keys[T]): k.Out = k()
 
   /**
-   * Returns a `Tuple` of the values of this record.
+   * Returns a `HList` of the values of this record.
    */
   final def values(using v: Values[T]): v.Out = v(t)
 
   /**
-   * Returns a `Tuple` made of the key-value pairs of this record.
+   * Returns a `HList` made of the key-value pairs of this record.
    */
   final def fields(using f: Fields[T]): f.Out = f(t)
 
@@ -109,9 +109,9 @@ final class FormlessRecordOps[T <: Tuple](private val t: T) extends AnyVal {
   final def mapValues(f: Poly)(using m: MapValues[f.type, T]): m.Out = m(t)
 
   /**
-    * Align the keys on the order of Tuple of keys K
+    * Align the keys on the order of HList of keys K
     */
-  final def alignByKeys[K <: Tuple](using a: AlignByKeys[T, K]): a.Out = a(t)
+  final def alignByKeys[K <: HList](using a: AlignByKeys[T, K]): a.Out = a(t)
 
   /**
    * Returns a wrapped version of this record that provides `selectDynamic` access to fields.
@@ -122,9 +122,9 @@ final class FormlessRecordOps[T <: Tuple](private val t: T) extends AnyVal {
 /**
  * Record wrapper providing `selectDynamic` access to fields.
  */
-final class FormlessDynamicRecordOps[T <: Tuple](t: T) extends Dynamic {
+final class FormlessDynamicRecordOps[T <: HList](t: T) extends Dynamic {
   /**
    * Allows dynamic-style access to fields of the record whose keys are `Strings`.
    */
-  def selectDynamic(k: String)(implicit s: Selector[T, k.type]): s.Out = s(t)
+  def selectDynamic(k: String)(using s: Selector[T, k.type]): s.Out = s(t)
 }

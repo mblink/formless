@@ -1,26 +1,26 @@
 package formless.record
 
-import formless.tuple.DepFn0
+import formless.hlist.{::, DepFn0, HList, HNil}
 
 /**
  * Type class supporting swapping the keys and values in a record of type `L`.
  */
-trait SwapRecord[L <: Tuple] extends DepFn0 with Serializable
+trait SwapRecord[L <: HList] extends DepFn0 with Serializable
 
 object SwapRecord {
-  type Aux[L <: Tuple, O] = SwapRecord[L] { type Out = O }
+  type Aux[L <: HList, O] = SwapRecord[L] { type Out = O }
 
-  inline def apply[L <: Tuple](using s: SwapRecord[L]): SwapRecord.Aux[L, s.Out] = s
+  inline def apply[L <: HList](using s: SwapRecord[L]): SwapRecord.Aux[L, s.Out] = s
 
-  given emptyTupleSwapRecord[L <: EmptyTuple]: Aux[L, EmptyTuple] =
+  given swapRecordHNil[L <: HNil]: Aux[L, HNil] =
     new SwapRecord[L] {
-      type Out = EmptyTuple
-      def apply(): Out = EmptyTuple
+      type Out = HNil
+      def apply(): Out = HNil
     }
 
-  given tupleNSwapRecord[K, V, T <: Tuple](using k: ValueOf[K], t: SwapRecord[T] { type Out <: Tuple }): Aux[(K ->> V) *: T, (V ->> K) *: t.Out] =
-    new SwapRecord[(K ->> V) *: T] {
-      type Out = (V ->> K) *: t.Out
-      def apply(): Out = label[V](k.value) *: t()
+  given swapRecordHCons[K, V, T <: HList](using k: ValueOf[K], t: SwapRecord[T] { type Out <: HList }): Aux[(K ->> V) :: T, (V ->> K) :: t.Out] =
+    new SwapRecord[(K ->> V) :: T] {
+      type Out = (V ->> K) :: t.Out
+      def apply(): Out = label[V](k.value) :: t()
     }
 }

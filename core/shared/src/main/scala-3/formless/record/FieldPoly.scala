@@ -1,6 +1,6 @@
 package formless.record
 
-import formless.tuple.Poly1
+import formless.hlist.Poly1
 
 /**
  * Polymorphic function that allows modifications on record fields while preserving the original key types.
