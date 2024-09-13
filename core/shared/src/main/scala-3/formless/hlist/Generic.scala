@@ -13,28 +13,20 @@ object Generic {
 
   inline def apply[A](using g: Generic[A]): Generic.Aux[A, g.Repr] = g
 
-  given fromInst[A](using i: Inst[A]): Generic.Aux[A, i.Repr] =
+  given fromInst[A, R](using i: Inst[A, R]): Generic.Aux[A, R] =
     new Generic[A] {
-      type Repr = i.Repr
+      type Repr = R
       def from(r: Repr): A = i.from(r)
       def to(a: A): Repr = i.to(a)
     }
 
-  sealed trait Inst[A] extends Serializable {
-    type Repr
-    def from(r: Repr): A
-    def to(a: A): Repr
-  }
+  final class Inst[A, R](val from: R => A, val to: A => R) extends Serializable
 
   object Inst {
-    type Aux[A, R] = Inst[A] { type Repr = R }
-
-    inline given productInst[A <: Product](using m: Mirror.ProductOf[A]): Inst.Aux[A, HList.FromTuple[m.MirroredElemTypes]] =
-      new Inst[A] {
-        type Repr = HList.FromTuple[m.MirroredElemTypes]
-        def to(a: A): Repr = HList.fromTuple(Tuple.fromProductTyped(a))
-        def from(r: Repr): A = m.fromTuple(HList.toTuple(r).asInstanceOf[m.MirroredElemTypes])
-      }
+    inline given productInst[A <: Product](using m: Mirror.ProductOf[A]): Inst[A, HList.FromTuple[m.MirroredElemTypes]] =
+      Inst(
+        r => m.fromTuple(HList.toTuple(r).asInstanceOf[m.MirroredElemTypes]),
+        a => HList.fromTuple(Tuple.fromProductTyped(a)),
+      )
   }
-
 }

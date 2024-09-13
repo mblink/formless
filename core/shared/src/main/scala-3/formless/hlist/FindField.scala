@@ -26,6 +26,16 @@ object FindField {
 
   inline def apply[T <: HList, F](using f: FindField[T, F]): FindField.Aux[T, F, f.Field, f.Head, f.Tail, f.Replaced, f.Removed, f.Index] = f
 
+  final class Inst[T <: HList, F, Field0, Hd <: HList, Tl <: HList, Rep[_] <: HList, Rem <: HList, Idx <: Int](val index: Idx)
+  extends FindField[T, F] {
+    final type Field = Field0
+    final type Head = Hd
+    final type Tail = Tl
+    final type Replaced[A] = Rep[A]
+    final type Removed = Rem
+    final type Index = Idx
+  }
+
   private def findFieldInstImpl[T <: HList: Type, F: Type](using q: Quotes): Expr[FindField[T, F]] = {
     import q.reflect.*
 
@@ -39,15 +49,7 @@ object FindField {
       Type.of[RestT] match {
         case '[::[head, tail]] if Expr.summon[head =:= F].nonEmpty =>
           '{
-            (new FindField[T, F] {
-              type Field = head
-              type Head = HList.Reverse[RevHead]
-              type Tail = tail
-              type Replaced[A] = HList.Concat[Rep[A], tail]
-              type Removed = HList.Concat[Rem, tail]
-              type Index = Idx
-              val index = ${ Expr(idx) }
-            }).asInstanceOf[FindField.Aux[
+            FindField.Inst[
               T,
               F,
               head,
@@ -56,7 +58,7 @@ object FindField {
               [a] =>> HList.Concat[Rep[a], tail],
               HList.Concat[Rem, tail],
               Idx,
-            ]]
+            ](${ Expr(idx) })
           }
         case '[::[head, tail]] =>
           go[head :: RevHead, [a] =>> HList.Append[Rep[head], a], HList.Append[Rem, head], tail, S[Idx]]((idx + 1).asInstanceOf[S[Idx]])

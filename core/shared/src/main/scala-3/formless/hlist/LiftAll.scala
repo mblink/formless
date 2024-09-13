@@ -18,9 +18,10 @@ object LiftAll {
   def apply[F[_]]: Curried[F] = new Curried[F]
   def apply[F[_], In](using l: LiftAll[F, In]): LiftAll.Aux[F, In, l.Out] = l
 
-  inline given liftAllHList[F[_], T <: HList]: LiftAll.Aux[F, T, HList.Map[T, F]] =
-    new LiftAll[F, T] {
-      type Out = HList.Map[T, F]
-      val instances = summonAllHList[HList.Map[T, F]]
-    }
+  final class Inst[F[_], T, O](o: O) extends LiftAll[F, T], Serializable {
+    final type Out = O
+    final val instances = o
+  }
+
+  inline given liftAllHList[F[_], T <: HList]: LiftAll.Aux[F, T, HList.Map[T, F]] = Inst(summonAllHList[HList.Map[T, F]])
 }
