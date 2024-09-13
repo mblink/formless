@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting zipping a `HList` with another `HList` using a `Poly` resulting in a `HList`
  */
-trait ZipWith[L, R, F] extends DepFn2[L, R] with Serializable
+trait ZipWith[L, R, F] extends DepFn2[L, R], Serializable
 
 object ZipWith {
   type Aux[L, R, F, O] = ZipWith[L, R, F] { type Out = O }

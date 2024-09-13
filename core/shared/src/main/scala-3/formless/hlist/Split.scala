@@ -6,7 +6,7 @@ import compiletime.ops.int.>=
  * Type class supporting splitting this `HList` at the `N`th element returning the prefix and suffix as a pair.
  * Available only if this `HList` has at least `N` elements.
  */
-trait Split[L, N] extends DepFn1[L] with Serializable {
+trait Split[L, N] extends DepFn1[L], Serializable {
   type Prefix
   type Suffix
   final type Out = (Prefix, Suffix)

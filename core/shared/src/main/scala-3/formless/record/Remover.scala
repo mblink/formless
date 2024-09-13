@@ -6,7 +6,7 @@ import formless.hlist.{DepFn1, HList}
 /**
  * Type class supporting record field removal.
  */
-trait Remover[T, K] extends DepFn1[T] with Serializable
+trait Remover[T, K] extends DepFn1[T], Serializable
 
 object Remover {
   type Aux[T, K, O] = Remover[T, K] { type Out = O }

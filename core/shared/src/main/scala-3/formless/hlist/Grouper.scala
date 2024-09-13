@@ -12,7 +12,7 @@ type GrouperT[L <: HList, N <: Int, Step <: Int] <: HList =
  * Typeclass supporting grouping this `HList` into `HList`s of `N` items each, at `Step` apart.
  * If `Step` equals `N` then the groups do not overlap.
  */
-trait Grouper[L, N, Step] extends DepFn1[L] with Serializable
+trait Grouper[L, N, Step] extends DepFn1[L], Serializable
 
 object Grouper {
   type Aux[L, N, Step, O] = Grouper[L, N, Step] { type Out = O }

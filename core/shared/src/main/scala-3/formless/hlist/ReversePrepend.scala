@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting prepending `L` in reverse order to `R`.
  */
-trait ReversePrepend[L, R] extends DepFn2[L, R] with Serializable
+trait ReversePrepend[L, R] extends DepFn2[L, R], Serializable
 
 object ReversePrepend {
   type Aux[L, R, O] = ReversePrepend[L, R] { type Out = O }

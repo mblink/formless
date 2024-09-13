@@ -5,7 +5,7 @@ import compiletime.ops.int.>=
 /**
  * Type class supporting removal of the first `N` elements of this `HList`. Available only if this `HList` has at least `N` elements.
  */
-trait Drop[T, N] extends DepFn1[T] with Serializable
+trait Drop[T, N] extends DepFn1[T], Serializable
 
 object Drop {
   type Aux[T, N, O] = Drop[T, N] { type Out = O }

@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting that a `HList` of type `T` contains a set of elements of type `S`.
  */
-trait SelectAll[L, S] extends DepFn1[L] with Serializable { type Out = S }
+trait SelectAll[L, S] extends DepFn1[L], Serializable { type Out = S }
 
 object SelectAll {
   inline def apply[L, S](using s: SelectAll[L, S]): SelectAll[L, S] = s

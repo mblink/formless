@@ -6,7 +6,7 @@ import compiletime.ops.int.>
  * Type class supporting replacement of the `N`th element of this `HList` with an element of type `V`.
  * Available only if this `HList` contains at least `N` elements.
  */
-trait ReplaceAt[L, N, V] extends DepFn2[L, V] with Serializable
+trait ReplaceAt[L, N, V] extends DepFn2[L, V], Serializable
 
 object ReplaceAt {
   type Aux[L, N, V, O] = ReplaceAt[L, N, V] { type Out = O }

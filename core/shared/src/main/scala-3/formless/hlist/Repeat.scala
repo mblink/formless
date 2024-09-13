@@ -10,7 +10,7 @@ type RepeatT[L <: HList, N <: Int] = N match {
 /**
  * Typeclass supporting repeating a `HList` of type `L` `N` times.
  */
-trait Repeat[L, N] extends DepFn1[L] with Serializable
+trait Repeat[L, N] extends DepFn1[L], Serializable
 
 object Repeat {
   type Aux[L, N, O] = Repeat[L, N] { type Out = O }

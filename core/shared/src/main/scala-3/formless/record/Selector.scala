@@ -6,7 +6,7 @@ import formless.hlist.{DepFn1, HList}
 /**
  * Type class supporting record field selection.
  */
-trait Selector[T, Key] extends DepFn1[T] with Serializable
+trait Selector[T, Key] extends DepFn1[T], Serializable
 
 object Selector {
   type Aux[T, K, O] = Selector[T, K] { type Out = O }

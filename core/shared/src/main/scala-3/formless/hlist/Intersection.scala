@@ -7,7 +7,7 @@ package formless.hlist
  *
  * Also available if `M` contains types absent in this `HList`.
  */
-trait Intersection[L, M] extends DepFn1[L] with Serializable
+trait Intersection[L, M] extends DepFn1[L], Serializable
 
 object Intersection {
   type Aux[L, M, O] = Intersection[L, M] { type Out = O }

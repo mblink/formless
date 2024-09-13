@@ -5,7 +5,7 @@ import compiletime.ops.int.{-, >=}
 /**
  * Type class supporting the slicing of a `HList`.
  */
-trait Slice[N, U, L] extends DepFn1[L] with Serializable
+trait Slice[N, U, L] extends DepFn1[L], Serializable
 
 object Slice {
   type Aux[N, U, L, O] = Slice[N, U, L] { type Out = O }

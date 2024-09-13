@@ -5,7 +5,7 @@ import formless.hlist.{DepFn2, HList}
 /**
  * Type class supporting record update and extension.
  */
-trait Updater[T, F] extends DepFn2[T, F] with Serializable
+trait Updater[T, F] extends DepFn2[T, F], Serializable
 
 sealed trait UpdaterLP {
   final given updaterNotFound[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] =

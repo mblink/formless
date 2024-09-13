@@ -5,7 +5,7 @@ package formless.hlist
  * If type `T` appears n times in this `HList` and m > n times in `M`, the resulting `HList` contains the first n elements
  * of type `T` in this `HList`, followed by the last m - n element of type `T` in `M`.
  */
-trait Union[L, M] extends DepFn2[L, M] with Serializable
+trait Union[L, M] extends DepFn2[L, M], Serializable
 
 object Union {
   type Aux[L, M, O] = Union[L, M] { type Out = O }

@@ -12,7 +12,7 @@ type ReplaceAtIndex0[L <: HList, I <: Int, A, Curr <: Int] <: HList = (L, Curr) 
  * Type class supporting replacement of the first element of type `U` from this `HList` with an element of type `V`.
  * Available only if this `HList` contains an element of type `U`.
  */
-trait Replacer[L, U, V] extends DepFn2[L, V] with Serializable
+trait Replacer[L, U, V] extends DepFn2[L, V], Serializable
 
 object Replacer {
   type Aux[L, U, V, O] = Replacer[L, U, V] { type Out = O }

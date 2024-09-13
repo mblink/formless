@@ -6,7 +6,7 @@ import compiletime.ops.int.{-, >=}
  * Type class supporting supporting access to the elements in range [a,b] of this `HList`.
  * Available only if this `HList` contains all elements in range.
  */
-trait SelectRange[L, A, B] extends DepFn1[L] with Serializable
+trait SelectRange[L, A, B] extends DepFn1[L], Serializable
 
 object SelectRange {
   type Aux[L, A, B, O] = SelectRange[L, A, B] { type Out = O }

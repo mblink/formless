@@ -5,7 +5,7 @@ import formless.hlist.{::, DepFn1, HList, HNil}
 /**
  * Type class supporting converting this record to a `HList` of key-value pairs.
  */
-trait Fields[T <: HList] extends DepFn1[T] with Serializable
+trait Fields[T <: HList] extends DepFn1[T], Serializable
 
 object Fields {
   type Aux[T <: HList, O] = Fields[T] { type Out = O }

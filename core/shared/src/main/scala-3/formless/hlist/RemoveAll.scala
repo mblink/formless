@@ -6,7 +6,7 @@ package formless.hlist
  *
  * The elements of `SL` do not have to be contiguous in this `HList`.
  */
-trait RemoveAll[L, SL] extends DepFn1[L] with Serializable {
+trait RemoveAll[L, SL] extends DepFn1[L], Serializable {
   def reinsert(out: Out): L
 }
 

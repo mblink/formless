@@ -4,7 +4,7 @@ package formless.hlist
  * Type class supporting replacement of the `N`th element of this `HList` with the result of calling `F` on it.
  * Available only if this `HList` contains at least `N` elements.
  */
-trait ModifierAt[L, N, U, V] extends DepFn2[L, U => V] with Serializable
+trait ModifierAt[L, N, U, V] extends DepFn2[L, U => V], Serializable
 
 object ModifierAt {
   type Aux[L, N, U, V, O] = ModifierAt[L, N, U, V] { type Out = O }

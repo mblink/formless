@@ -5,7 +5,7 @@ import formless.hlist.{::, DepFn1, HList}
 /**
  * Type class supporting removal and re-insertion of an element (possibly unlabelled).
  */
-trait Remove[L, E] extends DepFn1[L] with Serializable {
+trait Remove[L, E] extends DepFn1[L], Serializable {
   def reinsert(out: Out): L
 }
 

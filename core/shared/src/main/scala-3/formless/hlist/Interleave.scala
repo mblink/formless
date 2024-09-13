@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting adding an element to each possible position in this `HList`.
  */
-trait Interleave[A, L] extends DepFn2[A, L] with Serializable
+trait Interleave[A, L] extends DepFn2[A, L], Serializable
 
 object Interleave {
   type Aux[A, L, O] = Interleave[A, L] { type Out = O }

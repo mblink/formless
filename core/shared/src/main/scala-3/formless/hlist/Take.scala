@@ -6,7 +6,7 @@ import compiletime.ops.int.>=
  * Type class supporting retrieval of the first `N` elements of this `HList`. Available only if this `HList` has at
  * least `N` elements.
  */
-trait Take[T, N] extends DepFn1[T] with Serializable
+trait Take[T, N] extends DepFn1[T], Serializable
 
 object Take {
   type Aux[T, N, O] = Take[T, N] { type Out = O }

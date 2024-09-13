@@ -1,6 +1,6 @@
 package formless.hlist
 
-trait Tupler[L] extends DepFn1[L] with Serializable
+trait Tupler[L] extends DepFn1[L], Serializable
 
 object Tupler {
   type Aux[L, O] = Tupler[L] { type Out = O }

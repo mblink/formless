@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting access to all but the last element of this `HList`. Available only if this `HList` has at least one element.
  */
-trait Init[T] extends DepFn1[T] with Serializable
+trait Init[T] extends DepFn1[T], Serializable
 
 object Init {
   type Aux[T, O] = Init[T] { type Out = O }

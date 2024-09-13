@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting mapping a higher ranked function over this `HList`.
  */
-trait Mapper[F, In <: HList] extends DepFn1[In] with Serializable { type Out <: HList }
+trait Mapper[F, In <: HList] extends DepFn1[In], Serializable { type Out <: HList }
 
 object Mapper {
   type Aux[F, In <: HList, O <: HList] = Mapper[F, In] { type Out = O }
