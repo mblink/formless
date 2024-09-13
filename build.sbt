@@ -41,7 +41,7 @@ lazy val baseSettings = Seq(
   crossScalaVersions := Seq(scala213, scala3, scala3_5),
   organization := "com.bondlink",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
-  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.3.0"),
+  mimaPreviousArtifacts := Set(),
   mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.patch)),
