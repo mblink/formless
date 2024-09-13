@@ -4,7 +4,7 @@ package formless.hlist
  * Type class supporting access to the first element of type `U` in this `HList`. Available only if this `HList`
  * contains an element of type `U`.
  */
-sealed trait Selector[T <: HList, A] extends (T => A) with Serializable
+sealed trait Selector[T <: HList, A] extends (T => A), Serializable
 
 object Selector {
   inline def apply[T <: HList, A](using s: Selector[T, A]): Selector[T, A] = s

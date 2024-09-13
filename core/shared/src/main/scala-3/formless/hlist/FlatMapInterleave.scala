@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting interleaving an element into each row of this `HList` of `HList`s.
  */
-trait FlatMapInterleave[A, M] extends DepFn2[A, M] with Serializable
+trait FlatMapInterleave[A, M] extends DepFn2[A, M], Serializable
 
 object FlatMapInterleave {
   type Aux[A, M, O] = FlatMapInterleave[A, M] { type Out = O }

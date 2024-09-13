@@ -5,7 +5,7 @@ import compiletime.ops.int.{-, %}
 /**
  * Type class supporting rotating a `HList` right.
  */
-trait RotateRight[L, N] extends DepFn1[L] with Serializable
+trait RotateRight[L, N] extends DepFn1[L], Serializable
 
 sealed trait RotateRightLP {
   final type Aux[L, N, O] = RotateRight[L, N] { type Out = O }

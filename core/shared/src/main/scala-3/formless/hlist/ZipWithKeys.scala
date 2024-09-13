@@ -5,7 +5,7 @@ import formless.record.{->>, label}
 /**
  * Type class supporting zipping a `HList` of values with a `HList` of keys to create a record.
  */
-trait ZipWithKeys[K, V] extends DepFn1[V] with Serializable
+trait ZipWithKeys[K, V] extends DepFn1[V], Serializable
 
 object ZipWithKeys {
   type Aux[K, V, O] = ZipWithKeys[K, V] { type Out = O }

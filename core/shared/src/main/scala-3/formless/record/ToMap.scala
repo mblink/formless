@@ -6,7 +6,7 @@ import formless.hlist.{::, DepFn1, HList, HNil, Lub}
  * Type class supporting converting this record to a `Map` whose keys and values
  * are typed as the Lub of the keys and values of this record.
  */
-trait ToMap[L] extends DepFn1[L] with Serializable {
+trait ToMap[L] extends DepFn1[L], Serializable {
   type Key
   type Value
   final type Out = Map[Key, Value]

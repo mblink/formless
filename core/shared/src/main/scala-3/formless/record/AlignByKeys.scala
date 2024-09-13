@@ -5,7 +5,7 @@ import formless.hlist.{::, DepFn1, HList, HNil}
 /**
  * Type class reordering record `T` by the `HList` of keys `K`.
  */
-trait AlignByKeys[T, K] extends DepFn1[T] with Serializable
+trait AlignByKeys[T, K] extends DepFn1[T], Serializable
 
 object AlignByKeys {
   type Aux[T, K, O] = AlignByKeys[T, K] { type Out = O }

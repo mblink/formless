@@ -5,7 +5,7 @@ import formless.hlist.{::, DepFn0, HList, HNil}
 /**
  * Type class supporting swapping the keys and values in a record of type `L`.
  */
-trait SwapRecord[L <: HList] extends DepFn0 with Serializable
+trait SwapRecord[L <: HList] extends DepFn0, Serializable
 
 object SwapRecord {
   type Aux[L <: HList, O] = SwapRecord[L] { type Out = O }

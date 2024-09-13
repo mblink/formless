@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting left-reducing a polymorphic binary function over this `HList`.
  */
-trait LeftReducer[L <: HList, F] extends DepFn1[L] with Serializable
+trait LeftReducer[L <: HList, F] extends DepFn1[L], Serializable
 
 object LeftReducer {
   type Aux[L <: HList, F, O] = LeftReducer[L, F] { type Out = O }

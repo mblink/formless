@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting producing a `HList` filled from a `Poly` of type `F`.
  */
-trait FillWith[F, L] extends DepFn0 with Serializable { final type Out = L }
+trait FillWith[F, L] extends DepFn0, Serializable { final type Out = L }
 
 object FillWith {
   inline def apply[F, L](using f: FillWith[F, L]): FillWith[F, L] = f

@@ -5,7 +5,7 @@ import compiletime.ops.int.S
 /**
  * Type class supporting the calculation of every combination of this `HList`
  */
-trait Combinations[N, L] extends DepFn1[L] with Serializable
+trait Combinations[N, L] extends DepFn1[L], Serializable
 
 trait CombinationsLP {
   final type Aux[N, L, O] = Combinations[N, L] { type Out = O }

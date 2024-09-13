@@ -5,7 +5,7 @@ import scala.util.NotGiven
 /**
  * Type class supporting partitioning this `HList` into those elements of type `U` and the remainder.
  */
-trait Partition[L, U] extends DepFn1[L] with Serializable {
+trait Partition[L, U] extends DepFn1[L], Serializable {
   type Prefix
   type Suffix
   final type Out = (Prefix, Suffix)

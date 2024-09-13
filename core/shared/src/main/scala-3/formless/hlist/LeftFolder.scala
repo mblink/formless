@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting left-folding a polymorphic binary function over this `HList`.
  */
-trait LeftFolder[L <: HList, In, F] extends DepFn2[L, In] with Serializable
+trait LeftFolder[L <: HList, In, F] extends DepFn2[L, In], Serializable
 
 object LeftFolder {
   type Aux[L <: HList, In, F, O] = LeftFolder[L, In, F] { type Out = O }

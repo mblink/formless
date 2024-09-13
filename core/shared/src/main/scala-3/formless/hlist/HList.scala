@@ -6,7 +6,7 @@ import scala.language.implicitConversions
 /**
  * `HList` ADT base trait.
  */
-sealed trait HList extends Product with Serializable {
+sealed trait HList extends Product, Serializable {
   def runtimeLength: Int
 
   private[formless] final def toArray: Array[Any] = {

@@ -7,7 +7,7 @@ package formless.hlist
  *
  * Also available if `M` contains types absent in this `HList`.
  */
-trait Diff[L, M] extends DepFn1[L] with Serializable
+trait Diff[L, M] extends DepFn1[L], Serializable
 
 sealed trait DiffLP {
   final type Aux[L, M, O] = Diff[L, M] { type Out = O }

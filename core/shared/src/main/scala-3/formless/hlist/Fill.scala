@@ -5,7 +5,7 @@ import compiletime.ops.int.>=
 /**
  * Type class supporting producing a `HList` of length `N` filled with elements of type `A`.
  */
-trait Fill[N, A] extends DepFn1[A] with Serializable
+trait Fill[N, A] extends DepFn1[A], Serializable
 
 object Fill {
   type Aux[N, A, O] = Fill[N, A] { type Out = O }

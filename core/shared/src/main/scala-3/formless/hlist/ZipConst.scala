@@ -9,7 +9,7 @@ type ZipConstT[C, L <: HList] <: HList = L match {
  * Type class supporting zipping a `HList` with a constant, resulting in a `HList` of `HList2`s of the form
  * ({element from input `HList`}, {supplied constant})
  */
-trait ZipConst[C, L] extends DepFn2[C, L] with Serializable
+trait ZipConst[C, L] extends DepFn2[C, L], Serializable
 
 object ZipConst {
   type Aux[C, L, O] = ZipConst[C, L] { type Out = O }

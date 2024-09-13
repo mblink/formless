@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting unzipping this `HList` of tuples returning a tuple of `HList`s.
  */
-trait Unzip[L] extends DepFn1[L] with Serializable
+trait Unzip[L] extends DepFn1[L], Serializable
 
 object Unzip {
   type Aux[L, O] = Unzip[L] { type Out = O }

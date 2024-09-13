@@ -5,7 +5,7 @@ import formless.hlist.{::, DepFn1, HList}
 /**
  * Type class supporting renaming of a record field.
  */
-trait Renamer[T <: HList, K1, K2] extends DepFn1[T] with Serializable {
+trait Renamer[T <: HList, K1, K2] extends DepFn1[T], Serializable {
   type Out
   def apply(t: T): Out
 }

@@ -5,7 +5,7 @@ import formless.hlist.{::, DepFn1, HList, HNil}
 /**
  * Type class supporting multiple record field selection.
  */
-trait SelectAll[L, K] extends DepFn1[L] with Serializable
+trait SelectAll[L, K] extends DepFn1[L], Serializable
 
 object SelectAll {
   type Aux[L, K, O] = SelectAll[L, K] { type Out = O }

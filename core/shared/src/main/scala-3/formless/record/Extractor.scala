@@ -6,7 +6,7 @@ import scala.util.NotGiven
 /**
  * Type class supporting extraction of super-record from sub-record (witnesses depth subtype relation).
  */
-trait Extractor[L, E] extends (L => E) with Serializable
+trait Extractor[L, E] extends (L => E), Serializable
 
 trait ExtractorLP {
   given extract[L <: HList, K, V, ET <: HList, V1, LR <: HList](

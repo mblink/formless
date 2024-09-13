@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting the calculation of every permutation of this `HList`
  */
-trait Permutations[L] extends DepFn1[L] with Serializable
+trait Permutations[L] extends DepFn1[L], Serializable
 
 object Permutations {
   type Aux[L, O] = Permutations[L] { type Out = O }

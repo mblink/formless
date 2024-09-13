@@ -4,7 +4,7 @@ package formless.hlist
  * Type class supporting splitting this `HList` at the last occurrence of an element of type `U` returning the prefix
  * and suffix as a pair. Available only if this `HList` contains an element of type `U`.
  */
-trait SplitRight[L, U] extends DepFn1[L] with Serializable {
+trait SplitRight[L, U] extends DepFn1[L], Serializable {
   type Prefix
   type Suffix
   final type Out = (Prefix, Suffix)

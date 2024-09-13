@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting prepending `L` to `R`.
  */
-trait Prepend[L, R] extends DepFn2[L, R] with Serializable
+trait Prepend[L, R] extends DepFn2[L, R], Serializable
 
 object Prepend {
   type Aux[L, R, O] = Prepend[L, R] { type Out = O }

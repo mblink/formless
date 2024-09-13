@@ -8,7 +8,7 @@ type MapConsT[A, M <: HList] <: HList = M match {
 /**
  * Type class supporting consing an element onto each row of this `HList` of `HList`s.
  */
-trait MapCons[A, M] extends DepFn2[A, M] with Serializable
+trait MapCons[A, M] extends DepFn2[A, M], Serializable
 
 object MapCons {
   type Aux[A, M, O] = MapCons[A, M] { type Out = O }

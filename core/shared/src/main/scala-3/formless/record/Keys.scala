@@ -5,7 +5,7 @@ import formless.hlist.{::, DepFn0, HList, HNil}
 /**
  * Type class supporting collecting the keys of a record as a `HList`.
  */
-trait Keys[T <: HList] extends DepFn0 with Serializable
+trait Keys[T <: HList] extends DepFn0, Serializable
 
 object Keys {
   type Aux[T <: HList, Out0] = Keys[T] { type Out = Out0 }

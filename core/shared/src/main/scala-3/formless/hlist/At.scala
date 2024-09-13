@@ -5,7 +5,7 @@ import scala.compiletime.ops.int.S
 /**
  * Type class supporting access to the `N`th element of this `HList`. Available only if this `HList` has at least `N` elements.
  */
-trait At[L, N] extends DepFn1[L] with Serializable
+trait At[L, N] extends DepFn1[L], Serializable
 
 object At {
   type Aux[L, N, O] = At[L, N] { type Out = O }

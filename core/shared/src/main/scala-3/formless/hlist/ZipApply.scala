@@ -5,7 +5,7 @@ package formless.hlist
  * correspondingly typed function arguments returning the result of each application as a `HList`. Available only if
  * there is evidence that the corresponding function and argument elements have compatible types.
  */
-trait ZipApply[FL, AL] extends DepFn2[FL, AL] with Serializable
+trait ZipApply[FL, AL] extends DepFn2[FL, AL], Serializable
 
 object ZipApply {
   type Aux[FL, AL, O] = ZipApply[FL, AL] { type Out = O }

@@ -5,7 +5,7 @@ package formless.hlist
  * its transformation via a given function into a new element of type `V`.
  * Available only if this `HList` contains an element of type `U`.
  */
-trait Modifier[L, U, V] extends DepFn2[L, U => V] with Serializable
+trait Modifier[L, U, V] extends DepFn2[L, U => V], Serializable
 
 object Modifier {
   type Aux[L, U, V, O] = Modifier[L, U, V] { type Out = O }

@@ -5,7 +5,7 @@ import formless.hlist.{::, Case2, DepFn2, HList, HNil}
 /**
  * Type class support record merging with a polymorphic function.
  */
-trait MergeWith[L, M, F] extends DepFn2[L, M] with Serializable
+trait MergeWith[L, M, F] extends DepFn2[L, M], Serializable
 
 sealed trait MergeWithLP {
   final type Aux[L, M, F, O] = MergeWith[L, M, F] { type Out = O }

@@ -10,7 +10,7 @@ type RangeT[N <: Int, M <: Int] <: HList = N match {
 /**
  * Type class supporting the patching of a `HList`.
  */
-trait Range[N, M] extends DepFn0 with Serializable
+trait Range[N, M] extends DepFn0, Serializable
 
 object Range {
   type Aux[N, M, O] = Range[N, M] { type Out = O }

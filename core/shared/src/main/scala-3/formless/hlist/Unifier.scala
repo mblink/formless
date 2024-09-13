@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting unification of this `HList`.
  */
-trait Unifier[T] extends DepFn1[T] with Serializable
+trait Unifier[T] extends DepFn1[T], Serializable
 
 object Unifier {
   type Aux[T, O] = Unifier[T] { type Out = O }

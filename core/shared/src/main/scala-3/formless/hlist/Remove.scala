@@ -5,7 +5,7 @@ package hlist
  * Type class supporting removal of an element from this `HList`. Available only if this `HList` contains an
  * element of type `E`.
  */
-trait Remove[L, E] extends DepFn1[L] with Serializable {
+trait Remove[L, E] extends DepFn1[L], Serializable {
   def reinsert(out: Out): L
 }
 

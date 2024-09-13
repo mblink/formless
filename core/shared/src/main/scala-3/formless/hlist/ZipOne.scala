@@ -4,7 +4,7 @@ package formless.hlist
  * Type class supporting zipping this `HList` with a `HList` of `HList`s returning a `HList` of `HList`s with each
  * element of this `HList` prepended to the corresponding `HList` element of the argument `HList`.
  */
-trait ZipOne[H, T] extends DepFn2[H, T] with Serializable
+trait ZipOne[H, T] extends DepFn2[H, T], Serializable
 
 sealed trait ZipOneLP {
   final type Aux[H, T, O] = ZipOne[H, T] { type Out = O }

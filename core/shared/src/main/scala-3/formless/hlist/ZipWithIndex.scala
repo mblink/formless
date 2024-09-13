@@ -11,7 +11,7 @@ type ZipWithIndexT0[L <: HList, I <: Int] <: HList = L match {
  * Type class supporting zipping a `HList` with its element indices, resulting in a `HList` of `HList`s of the form
  * ({element from input `HList`}, {element index})
  */
-trait ZipWithIndex[L] extends DepFn1[L] with Serializable
+trait ZipWithIndex[L] extends DepFn1[L], Serializable
 
 object ZipWithIndex {
   type Aux[L, O] = ZipWithIndex[L] { type Out = O }

@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class witnessing that there exists at least one element of a `HList` for which a `Poly` of type `F` can be applied.
  */
-trait CollectFirst[L, F] extends DepFn1[L] with Serializable
+trait CollectFirst[L, F] extends DepFn1[L], Serializable
 
 trait CollectFirstLP {
   final type Aux[L, F, O] = CollectFirst[L, F] { type Out = O }

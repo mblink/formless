@@ -4,7 +4,7 @@ package formless.hlist
  * Type class supporting access to the elements of this `HList` specified by `Ids`. Available only if this `HList`
  * contains all elements specified in `Ids`.
  */
-trait SelectMany[L, Ids] extends DepFn1[L] with Serializable
+trait SelectMany[L, Ids] extends DepFn1[L], Serializable
 
 object SelectMany {
   type Aux[L, Ids, O] = SelectMany[L, Ids] { type Out = O }

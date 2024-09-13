@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting transposing this `HList`.
  */
-trait Transposer[L] extends DepFn1[L] with Serializable
+trait Transposer[L] extends DepFn1[L], Serializable
 
 object Transposer {
   type Aux[L, O] = Transposer[L] { type Out = O }

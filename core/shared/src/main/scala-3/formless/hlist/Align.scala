@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting permuting this `HList` into the same order as another `HList` with the same element types.
  */
-trait Align[L, M] extends (L => M) with Serializable
+trait Align[L, M] extends (L => M), Serializable
 
 object Align {
   inline def apply[L, M](using a: Align[L, M]): Align[L, M] = a

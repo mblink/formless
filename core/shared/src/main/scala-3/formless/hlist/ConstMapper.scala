@@ -8,7 +8,7 @@ type ConstMapperT[C, T <: HList] <: HList = T match {
 /**
  * Type class supporting mapping a constant valued function over this `HList`.
  */
-trait ConstMapper[C, T <: HList] extends DepFn2[C, T] with Serializable { type Out <: HList }
+trait ConstMapper[C, T <: HList] extends DepFn2[C, T], Serializable { type Out <: HList }
 
 object ConstMapper {
   type Aux[C, T <: HList, O <: HList] = ConstMapper[C, T] { type Out = O }

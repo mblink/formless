@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting right scanning of this `HList` with a binary polymorphic function.
  */
-trait RightScanner[L, In, F] extends DepFn2[L, In] with Serializable
+trait RightScanner[L, In, F] extends DepFn2[L, In], Serializable
 
 object RightScanner {
   type Aux[L, In, F, O] = RightScanner[L, In, F] { type Out = O }

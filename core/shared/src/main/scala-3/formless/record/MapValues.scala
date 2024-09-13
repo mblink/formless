@@ -5,7 +5,7 @@ import formless.hlist.{::, Case1, DepFn1, HList, HNil}
 /**
  * Type class supporting mapping a higher rank function over the values of a record.
  */
-trait MapValues[F, L] extends DepFn1[L] with Serializable
+trait MapValues[F, L] extends DepFn1[L], Serializable
 
 object MapValues {
   type Aux[F, L, O] = MapValues[F, L] { type Out = O }

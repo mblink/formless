@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting access to the all elements of this `HList` of type different than `U`.
  */
-trait FilterNot[L, U] extends DepFn1[L] with Serializable
+trait FilterNot[L, U] extends DepFn1[L], Serializable
 
 object FilterNot {
   type Aux[L, U, O] = FilterNot[L, U] { type Out = O }

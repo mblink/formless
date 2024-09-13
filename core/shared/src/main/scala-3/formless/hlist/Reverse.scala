@@ -3,7 +3,7 @@ package formless.hlist
 /**
  * Type class supporting reversing this `HList`.
  */
-trait Reverse[T] extends DepFn1[T] with Serializable
+trait Reverse[T] extends DepFn1[T], Serializable
 
 object Reverse {
   type Aux[T, O] = Reverse[T] { type Out = O }
