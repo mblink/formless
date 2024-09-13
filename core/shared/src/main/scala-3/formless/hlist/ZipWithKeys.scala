@@ -16,11 +16,12 @@ object ZipWithKeys {
     given kv[K, V]: Case.Aux[K, V, K ->> V] = at((_, v) => label[K](v))
   }
 
+  final class Inst[K, V, O](f: V => O) extends ZipWithKeys[K, V], Serializable {
+    final type Out = O
+    final def apply(v: V): Out = f(v)
+  }
+
   inline given zipWithKeysHList[K <: HList, V <: HList](
     using z: ZipWith[K, V, F.type],
-  ): ZipWithKeys.Aux[K, V, z.Out] =
-    new ZipWithKeys[K, V] {
-      type Out = z.Out
-      def apply(v: V): Out = z(constValueHList[K], v)
-    }
+  ): ZipWithKeys.Aux[K, V, z.Out] = Inst(z(constValueHList[K], _))
 }

@@ -563,8 +563,8 @@ class HListTests extends FunSuite {
     val r1 = HNil.to[List]
     assertTypedEquals[List[Nothing]](Nil, r1)
 
-    ToList[HNil, Nothing]
-    ToList[HNil, Int]
+    val _ = ToList[HNil, Nothing]
+    val _ = ToList[HNil, Int]
 
     {
       summon[ToTraversable.Aux[M[Int] :: HNil, List, M[Int]]]
@@ -759,8 +759,8 @@ class HListTests extends FunSuite {
     typed[Array[Unit]](empty)
     assertArrayEquals2(Array[Unit](), empty)
 
-    ToArray[HNil, Unit]
-    ToArray[HNil, Int]
+    val _ = ToArray[HNil, Unit]
+    val _ = ToArray[HNil, Int]
 
     {
       val a1 = (mi :: HNil).toArrayLub[M[Int]]

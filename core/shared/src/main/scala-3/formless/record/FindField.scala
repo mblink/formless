@@ -24,6 +24,13 @@ object FindField {
     using f: FindField[T, F, Cmp],
   ): FindField.Aux[T, F, Cmp, f.Key, f.Value, f.Replaced, f.Removed] = f
 
+  final class Inst[T <: HList, F, Cmp[_, _], K, V, Rep[_] <: HList, Rem <: HList](val index: Int) extends FindField[T, F, Cmp] {
+    final type Key = K
+    final type Value = V
+    final type Replaced[A] = Rep[A]
+    final type Removed = Rem
+  }
+
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using q: Quotes): Expr[FindField[T, F, Cmp]] = {
     import q.reflect.*
 
@@ -36,15 +43,7 @@ object FindField {
         case '[::[head, tail]] if Expr.summon[Cmp[head, F]].nonEmpty =>
           TypeRepr.of[head].typeArgs.map(_.asType) match {
             case List('[key], '[value]) =>
-              '{
-                (new FindField[T, F, Cmp] {
-                  type Key = key
-                  type Value = value
-                  type Replaced[A] = HList.Concat[Rep[A], tail]
-                  type Removed = HList.Concat[Rem, tail]
-                  val index = ${ Expr(idx) }
-                }).asInstanceOf[FindField.Aux[T, F, Cmp, key, value, [a] =>> HList.Concat[Rep[a], tail], HList.Concat[Rem, tail]]]
-              }
+              '{ FindField.Inst[T, F, Cmp, key, value, [a] =>> HList.Concat[Rep[a], tail], HList.Concat[Rem, tail]](${ Expr(idx) }) }
             case ts => report.errorAndAbort(s"Unexpected type args: $ts")
           }
         case '[::[head, tail]] =>

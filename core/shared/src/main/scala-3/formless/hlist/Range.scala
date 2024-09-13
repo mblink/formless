@@ -17,11 +17,12 @@ object Range {
 
   inline def apply[N, M](using r: Range[N, M]): Range.Aux[N, M, r.Out] = r
 
+  final class Inst[N, M, O](o: O) extends Range[N, M], Serializable {
+    final type Out = O
+    final def apply(): Out = o
+  }
+
   inline given rangeInst[N <: Int, M <: Int](
     using ev: (M >= N) =:= true,
-  ): Range.Aux[N, M, RangeT[N, M]] =
-    new Range[N, M] {
-      type Out = RangeT[N, M]
-      def apply(): Out = summonAllValueOfHList[RangeT[N, M]]
-    }
+  ): Range.Aux[N, M, RangeT[N, M]] = Inst(summonAllValueOfHList[RangeT[N, M]])
 }

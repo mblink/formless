@@ -9,9 +9,11 @@ sealed trait Selector[T <: HList, A] extends (T => A), Serializable
 object Selector {
   inline def apply[T <: HList, A](using s: Selector[T, A]): Selector[T, A] = s
 
-  inline given selectorHListHead[H, T <: HList]: Selector[H :: T, H] =
-    new Selector[H :: T, H] { def apply(t: H :: T): H = t.head }
+  final class Inst[T <: HList, A](f: T => A) extends Selector[T, A], Serializable {
+    final def apply(t: T): A = f(t)
+  }
 
-  inline given selectorHListTail[A, H, T <: HList](using s: Selector[T, A]): Selector[H :: T, A] =
-    new Selector[H :: T, A] { def apply(t: H :: T): A = s(t.tail) }
+  inline given selectorHListHead[H, T <: HList]: Selector[H :: T, H] = Inst(_.head)
+
+  inline given selectorHListTail[A, H, T <: HList](using s: Selector[T, A]): Selector[H :: T, A] = Inst(t => s(t.tail))
 }

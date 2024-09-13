@@ -10,9 +10,10 @@ object Reify {
 
   type Aux[T, O] = Reify[T] { type Out = O }
 
-  inline given reifyInst[T <: HList]: Reify.Aux[T, T] =
-    new Reify[T] {
-      type Out = T
-      def apply(): T = summonAllValueOfHList[T]
-    }
+  final class Inst[T](t: T) extends Reify[T], Serializable {
+    final type Out = T
+    final def apply(): Out = t
+  }
+
+  inline given reifyInst[T <: HList]: Reify.Aux[T, T] = Inst(summonAllValueOfHList[T])
 }

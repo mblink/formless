@@ -673,8 +673,8 @@ class RecordTests extends FunSuite {
       ("teeth" ->> 1)      :: HNil
     )
 
-    ps.sortBy(_("age"))
-    ps.sortBy(_("teeth"))
+    val _ = ps.sortBy(_("age"))
+    val _ = ps.sortBy(_("teeth"))
   }
 
   test("RenameField") {

@@ -10,9 +10,11 @@ object Length {
 
   inline def apply[T](using l: Length[T]): Length.Aux[T, l.Out] = l
 
+  final class Inst[T, O <: Int](o: O) extends Length[T], Serializable {
+    final type Out = O
+    final def apply(): Out = o
+  }
+
   inline given lengthHList[T <: HList]: Length.Aux[T, HList.Size[T]] =
-    new Length[T] {
-      type Out = HList.Size[T]
-      def apply(): Out = compiletime.summonInline[ValueOf[HList.Size[T]]].value
-    }
+    Inst(compiletime.summonInline[ValueOf[HList.Size[T]]].value)
 }
