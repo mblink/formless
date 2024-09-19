@@ -950,7 +950,16 @@ class RecordTests extends FunSuite {
     val swapped = swap()
 
     assertTypedEquals["a"](swapped.head, select(swapped))
- }
+  }
+
+  test("SelectorWithAlias") {
+    type Alias[K, A] = K ->> (("foo" ->> A) :: ("bar" ->> A) :: HNil)
+    type X = Alias["test", Unit] :: HNil
+    val inner = ("foo" ->> ()) :: ("bar" ->> ()) :: HNil
+    val x: X = ("test" ->> inner) :: HNil
+
+    assertTypedEquals[("foo" ->> Unit) :: ("bar" ->> Unit) :: HNil](inner, x("test"))
+  }
 
   test("FieldTypeOfValueClass") {
     val x = RecordTests.aValueClassField ->> RecordTests.AValueClass(1L)
