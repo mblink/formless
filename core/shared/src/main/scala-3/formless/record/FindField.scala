@@ -31,8 +31,18 @@ object FindField {
     final type Removed = Rem
   }
 
+  private class ConcreteLabelled[K, V]
+
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using q: Quotes): Expr[FindField[T, F, Cmp]] = {
     import q.reflect.*
+
+    val labelled = TypeRepr.of[->>]
+    val labelledSym = labelled.typeSymbol
+    val concreteLabelled = TypeRepr.of[ConcreteLabelled]
+    val concreteLabelledSym = concreteLabelled.typeSymbol
+
+    def concrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(labelledSym), List(concreteLabelled))
+    def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
 
     def go[
       Rep[_] <: HList: Type,
@@ -41,10 +51,16 @@ object FindField {
     ](idx: Int): Expr[FindField[T, F, Cmp]] =
       Type.of[RestT] match {
         case '[::[head, tail]] if Expr.summon[Cmp[head, F]].nonEmpty =>
-          TypeRepr.of[head].typeArgs.map(_.asType) match {
-            case List('[key], '[value]) =>
-              '{ FindField.Inst[T, F, Cmp, key, value, [a] =>> HList.Concat[Rep[a], tail], HList.Concat[Rem, tail]](${ Expr(idx) }) }
-            case ts => report.errorAndAbort(s"Unexpected type args: $ts")
+          // We need to replace `->>` with a concrete `class` type so the match works
+          // Matches on opaque types like `->>` will *never* match
+          concrete(TypeRepr.of[head].dealias).asType match {
+            case '[ConcreteLabelled[k, v]] =>
+              (unConcrete(TypeRepr.of[k]).asType, unConcrete(TypeRepr.of[v]).asType) match {
+                case ('[key], '[value]) =>
+                  '{ FindField.Inst[T, F, Cmp, key, value, [a] =>> HList.Concat[Rep[a], tail], HList.Concat[Rem, tail]](${ Expr(idx) }) }
+              }
+            case '[t] =>
+              report.errorAndAbort(s"Unexpected type: ${Type.show[t]}")
           }
         case '[::[head, tail]] =>
           go[[a] =>> HList.Append[Rep[head], a], HList.Append[Rem, head], tail](idx + 1)
