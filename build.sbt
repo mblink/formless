@@ -34,14 +34,16 @@ def foldScalaV[A](scalaVersion: String)(_213: => A, _3: => A): A =
     case Some((3, _)) => _3
   }
 
-lazy val mavenRepoUrl = "https://raw.githubusercontent.com/mblink/maven-repo/main"
+lazy val mavenRepoBucket = "bondlink-maven-repo"
+lazy val mavenRepoUrl = s"https://s3.amazonaws.com/$mavenRepoBucket"
 
 lazy val baseSettings = Seq(
   scalaVersion := scala3,
   crossScalaVersions := Seq(scala213, scala3, scala3_5),
   organization := "com.bondlink",
+  publishTo := Some("BondLink S3".at(s"s3://$mavenRepoBucket")),
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
-  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.5.0"),
+  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.5.1"),
   mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.patch)),
@@ -60,13 +62,11 @@ lazy val baseSettings = Seq(
     "-language:implicitConversions"
   ),
   licenses += License.Apache2,
-  gitPublishDir := file("/src/maven-repo")
 )
 
 lazy val noPublishSettings = Seq(
   publish := {},
   publishLocal := {},
-  gitRelease := {},
 )
 
 lazy val root = project.in(file("."))
@@ -115,7 +115,6 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("c
     // Disable publishing for Scala 3.5
     publish := { if (scalaVersion.value == scala3_5) () else publish.value },
     publishLocal := { if (scalaVersion.value == scala3_5) () else publishLocal.value },
-    gitRelease := { if (scalaVersion.value == scala3_5) () else gitRelease.value },
   )
 
 lazy val docs = project.in(file("formless-docs"))

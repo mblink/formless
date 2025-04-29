@@ -12,7 +12,7 @@ classes and syntax that simplify generic programming.
 Add the following to your `build.sbt`:
 
 ```scala
-resolvers += "bondlink-maven-repo" at "https://raw.githubusercontent.com/mblink/maven-repo/main"
+resolvers += "bondlink-maven-repo" at "https://s3.amazonaws.com/bondlink-maven-repo"
 libraryDependencies += "com.bondlink" %% "formless" % "0.5.1"
 ```
 
@@ -22,7 +22,7 @@ If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the follow
 import coursier.maven.MavenRepository
 
 def repositoriesTask = T.task {
-  super.repositoriesTask() ++ Seq(MavenRepository("https://raw.githubusercontent.com/mblink/maven-repo/main"))
+  super.repositoriesTask() ++ Seq(MavenRepository("https://s3.amazonaws.com/bondlink-maven-repo"))
 }
 
 def ivyDeps = Agg(ivy"com.bondlink::formless:0.5.1")
@@ -308,7 +308,7 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x0000007004f3eb00@213d5998 :: repl.MdocSession$MdocApp$$Lambda/0x0000007004f3e738@2879199b :: repl.MdocSession$MdocApp$$Lambda/0x0000007004f3e370@4e8aa3de :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x0000007002d94000@6d857425 :: repl.MdocSession$MdocApp$$Lambda/0x0000007002d83c18@581f34a9 :: repl.MdocSession$MdocApp$$Lambda/0x0000007002d83858@3c6b93ef :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil
