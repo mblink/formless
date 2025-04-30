@@ -18,12 +18,12 @@ package formless
 package record
 
 import munit.FunSuite
-import formless.hlist.*
-import formless.tagged.{TranslucentTag => @@, translucentTag}
-import formless.test.*
-import formless.testutil.*
+import formless.hlist._
+import formless.tagged.{TranslucentTagged => @@, translucentTag}
+import formless.test._
+import formless.testutil._
 
-class RecordTests extends FunSuite {
+class RecordTests extends FunSuite with RecordTestsCompat {
   object intField1 extends FieldOf[Int]
   object intField2 extends FieldOf[Int]
   object stringField1 extends FieldOf[String]
@@ -128,6 +128,7 @@ class RecordTests extends FunSuite {
   test("FromMap") {
     type T1 = ("stringVal" ->> String) :: ("intVal" ->> Int) :: ("boolVal" ->> Boolean) :: HNil
 
+    @annotation.nowarn("msg=type was inferred to be `Any`")
     val in = Map("intVal" -> 4, "stringVal" -> "Blarr", "boolVal" -> true)
 
     val recOption = in.toRecord[T1]
@@ -142,6 +143,7 @@ class RecordTests extends FunSuite {
     assert(rec("intVal") == 4, "int val mismatch")
     assert(rec("boolVal"), "Boolean val match")
 
+    @annotation.nowarn("msg=type was inferred to be `Any`")
     val in2 = Map("intVal" -> 4, "stringVal" -> "Blarr")
 
     val recEither2 = in2.toRecord[T1]
@@ -152,6 +154,7 @@ class RecordTests extends FunSuite {
   test("FromMap2") {
     type T = intField1.F :: stringField1.F :: boolField1.F :: doubleField1.F :: HNil
 
+    @annotation.nowarn("msg=type was inferred to be `Any`")
     val in = Map(intField1 -> 4, stringField1 -> "Blarr", boolField1 -> true, doubleField1 -> 5.0)
 
     val recOption = in.toRecord[T]
@@ -325,7 +328,7 @@ class RecordTests extends FunSuite {
     type i = ("x" ->> String) :: ("d" ->> Int) :: HNil
     type i1 = ("x" ->> Any) :: ("d" ->> Any) :: HNil
     val extRes = ("e" ->> (("x" ->> "X") :: ("d" ->> 3) :: HNil) :: ("d" ->> -1) :: HNil)
-    assertTypedEquals(extRes)(outer1.extract[("e" ->> i) :: ("d" ->> Int) :: HNil])
+    assertTypedEquals(extRes).apply(outer1.extract[("e" ->> i) :: ("d" ->> Int) :: HNil])
     //covariance
     type e1 = ("e" ->> i1) :: ("d" ->> Any) :: HNil
     assertEquals(extRes, outer1.extract[e1])
@@ -342,8 +345,8 @@ class RecordTests extends FunSuite {
 
   test("MergeWith") {
     object mergeField extends Poly2 {
-      given xor: Case.Aux[Boolean, Boolean, Boolean] = at[Boolean, Boolean] { _ ^ _ }
-      given toDouble: Case.Aux[Int, String, Double] = at[Int, String] { _.toDouble + _.toDouble }
+      implicit val xor: Case.Aux[Boolean, Boolean, Boolean] = at[Boolean, Boolean] { _ ^ _ }
+      implicit val toDouble: Case.Aux[Int, String, Double] = at[Int, String] { _.toDouble + _.toDouble }
     }
 
     {
@@ -543,7 +546,7 @@ class RecordTests extends FunSuite {
   }
 
   test("LacksKey") {
-    def without[R <: HList, O <: HList](k: String)(r: R)(f: R => O)(using ev: LacksKey[R, k.type]): O = f(r)
+    def without[R <: HList, O <: HList](k: String)(r: R)(f: R => O)(implicit ev: LacksKey[R, k.type]): O = f(r)
 
     type R1 = ("a" ->> Int) :: ("b" ->> String) :: ("c" ->> Boolean) :: HNil
     type R2 = ("c" ->> Boolean) :: ("a" ->> Int) :: ("b" ->> String) :: HNil
@@ -600,11 +603,11 @@ class RecordTests extends FunSuite {
 
   test("MappingOverRecordFields") {
     object toUpper extends Poly1 {
-      given stringToUpper[F]: Case.Aux[F ->> String, F ->> String] = at[F ->> String] {
+      implicit def stringToUpper[F]: Case.Aux[F ->> String, F ->> String] = at[F ->> String] {
         f => field[F](f.toUpperCase)
       }
 
-      given otherTypes[X]: Case.Aux[X, X] = at[X](identity)
+      implicit def otherTypes[X]: Case.Aux[X, X] = at[X](identity)
     }
 
     val r = ("foo" ->> "joe") :: ("bar" ->> true) :: ("baz" ->> 2.0) :: HNil
@@ -692,7 +695,7 @@ class RecordTests extends FunSuite {
 
   test("FieldPoly") {
     object f extends FieldPoly {
-      given atFoo: Case.Aux["foo" ->> Int, "foo" ->> Int] = atField[Int]("foo")(_ + 1)
+      implicit val atFoo: Case.Aux["foo" ->> Int, "foo" ->> Int] = atField[Int]("foo")(_ + 1)
     }
 
     val r = "foo" ->> 23
@@ -846,9 +849,9 @@ class RecordTests extends FunSuite {
 
   test("MapValues") {
     object f extends Poly1 {
-      given int: Case.Aux[Int, Boolean] = at[Int](i => i > 0)
-      given string: Case.Aux[String, String] = at[String](s => s"s: $s")
-      given boolean: Case.Aux[Boolean, String] = at[Boolean](v => if (v) "Yup" else "Nope")
+      implicit val int: Case.Aux[Int, Boolean] = at[Int](i => i > 0)
+      implicit val string: Case.Aux[String, String] = at[String](s => s"s: $s")
+      implicit val boolean: Case.Aux[Boolean, String] = at[Boolean](v => if (v) "Yup" else "Nope")
     }
 
     {
@@ -868,8 +871,8 @@ class RecordTests extends FunSuite {
 
     {
       object toUpper extends Poly1 {
-        given stringToUpper: Case.Aux[String, String] = at[String](_.toUpperCase)
-        given otherTypes[X]: Case.Aux[X, X] = at[X](identity)
+        implicit val stringToUpper: Case.Aux[String, String] = at[String](_.toUpperCase)
+        implicit def otherTypes[X]: Case.Aux[X, X] = at[X](identity)
       }
 
       val r = ("foo" ->> "joe") :: ("bar" ->> true) :: ("baz" ->> 2.0) :: HNil
@@ -892,9 +895,10 @@ class RecordTests extends FunSuite {
   test("SwapRecord") {
     type TestRecord = ("x" ->> Int) :: ("y" ->> String) :: ("z" ->> Boolean) :: HNil
 
-    val fields: ((Int ->> "x") :: (String ->> "y") :: (Boolean ->> "z") :: HNil) = SwapRecord[TestRecord].apply()
+    val fields = SwapRecord[TestRecord].apply()
+    val vals = fields.values
 
-    assertEquals(fields.values.toList, List("x", "y", "z"))
+    assertEquals(vals.toList, List("x", "y", "z"))
   }
 
   test("AlignByKeys") {
@@ -959,11 +963,6 @@ class RecordTests extends FunSuite {
     val x: X = ("test" ->> inner) :: HNil
 
     assertTypedEquals[("foo" ->> Unit) :: ("bar" ->> Unit) :: HNil](inner, x("test"))
-  }
-
-  test("FieldTypeOfValueClass") {
-    val x = RecordTests.aValueClassField ->> RecordTests.AValueClass(1L)
-    assertEquals(x.l, Array(x).apply(0).l)
   }
 }
 

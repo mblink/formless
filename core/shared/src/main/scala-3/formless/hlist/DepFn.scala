@@ -75,7 +75,7 @@ trait Poly1 extends Poly { self =>
     final type Aux[A, R] = Case1.Aux[self.type, A, R]
   }
 
-  final inline def at[A] = [R] => (f: A => R) => Case1[self.type, A, R](f)
+  final def at[A] = [R] => (f: A => R) => Case1[self.type, A, R](f)
 }
 
 trait Poly2 extends Poly { self =>
@@ -84,7 +84,7 @@ trait Poly2 extends Poly { self =>
     final type Aux[A, B, R] = Case2.Aux[self.type, A, B, R]
   }
 
-  final inline def at[A, B] = [R] => (f: (A, B) => R) => Case2[self.type, A, B, R](f)
+  final def at[A, B] = [R] => (f: (A, B) => R) => Case2[self.type, A, B, R](f)
 }
 
 /**
