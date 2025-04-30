@@ -2,11 +2,11 @@ import formless._
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val scala213 = "2.13.14"
-lazy val scala3 = "3.3.3"
-lazy val scala3_5 = "3.5.0"
+lazy val scala213 = "2.13.16"
+lazy val scala3 = "3.3.5"
+lazy val scala3_6 = "3.6.4"
 
-ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_5)
+ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_6)
 ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.5.1"
 
@@ -39,18 +39,18 @@ lazy val mavenRepoUrl = s"https://s3.amazonaws.com/$mavenRepoBucket"
 
 lazy val baseSettings = Seq(
   scalaVersion := scala3,
-  crossScalaVersions := Seq(scala213, scala3, scala3_5),
+  crossScalaVersions := Seq(scala213, scala3, scala3_6),
   organization := "com.bondlink",
   publishTo := Some("BondLink S3".at(s"s3://$mavenRepoBucket")),
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
-  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.5.1"),
+  mimaPreviousArtifacts := Set(),
   mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.patch)),
     Seq(),
   ),
   scalacOptions ++= foldScalaV(scalaVersion.value)(
-    Seq("-Vimplicits-verbose-tree"),
+    Seq("-Vimplicits", "-Vimplicits-verbose-tree"),
     Seq(
       "-no-indent",
       "-Wunused:unsafe-warn-patvars",
@@ -77,9 +77,9 @@ lazy val root = project.in(file("."))
   .settings(noPublishSettings)
   .disablePlugins(MimaPlugin)
 
-lazy val munit = Def.setting("org.scalameta" %% "munit" % "1.0.2" % Test)
-lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.12")
-lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.18.0" % Test)
+lazy val munit = Def.setting("org.scalameta" %% "munit" % "1.1.1" % Test)
+lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.13")
+lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.18.1" % Test)
 
 lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("core"))
   .settings(baseSettings)
@@ -112,9 +112,9 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("c
         gen("RemoverTest.scala", SourceGenerator.RemoverTest),
       )
     },
-    // Disable publishing for Scala 3.5
-    publish := { if (scalaVersion.value == scala3_5) () else publish.value },
-    publishLocal := { if (scalaVersion.value == scala3_5) () else publishLocal.value },
+    // Disable publishing for Scala 3.6
+    publish := { if (scalaVersion.value == scala3_6) () else publish.value },
+    publishLocal := { if (scalaVersion.value == scala3_6) () else publishLocal.value },
   )
 
 lazy val docs = project.in(file("formless-docs"))

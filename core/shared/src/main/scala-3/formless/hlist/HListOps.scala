@@ -16,14 +16,6 @@ final class UpdatedTypeAux[L, U](private val l: L) extends AnyVal {
   final def apply[V, Out <: HList](v: V)(using r: Replacer.Aux[L, U, V, (U, Out)]): Out = r(l, v)._2
 }
 
-final class UpdatedAtAux[L, N](private val l: L) extends AnyVal {
-  final def apply[U, V, Out <: HList](u: U)(using r: ReplaceAt.Aux[L, N, U, (V, Out)]): Out = r(l, u)._2
-}
-
-final class PatchAux[L, N, M](private val l: L) extends AnyVal {
-  final def apply[In <: HList](in: In)(using p: Patcher[N, M, L, In]): p.Out = p(l, in)
-}
-
 final class HListOps[L <: HList](private val l: L) extends AnyVal {
   /**
    * Prepend the argument element to this `HList`.
@@ -205,7 +197,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    * Replaces the first element of type `U` of this `HList` with the result of its transformation to a `V` via the
    * supplied function. Available only if there is evidence that this `HList` has an element of type `U`.
    */
-  final def updateTypeWith[U, V, Out <: HList](f: U => V)(using m: Modifier.Aux[L, U, V, (U, Out)]): Out = m(l, f)._2
+  final def updateWith[U, V, Out <: HList](f: U => V)(using m: Modifier.Aux[L, U, V, (U, Out)]): Out = m(l, f)._2
 
   /**
    * Replaces the `N`th element of this `HList` with the result of calling the supplied function on it.
@@ -325,7 +317,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
   /**
    * Reverses this `HList`.
    */
-  final def reverse_(using r: Reverse[L]): r.Out = r(l)
+  final def reverse(using r: Reverse[L]): r.Out = r(l)
 
   /**
    * Maps a higher rank function across this `HList`.
@@ -513,6 +505,9 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    * particular, the inferred type will be too precise (ie. `Product with Serializable with CC` for a typical case class
    * `CC`) which interacts badly with the invariance of `Array`s.
    */
+  final def toArray[Lb](using ta: ToArray[L, Lb]): ta.Out = ta(l)
+
+  /** Alias for `toArray` */
   final def toArrayLub[Lub](using ta: ToArray[L, Lub]): ta.Out = ta(l)
 
   /**

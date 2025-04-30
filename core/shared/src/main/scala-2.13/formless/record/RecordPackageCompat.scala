@@ -1,7 +1,7 @@
 package formless
 package record
 
-import scala.language.implicitConversions
+import scala.language.{dynamics, implicitConversions}
 import formless.hlist.HList
 
 final class FormlessSingletonOps[K <: Singleton](private val k: K) extends AnyVal {
@@ -16,17 +16,36 @@ final class FormlessLabelPartialAp[K](private val dummy: Boolean = false) extend
   @inline final def apply[V](v: V): K ->> V = shapeless.labelled.field[K].apply[V](v)
 }
 
-private[formless] trait RecordPackageCompat {
+final class FormlessDynamicRecordOps[T <: HList](t: T) extends Dynamic {
+  def selectDynamic(k: String)(implicit s: Selector[T, k.type]): s.Out = s(t)
+}
+
+final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
+  final def record: FormlessDynamicRecordOps[T] = new FormlessDynamicRecordOps[T](t)
+}
+
+private[formless] sealed trait RecordPackageCompatLP {
+  @inline final implicit def hlistToRecordOps[T <: HList](t: T): shapeless.syntax.RecordOps[T] =
+    new shapeless.syntax.RecordOps[T](t)
+}
+
+private[formless] trait RecordPackageCompat extends RecordPackageCompatLP {
   final type ->>[K, +V] = tagged.TranslucentTagged[V, K]
 
   final def field[K]: FormlessLabelPartialAp[K] = new FormlessLabelPartialAp[K]
   final def label[K]: FormlessLabelPartialAp[K] = new FormlessLabelPartialAp[K]
 
+  final type FieldPoly = shapeless.FieldPoly
+  final type FieldOf[V] = shapeless.FieldOf[V]
+
   @inline final implicit def toFormlessSingletonOps[K <: Singleton](k: K): FormlessSingletonOps[K] = new FormlessSingletonOps[K](k)
   @inline final implicit def toFormlessLabelledOps[K, V](kv: K ->> V): FormlessLabelledOps[K, V] = new FormlessLabelledOps[K, V](kv)
 
-  @inline final implicit def hlistToRecordOps[T <: HList](t: T): shapeless.syntax.RecordOps[T] =
-    new shapeless.syntax.RecordOps[T](t)
+  @inline final implicit def hlistToFormlessRecordOps[T <: HList](t: T): FormlessRecordOps[T] =
+    new FormlessRecordOps[T](t)
+
+  @inline final implicit def toFormlessMapOps[K, V](m: Map[K, V]): shapeless.syntax.std.MapOps[K, V] =
+    new shapeless.syntax.std.MapOps(m)
 
   final type AlignByKeys[T <: HList, K <: HList] = shapeless.ops.record.AlignByKeys[T, K]
   final val AlignByKeys: shapeless.ops.record.AlignByKeys.type = shapeless.ops.record.AlignByKeys

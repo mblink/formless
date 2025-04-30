@@ -1,11 +1,11 @@
 package formless
 package hlist
 
-import munit.{FunSuite, Location}
-import formless.test.*
-import formless.testutil.*
+import munit.FunSuite
+import formless.test._
+import formless.testutil._
 
-class HListTests extends FunSuite {
+class HListTests extends FunSuite with HListTestsCompat {
   type SI = Set[Int] :: HNil
   type OI = Option[Int] :: HNil
 
@@ -128,9 +128,9 @@ class HListTests extends FunSuite {
   }
 
   test("Map") {
-    summon[Mapper.Aux[choose.type, HNil, HNil]]
-    summon[choose.Case[Set[Int]]]
-    summon[Mapper.Aux[choose.type, Set[Int] :: HNil, Option[Int] :: HNil]]
+    val _ = implicitly[Mapper.Aux[choose.type, HNil, HNil]]
+    val _ = implicitly[choose.Case[Set[Int]]]
+    val _ = implicitly[Mapper.Aux[choose.type, Set[Int] :: HNil, Option[Int] :: HNil]]
 
     val s1 = Set(1) :: HNil
     val o1 = s1.map(choose)
@@ -175,28 +175,31 @@ class HListTests extends FunSuite {
     assertTypedEquals[String :: String :: String :: String :: HNil]("Apple()" :: "Pear()" :: "Banana()" :: "Pear()" :: HNil, l11)
   }
 
+  type Id[A] = A
+  type Const[A] = { type X[B] = A }
+
   test("Mapped") {
     val meOption = Mapped[HNil, Option]
-    val _ = summon[meOption.Out =:= HNil]
+    val _ = implicitly[meOption.Out =:= HNil]
 
     val misOption = Mapped[Int :: String :: HNil, Option]
-    val _ = summon[misOption.Out =:= Option[Int] :: Option[String] :: HNil]
+    val _ = implicitly[misOption.Out =:= (Option[Int] :: Option[String] :: HNil)]
 
-    val meId = Mapped[HNil, [a] =>> a]
-    val _ = summon[meId.Out =:= HNil]
+    val meId = Mapped[HNil, Id]
+    val _ = implicitly[meId.Out =:= HNil]
 
-    val misId = Mapped[Int :: String :: HNil, [a] =>> a]
-    val _ = summon[misId.Out =:= Int :: String :: HNil]
+    val misId = Mapped[Int :: String :: HNil, Id]
+    val _ = implicitly[misId.Out =:= (Int :: String :: HNil)]
 
-    val meConstInt = Mapped[HNil, [a] =>> Int]
-    val _ = summon[meConstInt.Out =:= HNil]
+    val meConstInt = Mapped[HNil, Const[Int]#X]
+    val _ = implicitly[meConstInt.Out =:= HNil]
 
-    val mdsConstInt = Mapped[Double :: String :: HNil, [a] =>> Int]
-    val _ = summon[mdsConstInt.Out =:= Int :: Int :: HNil]
+    val mdsConstInt = Mapped[Double :: String :: HNil, Const[Int]#X]
+    val _ = implicitly[mdsConstInt.Out =:= (Int :: Int :: HNil)]
   }
 
   object dup extends Poly1 {
-    given default[T]: Case.Aux[T, T :: T :: HNil] = at[T](t => t :: t :: HNil)
+    implicit def default[T]: Case.Aux[T, T :: T :: HNil] = at[T](t => t :: t :: HNil)
   }
 
   test("FlatMap") {
@@ -272,7 +275,7 @@ class HListTests extends FunSuite {
   test("RuntimeList") {
     assertEquals(Nil, HNil.runtimeList)
     assertEquals(List(123), (123 :: HNil).runtimeList)
-    assertEquals(List("abc", 123), ("abc" :: 123 :: HNil).runtimeList)
+    assertEquals(List[Any]("abc", 123), ("abc" :: 123 :: HNil).runtimeList)
   }
 
   test("InitLast") {
@@ -359,11 +362,11 @@ class HListTests extends FunSuite {
   }
 
   test("Reverse") {
-    val pbpa = apbp.reverse_
+    val pbpa = apbp.reverse
     assertTypedEquals[PBPA](p :: b :: p :: a :: HNil, pbpa)
 
     val al = a :: HNil
-    val ral = al.reverse_
+    val ral = al.reverse
     assertTypedEquals[Apple :: HNil](a :: HNil, ral)
   }
 
@@ -417,7 +420,7 @@ class HListTests extends FunSuite {
       val r4 = reversePrependWithHNil(ap)
       assertTypedEquals[AP](ap, r4)
       val r5 = reversePrependToHNil(ap)
-      assertTypedEquals[Pear :: Apple :: HNil](ap.reverse_, r5)
+      assertTypedEquals[Pear :: Apple :: HNil](ap.reverse, r5)
       val r6 = HNil reverse_::: HNil
       assertTypedEquals[HNil](HNil, r6)
     }
@@ -448,105 +451,6 @@ class HListTests extends FunSuite {
 
   }
 
-  test("Unifier") {
-    def lub[X, Y, L](x: X, y: Y)(using lb: Lub[X, Y, L]): (L, L) = (lb.left(x), lb.right(y))
-
-    val u21 = lub(a, a)
-    typed[(Apple, Apple)](u21)
-    val u22 = lub(a, p)
-    typed[(Fruit, Fruit)](u22)
-    val u23 = lub(a, f)
-    typed[(Fruit, Fruit)](u23)
-    val u24 = lub(p, a)
-    typed[(Fruit, Fruit)](u24)
-    val u25 = lub(p, p)
-    typed[(Pear, Pear)](u25)
-    val u26 = lub(f, f)
-    typed[(Fruit, Fruit)](u26)
-    val u27 = lub(f, a)
-    typed[(Fruit, Fruit)](u27)
-    val u28 = lub(f, p)
-    typed[(Fruit, Fruit)](u28)
-    val u29 = lub(f, f)
-    typed[(Fruit, Fruit)](u29)
-
-    summon[Lub[HNil, HNil, HNil]]
-    summon[Lub[Apple :: HNil, Apple :: HNil, Apple :: HNil]]
-    summon[Lub[Fruit :: Pear :: HNil, Fruit :: Fruit :: HNil, Fruit :: Fruit :: HNil]]
-    summon[Lub[Apple :: Pear :: HNil, Pear :: Apple :: HNil, Fruit :: Fruit :: HNil]]
-    summon[Lub[ISII, IIII, IYII]]
-
-    val u31 = lub(HNil, HNil)
-    typed[(HNil, HNil)](u31)
-    val u32 = lub(a :: HNil, a :: HNil)
-    typed[(Apple :: HNil, Apple :: HNil)](u32)
-    val u33 = lub(f :: p :: HNil, f :: f :: HNil)
-    typed[(Fruit :: Fruit :: HNil, Fruit :: Fruit :: HNil)](u33)
-    val u34 = lub(a :: p :: HNil, p :: a :: HNil)
-    typed[(Fruit :: Fruit :: HNil, Fruit :: Fruit :: HNil)](u34)
-    val u35 = lub(1 :: "two" :: 3 :: 4 :: HNil, 1 :: 2 :: 3 :: 4 :: HNil)
-    typed[(Int :: Any :: Int :: Int :: HNil, Int :: Any :: Int :: Int :: HNil)](u35)
-
-    summon[Unifier.Aux[Apple :: HNil, Apple :: HNil]]
-    summon[Unifier.Aux[Fruit :: Pear :: HNil, Fruit :: Fruit :: HNil]]
-    summon[Unifier.Aux[Apple :: Pear :: HNil, Fruit :: Fruit :: HNil]]
-
-    summon[Unifier.Aux[Int :: String :: Int :: Int :: HNil, YYYY]]
-
-    val uapap = summon[Unifier.Aux[Apple :: Pear :: Apple :: Pear :: HNil, FFFF]]
-    val unified1 = uapap(apap)
-    typed[FFFF](unified1)
-    val unified2 = apap.unify
-    typed[FFFF](unified2)
-
-    val ununified1 = Some(unified2).collect {
-      case (a1: Apple) :: (p1: Pear) :: (a2: Apple) :: (p2: Pear) :: HNil =>
-        a1 :: p1 :: a2 :: p2 :: HNil
-    }
-    assert(ununified1.isDefined)
-    typed[APAP](ununified1.get)
-    val ununified2 = Some(unified2).collect {
-      case (a: Apple) :: (p1: Pear) :: (b: Banana) :: (p2: Pear) :: HNil =>
-        a :: p1 :: b :: p2 :: HNil
-    }
-    assert(!ununified2.isDefined)
-    typed[Option[APBP]](ununified2)
-
-    def getUnifier[L <: HList, Out <: HList](l: L)(using u: Unifier.Aux[L, Out]) = u
-
-    val u2 = getUnifier(a :: HNil)
-    typed[Unifier.Aux[Apple :: HNil, Apple :: HNil]](u2)
-    val u3 = getUnifier(a :: a :: HNil)
-    typed[Unifier.Aux[Apple :: Apple :: HNil, Apple :: Apple :: HNil]](u3)
-    val u4 = getUnifier(a :: a :: a :: HNil)
-    typed[Unifier.Aux[Apple :: Apple :: Apple :: HNil, Apple :: Apple :: Apple :: HNil]](u4)
-    val u5 = getUnifier(a :: a :: a :: a :: HNil)
-    typed[Unifier.Aux[Apple :: Apple :: Apple :: Apple :: HNil, Apple :: Apple :: Apple :: Apple :: HNil]](u5)
-    val u6 = getUnifier(a :: p :: HNil)
-    typed[Unifier.Aux[Apple :: Pear :: HNil, Fruit :: Fruit :: HNil]](u6)
-    val u7 = getUnifier(a :: f :: HNil)
-    typed[Unifier.Aux[Apple :: Fruit :: HNil, Fruit :: Fruit :: HNil]](u7)
-    val u8 = getUnifier(f :: a :: HNil)
-    typed[Unifier.Aux[Fruit :: Apple :: HNil, Fruit :: Fruit :: HNil]](u8)
-    val u9a = getUnifier(a :: f :: HNil)
-    typed[Unifier.Aux[Apple :: Fruit :: HNil, FF]](u9a)
-    val u9b = getUnifier(a :: p :: HNil)
-    typed[Unifier.Aux[Apple :: Pear :: HNil, Fruit :: Fruit :: HNil]](u9b)
-    val u10 = getUnifier(apap)
-    typed[Unifier.Aux[APAP, Fruit :: Fruit :: Fruit :: Fruit :: HNil]](u10)
-    val u11 = getUnifier(apbp)
-    typed[Unifier.Aux[APBP, Fruit :: Fruit :: Fruit :: Fruit :: HNil]](u11)
-
-    val invar1 = Set(23) :: Set("foo") :: HNil
-    val uinvar1 = invar1.unify
-    typed[Set[? >: Int & String] :: Set[? >: Int & String] :: HNil](uinvar1)
-
-    // Unifying three or more elements which have an invariant outer type constructor and differing type
-    // arguments fails, presumably due to a failure to compute a sensible LUB.
-    //val invar2 = Set(23) :: Set("foo") :: Set(true) :: HNil
-    //val uinvar2 = invar.unify
-  }
-
   test("SubtypeUnifier") {
     val fruits: Apple :: Pear :: Fruit :: HNil = a :: p :: f :: HNil
     typed[Fruit :: Fruit :: Fruit :: HNil](fruits.unifySubtypes[Fruit])
@@ -567,8 +471,8 @@ class HListTests extends FunSuite {
     val _ = ToList[HNil, Int]
 
     {
-      summon[ToTraversable.Aux[M[Int] :: HNil, List, M[Int]]]
-      summon[ToTraversable.Aux[M[Int] :: HNil, List, M[?]]]
+      val _ = implicitly[ToTraversable.Aux[M[Int] :: HNil, List, M[Int]]]
+      val _ = implicitly[ToTraversable.Aux[M[Int] :: HNil, List, M[?]]]
     }
 
     val r2 = apap.to[List]
@@ -591,7 +495,7 @@ class HListTests extends FunSuite {
     typed[List[Any]](moreStuff)
 
 
-    def equalInferredTypes[A,B](a: A, b: B)(using eq: A =:= B): Unit = {}
+    def equalInferredTypes[A,B](a: A, b: B)(implicit eq: A =:= B): Unit = {}
 
     val ctv = cicscicicd.to[List]
     equalInferredTypes(cicscicicdList, ctv)
@@ -618,8 +522,8 @@ class HListTests extends FunSuite {
     val r1 = HNil.toList
     assertTypedEquals[List[Nothing]](Nil, r1)
 
-    summon[ToTraversable.Aux[HNil, List, Nothing]]
-    summon[ToTraversable.Aux[HNil, List, Int]]
+    val _ = implicitly[ToTraversable.Aux[HNil, List, Nothing]]
+    val _ = implicitly[ToTraversable.Aux[HNil, List, Int]]
 
     {
       val l1 = (mi :: HNil).toList[M[Int]]
@@ -651,7 +555,7 @@ class HListTests extends FunSuite {
     typed[List[Any]](moreStuff)
 
 
-    def equalInferredTypes[A,B](a: A, b: B)(using eq: A =:= B): Unit = {}
+    def equalInferredTypes[A,B](a: A, b: B)(implicit eq: A =:= B): Unit = {}
 
     val ctv = cicscicicd.toList
     equalInferredTypes(cicscicicdList, ctv)
@@ -681,159 +585,9 @@ class HListTests extends FunSuite {
     assertTypedEquals[List[M2[? >: Int & String & Double, ?]]](m2eim2esm2eim2eem2edList, m2e)
   }
 
-  test("ToTraversableArray") {
-    def assertArrayEquals2[T](arr1: Array[T], arr2: Array[T])(using loc: Location): Unit =
-      assertEquals(arr1.toList, arr2.toList)
-
-    val empty: Array[Unit] = HNil.toLub[Array, Unit]
-    typed[Array[Unit]](empty)
-    assertArrayEquals2(Array[Unit](), empty)
-
-    summon[ToTraversable.Aux[HNil, Array, Unit]]
-    summon[ToTraversable.Aux[HNil, Array, Int]]
-
-    {
-      summon[ToTraversable.Aux[M[Int] :: HNil, Array, M[Int]]]
-      summon[ToTraversable.Aux[M[Int] :: HNil, Array, M[?]]]
-    }
-
-    val fruits1 = apap.to[Array]
-    typed[Array[Fruit]](fruits1)
-    assertArrayEquals2(Array[Fruit](a, p, a, p), fruits1)
-
-    val fruits2 = apbp.to[Array]
-    typed[Array[Fruit]](fruits2)
-    assertArrayEquals2(Array[Fruit](a, p, b, p), fruits2)
-
-    val l1 = 1 :: "foo" :: 2 :: 3 :: HNil
-
-    val stuff = l1.to[Array]
-    typed[Array[Int | String]](stuff)
-    assertArrayEquals2(Array(1, "foo", 2, 3), stuff)
-
-    val l4 = Option(1) :: Option("foo") :: Option(2) :: Option(3) :: HNil
-    val l7 = l4.map(isDefined)
-    assertTypedEquals[BBBB](true :: true :: true :: true :: HNil, l7)
-
-    val ll2: Array[Boolean] = l7.to[Array]
-    typed[Boolean](ll2(0))
-
-    val moreStuff = (a :: "foo" :: p :: HNil).to[Array]
-    typed[Array[Apple | String | Pear]](moreStuff)
-    assertArrayEquals2(Array[Apple | String | Pear](a, "foo", p), moreStuff)
-
-
-    def equalInferredTypes[A,B](a: A, b: B)(using eq: A =:= B): Unit = {}
-
-    val ctv = cicscicicd.to[Array]
-    equalInferredTypes(cicscicicdArray, ctv)
-    typed[Array[Ctv[Int & String & Double]]](ctv)
-    assertArrayEquals2(cicscicicdArray, ctv)
-
-    val m = mimsmimimd.to[Array]
-    equalInferredTypes(mimsmimimdArray, m)
-    typed[Array[M[? >: String & Int & Double <: String | Int | Double]]](m)
-    assertArrayEquals2(mimsmimimdArray, m)
-
-    val mWithEx = mimsmimemd.to[Array]
-    //  equalType(mimsmimemdArray, mWithEx)
-    typed[Array[M[?]]](mWithEx)
-    assertArrayEquals2(mimsmimemdArray, mWithEx)
-
-    val m2 = m2im2sm2im2im2d.to[Array]
-    equalInferredTypes(m2im2sm2im2im2dArray, m2)
-    typed[Array[M2[? >: String & Int & Double <: String | Int | Double, Unit]]](m2)
-    assertArrayEquals2(m2im2sm2im2im2dArray, m2)
-
-    val m2e = m2eim2esm2eim2eem2ed.to[Array]
-    equalInferredTypes(m2eim2esm2eim2eem2edArray, m2e)
-    typed[Array[M2[? >: String & Int & Double <: String | Int | Double, ?]]](m2e)
-    assertArrayEquals2(m2eim2esm2eim2eem2edArray, m2e)
-  }
-
-  test("ToArray") {
-    def assertArrayEquals2[T](arr1: Array[T], arr2: Array[T])(using loc: Location): Unit =
-      assertEquals(arr1.toList, arr2.toList)
-
-    val empty: Array[Unit] = HNil.toArrayLub
-    typed[Array[Unit]](empty)
-    assertArrayEquals2(Array[Unit](), empty)
-
-    val _ = ToArray[HNil, Unit]
-    val _ = ToArray[HNil, Int]
-
-    {
-      val a1 = (mi :: HNil).toArrayLub[M[Int]]
-      val a2 = (mi :: HNil).toArrayLub[M[?]]
-
-      typed[Array[M[Int]]](a1)
-      typed[Array[M[?]]](a2)
-      assertArrayEquals2(Array[M[Int]](mi), a1)
-      assertArrayEquals2(Array[M[?]](mi), a2)
-    }
-
-    val fruits1 = apap.toArrayLub[Fruit]
-    typed[Array[Fruit]](fruits1)
-    assertArrayEquals2(Array[Fruit](a, p, a, p), fruits1)
-
-    val fruits2 = apbp.toArrayLub[Fruit]
-    typed[Array[Fruit]](fruits2)
-    assertArrayEquals2(Array[Fruit](a, p, b, p), fruits2)
-
-    val l1 = 1 :: "foo" :: 2 :: 3 :: HNil
-
-    val stuff = l1.toArrayLub
-    typed[Array[Int | String]](stuff)
-    assertArrayEquals2(Array(1, "foo", 2, 3), stuff)
-
-    val ssl = "foo" :: "bar" :: 1L :: HNil
-    val ssla = ssl.toArrayLub
-    typed[Array[String | Long]](ssla)
-    assertArrayEquals2(Array("foo", "bar", 1L), ssla)
-
-    val l4 = Option(1) :: Option("foo") :: Option(2) :: Option(3) :: HNil
-    val l7 = l4.map(isDefined)
-    assertTypedEquals[BBBB](true :: true :: true :: true :: HNil, l7)
-
-    val ll2 = l7.toArrayLub[Boolean]
-    typed[Boolean](ll2(0))
-
-    val moreStuff = (a :: "foo" :: p :: HNil).toArrayLub[AnyRef]
-    typed[Array[AnyRef]](moreStuff)
-    assertArrayEquals2(Array[AnyRef](a, "foo", p), moreStuff)
-
-
-    def equalInferredTypes[A,B](a: A, b: B)(using eq: A =:= B): Unit = {}
-
-    val ctv = cicscicicd.toArrayLub
-    equalInferredTypes(cicscicicdArray, ctv)
-    typed[Array[Ctv[Int & String & Double]]](ctv)
-    assertArrayEquals2(cicscicicdArray, ctv)
-
-    val m = mimsmimimd.toArrayLub
-    equalInferredTypes(mimsmimimdArray, m)
-    typed[Array[M[? >: String & Int & Double <: String | Int | Double]]](m)
-    assertArrayEquals2(mimsmimimdArray, m)
-
-    val mWithEx = mimsmimemd.toArrayLub[M[?]]
-    //  equalType(mimsmimemdArray, mWithEx)
-    typed[Array[M[?]]](mWithEx)
-    assertArrayEquals2(mimsmimemdArray, mWithEx)
-
-    val m2 = m2im2sm2im2im2d.toArrayLub
-    equalInferredTypes(m2im2sm2im2im2dArray, m2)
-    typed[Array[M2[? >: String & Int & Double <: String | Int | Double, Unit]]](m2)
-    assertArrayEquals2(m2im2sm2im2im2dArray, m2)
-
-    val m2e = m2eim2esm2eim2eem2ed.toArrayLub
-    equalInferredTypes(m2eim2esm2eim2eem2edArray, m2e)
-    typed[Array[M2[? >: String & Int & Double <: String | Int | Double, ?]]](m2e)
-    assertArrayEquals2(m2eim2esm2eim2eem2edArray, m2e)
-  }
-
   test("FoldMap") {
-    summon[Mapper.Aux[isDefined.type, HNil, HNil]]
-    summon[Mapper.Aux[isDefined.type, Option[Int] :: HNil, Boolean :: HNil]]
+    val _ = implicitly[Mapper.Aux[isDefined.type, HNil, HNil]]
+    val _ = implicitly[Mapper.Aux[isDefined.type, Option[Int] :: HNil, Boolean :: HNil]]
 
     val tl1 = Option(1) :: Option("foo") :: Option(2) :: Option(3) :: HNil
     val tl2 = Option(1) :: Option("foo") :: (None: Option[Int]) :: Option(3) :: HNil
@@ -1315,28 +1069,28 @@ class HListTests extends FunSuite {
     val r8 = sl.updatedType[Double]('*')
     assertTypedEquals(1 :: true :: "foo" :: '*' :: HNil, r8)
 
-    val r9 = sl.updateTypeWith((i: Int) => i * 2)
+    val r9 = sl.updateWith((i: Int) => i * 2)
     assertTypedEquals[Int :: Boolean :: String :: Double :: HNil](2 :: true :: "foo" :: 2.0 :: HNil, r9)
 
-    val r10 = sl.updateTypeWith((b: Boolean) => !b)
+    val r10 = sl.updateWith((b: Boolean) => !b)
     assertTypedEquals[Int :: Boolean :: String :: Double :: HNil](1 :: false :: "foo" :: 2.0 :: HNil, r10)
 
-    val r11 = sl.updateTypeWith((s: String) => s.toUpperCase)
+    val r11 = sl.updateWith((s: String) => s.toUpperCase)
     assertTypedEquals[Int :: Boolean :: String :: Double :: HNil](1 :: true :: "FOO" :: 2.0 :: HNil, r11)
 
-    val r12 = sl.updateTypeWith((d: Double) => d / 2.0)
+    val r12 = sl.updateWith((d: Double) => d / 2.0)
     assertTypedEquals[Int :: Boolean :: String :: Double :: HNil](1 :: true :: "foo" :: 1.0 :: HNil, r12)
 
-    val r13 = sl.updateTypeWith((i: Int) => i.toString)
+    val r13 = sl.updateWith((i: Int) => i.toString)
     assertTypedEquals[String :: Boolean :: String :: Double :: HNil]("1" :: true :: "foo" :: 2.0 :: HNil, r13)
 
-    val r14 = sl.updateTypeWith((b: Boolean) => b.toString)
+    val r14 = sl.updateWith((b: Boolean) => b.toString)
     assertTypedEquals[Int :: String :: String :: Double :: HNil](1 :: "true" :: "foo" :: 2.0 :: HNil, r14)
 
-    val r15 = sl.updateTypeWith((_: String) => 0xF00)
+    val r15 = sl.updateWith((_: String) => 0xF00)
     assertTypedEquals[Int :: Boolean :: Int :: Double :: HNil](1 :: true :: 0xF00 :: 2.0 :: HNil, r15)
 
-    val r16 = sl.updateTypeWith((d: Double) => d.toString)
+    val r16 = sl.updateWith((d: Double) => d.toString)
     assertTypedEquals[Int :: Boolean :: String :: String :: HNil](1 :: true :: "foo" :: 2.0.toString :: HNil, r16)
 
     val fruits = a :: p :: a :: f :: HNil
@@ -1482,7 +1236,7 @@ class HListTests extends FunSuite {
       (1, 2) :: ("a", "b") :: (1.0, 2.0) :: HNil, z1)
 
     def zip[L <: HList, OutT <: HList](l : L)(
-      using t: Transposer.Aux[L, OutT],
+      implicit t: Transposer.Aux[L, OutT],
       m: Mapper[tupled.type, OutT],
     ) = l.transpose.map(tupled)
 
@@ -1500,7 +1254,7 @@ class HListTests extends FunSuite {
       (1 :: "a" :: 1.0 :: HNil, 2 :: "b" :: 2.0 :: HNil), u1)
 
     def unzip[L <: HList, OutM <: HList, OutT <: HList](l: L)(
-      using m: Mapper.Aux[productElements.type, L, OutM],
+      implicit m: Mapper.Aux[productElements.type, L, OutM],
       tr: Transposer.Aux[OutM, OutT],
       tu: Tupler[OutT],
     ) = l.map(productElements).transpose.tupled
@@ -1606,7 +1360,7 @@ class HListTests extends FunSuite {
     assertTypedEquals[Int :: String :: Boolean :: Long :: HNil](2 :: "bar" :: true :: 3L :: HNil, l21)
 
 
-    illTyped { """summon[Union.Aux[Int :: HNil, Int :: HNil, Int :: Int :: HNil]]"""}
+    illTyped { """implicitly[Union.Aux[Int :: HNil, Int :: HNil, Int :: Int :: HNil]]"""}
 
     val ldup1 = (l3).union(l4)
     assertTypedEquals[Int :: Int :: Int :: HNil](1 :: 2 :: 6 :: HNil, ldup1)
@@ -1637,7 +1391,7 @@ class HListTests extends FunSuite {
     val l21 = l2.intersect[L1]
     assertTypedEquals[Int :: String :: HNil](2 :: "bar" :: HNil, l21)
 
-    illTyped { """summon[Intersection.Aux[Int :: HNil, Int :: HNil, HNil]]"""}
+    illTyped { """implicitly[Intersection.Aux[Int :: HNil, Int :: HNil, HNil]]"""}
 
     val ldup1 = (l3).intersect[Int :: HNil]
     assertTypedEquals[Int :: HNil](4 :: HNil, ldup1)
@@ -1715,8 +1469,9 @@ class HListTests extends FunSuite {
   }
 
   object combine extends Poly2 {
-    given caseCharString: Case.Aux[Char, String, Int] = at((c: Char, s: String) => s.indexOf(c))
-    given caseIntBoolean: Case.Aux[Int, Boolean, String] = at((i: Int, b: Boolean) => if ((i >= 0) == b) "pass" else "fail")
+    @annotation.nowarn("msg=implicit numeric widening")
+    implicit val caseCharString: Case.Aux[Char, String, Int] = at((c: Char, s: String) => s.indexOf(c))
+    implicit val caseIntBoolean: Case.Aux[Int, Boolean, String] = at((i: Int, b: Boolean) => if ((i >= 0) == b) "pass" else "fail")
   }
 
   test("FoldLeft") {
@@ -1724,13 +1479,13 @@ class HListTests extends FunSuite {
     val c1b = combine(c1a, true)
     assertTypedEquals[String]("pass", c1b)
 
-    summon[LeftFolder.Aux[HNil, String, combine.type, String]]
-    summon[LeftFolder.Aux[Boolean :: HNil, Int, combine.type, String]]
-    summon[LeftFolder.Aux[String :: Boolean :: HNil, Char, combine.type, String]]
+    val _ = implicitly[LeftFolder.Aux[HNil, String, combine.type, String]]
+    val _ = implicitly[LeftFolder.Aux[Boolean :: HNil, Int, combine.type, String]]
+    val _ = implicitly[LeftFolder.Aux[String :: Boolean :: HNil, Char, combine.type, String]]
 
-    val _ = summon[LeftFolder[HNil, String, combine.type]]
-    val _ = summon[LeftFolder[Boolean :: HNil, Int, combine.type]]
-    val _ = summon[LeftFolder[String :: Boolean :: HNil, Char, combine.type]]
+    val _ = implicitly[LeftFolder[HNil, String, combine.type]]
+    val _ = implicitly[LeftFolder[Boolean :: HNil, Int, combine.type]]
+    val _ = implicitly[LeftFolder[String :: Boolean :: HNil, Char, combine.type]]
 
     val l1 = "foo" :: true :: HNil
     val f1 = l1.foldLeft('o')(combine)
@@ -1798,7 +1553,7 @@ class HListTests extends FunSuite {
     object empty extends Poly2
 
     object add extends Poly2 {
-      given caseIntInt: Case.Aux[Int, Int, Int] = at[Int, Int](_ + _)
+      implicit val caseIntInt: Case.Aux[Int, Int, Int] = at[Int, Int](_ + _)
     }
 
     // HNil zipWith HNil (emptyFn)
@@ -1825,9 +1580,9 @@ class HListTests extends FunSuite {
       val right: Right = 2 :: 2.3 :: "3.4" :: true :: HNil
 
       object zipFn extends Poly2 {
-        given caseIntInt: Case.Aux[Int, Int, Int] = at[Int, Int](_ + _)
-        given caseStringDouble: Case.Aux[String, Double, String] = at[String, Double](_ + " -> " + _.toString)
-        given caseDoubleString: Case.Aux[Double, String, Double] = at[Double, String](_ + _.toDouble)
+        implicit val caseIntInt: Case.Aux[Int, Int, Int] = at[Int, Int](_ + _)
+        implicit val caseStringDouble: Case.Aux[String, Double, String] = at[String, Double](_ + " -> " + _.toString)
+        implicit val caseDoubleString: Case.Aux[Double, String, Double] = at[Double, String](_ + _.toDouble)
       }
 
       val r5 = left.zipWith(right)(zipFn)
@@ -1839,8 +1594,9 @@ class HListTests extends FunSuite {
         (1 :: HNil).zipWith(2 :: HNil)(empty)
       """)
 
+      @annotation.unused
       object noIntFn extends Poly2 {
-        given caseDoubleDouble: Case.Aux[Double, Double, Double] = at[Double, Double](_ + _)
+        implicit val caseDoubleDouble: Case.Aux[Double, Double, Double] = at[Double, Double](_ + _)
       }
 
       illTyped("""
@@ -1860,7 +1616,7 @@ class HListTests extends FunSuite {
 
     // One element HList zipWithIndex
     val r2 = (0 :: HNil).zipWithIndex
-    assertTypedEquals[(Int, 0) :: HNil]((0, 0) :: HNil, r2)
+    assertTypedEquals[(Int, 0) :: HNil](((0, 0) :: HNil).asInstanceOf[(Int, 0) :: HNil], r2)
 
     // HList zipWithIndex
     val r3 = (0 :: 1 :: 2 :: 3 :: HNil).zipWithIndex
@@ -1872,7 +1628,7 @@ class HListTests extends FunSuite {
   }
 
   test("WithKeys") {
-    import formless.record.*
+    import formless.record._
 
     val orig =
       ("intField" ->> 1) ::
@@ -1913,8 +1669,8 @@ class HListTests extends FunSuite {
     object empty extends Poly1
 
     object complex extends Poly1 {
-      given caseInt: Case.Aux[Int, Double] = at[Int](_.toDouble)
-      given caseString: Case.Aux[String, Int] = at[String](_ => 1)
+      implicit val caseInt: Case.Aux[Int, Double] = at[Int](_.toDouble)
+      implicit val caseString: Case.Aux[String, Int] = at[String](_ => 1)
     }
 
     val in: Int :: String :: Double :: HNil = 1 :: "foo" :: 2.2 :: HNil
@@ -1972,7 +1728,9 @@ class HListTests extends FunSuite {
 
   test("Interleave") {
     type C = Char; type S = String; type I = Int; type D = Double
-    def interleave[I, L <: HList](i: I, l: L)(using interleave: Interleave[I, L]): interleave.Out = interleave(i, l)
+
+    @annotation.nowarn("msg=type parameter I.*shadows")
+    def interleave[I, L <: HList](i: I, l: L)(implicit interleave: Interleave[I, L]): interleave.Out = interleave(i, l)
 
     val r1 = interleave('i', HNil)
     assertTypedEquals[(Char :: HNil) :: HNil](('i' :: HNil) :: HNil, r1)
@@ -2005,7 +1763,8 @@ class HListTests extends FunSuite {
   test("FlatMapInterleave") {
     type C = Char; type I = Int
 
-    def flatMapInterleave[I, L <: HList](i: I, l: L)(using flatMapInterleave: FlatMapInterleave[I, L]) =
+    @annotation.nowarn("msg=type parameter I.*shadows")
+    def flatMapInterleave[I, L <: HList](i: I, l: L)(implicit flatMapInterleave: FlatMapInterleave[I, L]) =
       flatMapInterleave(i, l)
 
     val r1 = flatMapInterleave('i', HNil)
@@ -2304,9 +2063,9 @@ class HListTests extends FunSuite {
   }
 
   object smear extends Poly2 {
-    given caseIntInt: Case.Aux[Int, Int, Int] = at((x: Int, y: Int) => x + y)
-    given caseStringInt: Case.Aux[String, Int, Int] = at((x: String, y: Int) => x.toInt + y)
-    given caseIntString: Case.Aux[Int, String, Int] = at((x: Int, y: String) => x + y.toInt)
+    implicit val caseIntInt: Case.Aux[Int, Int, Int] = at((x: Int, y: Int) => x + y)
+    implicit val caseStringInt: Case.Aux[String, Int, Int] = at((x: String, y: Int) => x.toInt + y)
+    implicit val caseIntString: Case.Aux[Int, String, Int] = at((x: Int, y: String) => x + y.toInt)
   }
 
   test("ScanLeft") {
@@ -2332,7 +2091,7 @@ class HListTests extends FunSuite {
     }
 
     {
-      val empty = Fill[0, Boolean](true)
+      val empty = Fill[0, Boolean].apply(true)
       typed[0](empty.length)
     }
 
@@ -2344,7 +2103,7 @@ class HListTests extends FunSuite {
     }
 
     {
-      val single = Fill[1, None.type](None)
+      val single = Fill[1, None.type].apply(None)
       typed[1](single.length)
       typed[None.type](single.head)
       assertEquals(None, single.head)
@@ -2362,7 +2121,7 @@ class HListTests extends FunSuite {
     }
 
     {
-      val three = Fill[3, M2[Int, Unit]](m2i)
+      val three = Fill[3, M2[Int, Unit]].apply(m2i)
       typed[3](three.length)
       typed[M2[Int, Unit]](three(0))
       typed[M2[Int, Unit]](three(1))
@@ -2378,7 +2137,7 @@ class HListTests extends FunSuite {
     }
 
     {
-      val empty = Fill[(0, 0), Boolean](true)
+      val empty = Fill[(0, 0), Boolean].apply(true)
       typed[0](empty.length)
     }
 
@@ -2390,7 +2149,7 @@ class HListTests extends FunSuite {
     }
 
     {
-      val empty = Fill[(2, 0), Boolean](true)
+      val empty = Fill[(2, 0), Boolean].apply(true)
       typed[2](empty.length)
       typed[0](empty(0).length)
       typed[0](empty(1).length)
@@ -2402,7 +2161,7 @@ class HListTests extends FunSuite {
     }
 
     {
-      val empty = Fill[(0, 2), Boolean](true)
+      val empty = Fill[(0, 2), Boolean].apply(true)
       typed[0](empty.length)
     }
 
@@ -2417,7 +2176,7 @@ class HListTests extends FunSuite {
     }
 
     {
-      val oneByTwo = Fill[(1, 2), None.type](None)
+      val oneByTwo = Fill[(1, 2), None.type].apply(None)
       typed[1](oneByTwo.length)
       typed[2](oneByTwo.head.length)
       typed[None.type](oneByTwo.head(0))
@@ -2446,7 +2205,7 @@ class HListTests extends FunSuite {
     }
 
     {
-      val twoByThree = Fill[(2, 3), None.type](None)
+      val twoByThree = Fill[(2, 3), None.type].apply(None)
       typed[2](twoByThree.length)
       typed[3](twoByThree(0).length)
       typed[3](twoByThree(1).length)
@@ -2467,12 +2226,12 @@ class HListTests extends FunSuite {
 
   test("PolyFill") {
     object zero extends Poly0 {
-      given zeroInt: Case0[Int] = at[Int](0)
+      implicit val zeroInt: Case0[Int] = at[Int](0)
     }
 
-    given emptyString: zero.Case0[String] = zero.at[String]("")
+    implicit val emptyString: zero.Case0[String] = zero.at[String]("")
 
-    val out = FillWith[zero.type, Int :: String :: Int :: HNil]()
+    val out = FillWith[zero.type, Int :: String :: Int :: HNil].apply()
     assertEquals(out, 0 :: "" :: 0 :: HNil)
   }
 
@@ -2532,7 +2291,7 @@ class HListTests extends FunSuite {
   //   type PISB = Int :: String :: Boolean :: HNil
   //   type CISBa = Int :+: String :+: Boolean :+: CNil
   //   type CISBb = the.`ToCoproduct[PISB]`.Out
-  //   summon[CISBa =:= CISBb]
+  //   implicitly[CISBa =:= CISBb]
   // }
 
   // @Test
@@ -2540,22 +2299,22 @@ class HListTests extends FunSuite {
   //   type PISB = Int :: String :: Boolean :: HNil
   //   type CISBa = Int :+: String :+: Boolean :+: CNil
   //   type SISBa = the.`ToSum[PISB]`.Out
-  //   summon[CISBa =:= SISBa]
+  //   implicitly[CISBa =:= SISBa]
 
   //   type PIISSB = Int :: Int :: String :: String :: Boolean :: HNil
   //   type SISBb = the.`ToSum[PIISSB]`.Out
-  //   summon[CISBa =:= SISBb]
+  //   implicitly[CISBa =:= SISBb]
   // }
 
   test("SelectAll") {
-    import formless.record.{SelectAll => _, *}
+    import formless.record.{SelectAll => _, _}
 
     //is there any way to do it without runtime overhead?
     class TypeCaptured[T](val value: T) {
       type _type = T
     }
 
-    def getFieldsByTypesOfSuper[Sub <: HList, Super <: HList](l: Sub)(using sa: SelectAll[Sub, Super]) = sa(l)
+    def getFieldsByTypesOfSuper[Sub <: HList, Super <: HList](l: Sub)(implicit sa: SelectAll[Sub, Super]) = sa(l)
 
     val hsuper = new TypeCaptured("2" :: true :: HNil)
     val hsub = new TypeCaptured(1 :: "2" :: true :: HNil)
@@ -2572,7 +2331,7 @@ class HListTests extends FunSuite {
 
   test("CollectFirst") {
     object Foo extends Poly1{
-      given iinst: Case.Aux[Int, Int] = at[Int]{ _ + 1 }
+      implicit val iinst: Case.Aux[Int, Int] = at[Int]{ _ + 1 }
     }
     val hlist1 = "foo" :: 2.0 :: 1 :: HNil
     assertTypedEquals[Int](hlist1.collectFirst(Foo), 2)
@@ -2583,10 +2342,10 @@ class HListTests extends FunSuite {
 
   test("Grouper") {
     object toInt extends Poly1 {
-      given default[N <: Int]: Case.Aux[N, Int] = at[N](identity)
+      implicit def default[N <: Int]: Case.Aux[N, Int] = at[N](identity)
     }
     def range[R <: HList](a: Int, b: Int)(
-      using range: Range.Aux[a.type, b.type, R],
+      implicit range: Range.Aux[a.type, b.type, R],
       mapper: Mapper[toInt.type, R]
     ) = mapper(range())
 
@@ -2620,13 +2379,13 @@ class HListTests extends FunSuite {
 
   test("LiftAll") {
     trait F[A]
-    given FInt: F[Int] = new F[Int] {}
-    given FString: F[String] = new F[String] {}
+    implicit val FInt: F[Int] = new F[Int] {}
+    implicit val FString: F[String] = new F[String] {}
 
-    assertEquals(HNil, summon[LiftAll[F, HNil]].instances)
-    assertEquals(FInt :: HNil, summon[LiftAll[F, Int :: HNil]].instances)
-    assertEquals(FString :: FInt :: HNil, summon[LiftAll[F, String :: Int :: HNil]].instances)
-    illTyped("summon[LiftAll[F, Long :: String :: Int :: HNil]]")
+    assertTypedEquals(HNil, LiftAll[F, HNil].instances)
+    assertTypedEquals(FInt :: HNil, LiftAll[F, Int :: HNil].instances)
+    assertTypedEquals(FString :: FInt :: HNil, LiftAll[F, String :: Int :: HNil].instances)
+    illTyped("LiftAll[F, Long :: String :: Int :: HNil]")
 
     assertEquals(FInt :: HNil, LiftAll[F](1 :: HNil).instances)
   }
@@ -2744,9 +2503,9 @@ class HListTests extends FunSuite {
 
   test("AuxImplicits") {
     val sr = SplitRight[String :: Int :: Boolean :: HNil, Int]
-    summon[sr.Out =:= (String :: Int :: HNil, Boolean :: HNil)]
+    val _ = implicitly[sr.Out =:= (String :: Int :: HNil, Boolean :: HNil)]
 
     val g = Grouper[Int :: String :: Boolean :: HNil, 2, 1]
-    summon[g.Out =:= (Int, String) :: (String, Boolean) :: HNil]
+    val _ = implicitly[g.Out =:= ((Int, String) :: (String, Boolean) :: HNil)]
   }
 }
