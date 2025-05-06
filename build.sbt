@@ -34,14 +34,13 @@ def foldScalaV[A](scalaVersion: String)(_213: => A, _3: => A): A =
     case Some((3, _)) => _3
   }
 
-lazy val mavenRepoBucket = "bondlink-maven-repo"
-lazy val mavenRepoUrl = s"https://s3.amazonaws.com/$mavenRepoBucket"
+lazy val mavenRepoUrl = "https://maven.bondlink-cdn.com"
 
 lazy val baseSettings = Seq(
   scalaVersion := scala3,
   crossScalaVersions := Seq(scala213, scala3, scala3_6),
   organization := "com.bondlink",
-  publishTo := Some("BondLink S3".at(s"s3://$mavenRepoBucket")),
+  publishTo := Some("BondLink S3".at("s3://bondlink-maven-repo")),
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
   mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.6.0"),
   mimaFailOnNoPrevious := false,

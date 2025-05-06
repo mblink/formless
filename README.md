@@ -12,8 +12,8 @@ classes and syntax that simplify generic programming.
 Add the following to your `build.sbt`:
 
 ```scala
-resolvers += "bondlink-maven-repo" at "https://s3.amazonaws.com/bondlink-maven-repo"
-libraryDependencies += "com.bondlink" %% "formless" % "0.5.1"
+resolvers += "bondlink-maven-repo" at "https://maven.bondlink-cdn.com"
+libraryDependencies += "com.bondlink" %% "formless" % "0.6.0"
 ```
 
 If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the following:
@@ -22,10 +22,10 @@ If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the follow
 import coursier.maven.MavenRepository
 
 def repositoriesTask = T.task {
-  super.repositoriesTask() ++ Seq(MavenRepository("https://s3.amazonaws.com/bondlink-maven-repo"))
+  super.repositoriesTask() ++ Seq(MavenRepository("https://maven.bondlink-cdn.com"))
 }
 
-def ivyDeps = Agg(ivy"com.bondlink::formless:0.5.1")
+def ivyDeps = Agg(ivy"com.bondlink::formless:0.6.0")
 ```
 
 ## Usage
@@ -167,7 +167,7 @@ x.replace("baz")
 // )
 
 // Update the first element of a given type with a function
-x.updateTypeWith((_: String).length)
+x.updateWith((_: String).length)
 // res26: ::[Int, ::[Int, ::[Boolean, HNil]]] = 1 :: 3 :: true :: HNil
 
 // Update an element at a given index with a function
@@ -211,7 +211,7 @@ x.align[Boolean :: Int :: String :: HNil]
 // res33: ::[Boolean, ::[Int, ::[String, HNil]]] = true :: 1 :: "foo" :: HNil
 
 // Reverse the `HList`
-x.reverse_
+x.reverse
 // res34: ::[Boolean, ::[String, ::[Int, HNil]]] = true :: "foo" :: 1 :: HNil
 
 // Map a polymorphic function (a `Poly`) over the `HList`
@@ -308,7 +308,7 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x0000007002d94000@6d857425 :: repl.MdocSession$MdocApp$$Lambda/0x0000007002d83c18@581f34a9 :: repl.MdocSession$MdocApp$$Lambda/0x0000007002d83858@3c6b93ef :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x000000c803768780@5ad5b471 :: repl.MdocSession$MdocApp$$Lambda/0x000000c8037683c0@73afe742 :: repl.MdocSession$MdocApp$$Lambda/0x000000c803768000@61f4ac77 :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil

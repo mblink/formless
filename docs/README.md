@@ -126,7 +126,7 @@ x.diff[String :: Boolean :: HNil]
 x.replace("baz")
 
 // Update the first element of a given type with a function
-x.updateTypeWith((_: String).length)
+x.updateWith((_: String).length)
 
 // Update an element at a given index with a function
 x.updateAtWith(1)(_.length)
@@ -150,7 +150,7 @@ x.splitRight[String]
 x.align[Boolean :: Int :: String :: HNil]
 
 // Reverse the `HList`
-x.reverse_
+x.reverse
 
 // Map a polymorphic function (a `Poly`) over the `HList`
 object mapFn extends Poly1 {
