@@ -18,10 +18,21 @@ object LiftAll {
   def apply[F[_]]: Curried[F] = new Curried[F]
   def apply[F[_], In](using l: LiftAll[F, In]): LiftAll.Aux[F, In, l.Out] = l
 
-  final class Inst[F[_], T, O](o: O) extends LiftAll[F, T], Serializable {
+  @deprecated("Retained for binary compatibility", "0.7.0")
+  private[hlist] final class Inst[F[_], T, O](o: O) extends LiftAll[F, T], Serializable {
     final type Out = O
     final val instances = o
   }
 
-  inline given liftAllHList[F[_], T <: HList]: LiftAll.Aux[F, T, HList.Map[T, F]] = Inst(summonAllHList[HList.Map[T, F]])
+  given hnil[F[_]]: LiftAll.Aux[F, HNil, HNil] =
+    new LiftAll[F, HNil] {
+      type Out = HNil
+      lazy val instances = HNil
+    }
+
+  given hcons[F[_], H, T <: HList, TO <: HList](using h: F[H], t: LiftAll.Aux[F, T, TO]): LiftAll.Aux[F, H :: T, F[H] :: TO] =
+    new LiftAll[F, H :: T] {
+      type Out = F[H] :: TO
+      lazy val instances = h :: t.instances
+    }
 }
