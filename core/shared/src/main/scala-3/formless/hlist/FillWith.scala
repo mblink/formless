@@ -13,12 +13,12 @@ object FillWith {
     final def apply(): L = l
   }
 
-  given hnil[F]: FillWith[F, HNil] =
+  given fillWithHNil[F]: FillWith[F, HNil] =
     new FillWith[F, HNil] {
       def apply(): Out = HNil
     }
 
-  given hcons[F <: Poly, H, T <: HList](using h: Case0.Aux[F, H], t: FillWith[F, T]): FillWith[F, H :: T] =
+  given fillWithHCons[F <: Poly, H, T <: HList](using h: Case0.Aux[F, H], t: FillWith[F, T]): FillWith[F, H :: T] =
     new FillWith[F, H :: T] {
       def apply(): Out = h() :: t()
     }

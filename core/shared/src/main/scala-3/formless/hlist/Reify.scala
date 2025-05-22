@@ -16,13 +16,13 @@ object Reify {
     final def apply(): Out = t
   }
 
-  given hnil: Reify.Aux[HNil, HNil] =
+  given reifyHNil: Reify.Aux[HNil, HNil] =
     new Reify[HNil] {
       type Out = HNil
       def apply(): Out = HNil
     }
 
-  given hcons[H, T <: HList](using h: ValueOf[H], t: Reify.Aux[T, T]): Reify.Aux[H :: T, H :: T] =
+  given reifyHCons[H, T <: HList](using h: ValueOf[H], t: Reify.Aux[T, T]): Reify.Aux[H :: T, H :: T] =
     new Reify[H :: T] {
       type Out = H :: T
       def apply(): Out = h.value :: t()

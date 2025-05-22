@@ -24,13 +24,13 @@ object LiftAll {
     final val instances = o
   }
 
-  given hnil[F[_]]: LiftAll.Aux[F, HNil, HNil] =
+  given liftAllHNil[F[_]]: LiftAll.Aux[F, HNil, HNil] =
     new LiftAll[F, HNil] {
       type Out = HNil
       lazy val instances = HNil
     }
 
-  given hcons[F[_], H, T <: HList, TO <: HList](using h: F[H], t: LiftAll.Aux[F, T, TO]): LiftAll.Aux[F, H :: T, F[H] :: TO] =
+  given liftAllHCons[F[_], H, T <: HList, TO <: HList](using h: F[H], t: LiftAll.Aux[F, T, TO]): LiftAll.Aux[F, H :: T, F[H] :: TO] =
     new LiftAll[F, H :: T] {
       type Out = F[H] :: TO
       lazy val instances = h :: t.instances
