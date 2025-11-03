@@ -78,7 +78,7 @@ lazy val root = project.in(file("."))
 
 lazy val munit = Def.setting("org.scalameta" %% "munit" % "1.1.1" % Test)
 lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.13")
-lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.18.1" % Test)
+lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.19.0" % Test)
 
 lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("core"))
   .settings(baseSettings)
