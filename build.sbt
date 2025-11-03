@@ -2,7 +2,7 @@ import formless._
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val scala213 = "2.13.16"
+lazy val scala213 = "2.13.17"
 lazy val scala3 = "3.3.5"
 lazy val scala3_6 = "3.6.4"
 
