@@ -7,5 +7,5 @@ import formless.hlist.Poly1
  */
 trait FieldPoly extends Poly1 {
   final def atField[V]: [K <: Singleton] => K => [O] => (V => O) => Case.Aux[K ->> V, K ->> O] =
-    [K <: Singleton] => (k: K) => [O] => (f: V => O) => at[K ->> V](kv => label[K](f(kv)))
+    [K <: Singleton] => (_: K) => [O] => (f: V => O) => at[K ->> V](kv => label[K](f(kv)))
 }

@@ -98,7 +98,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
 
   // TODO - this doesn't work well because e.g. `0 :: HNil` is typed as `Int :: HNil`
   // instead of a preserving the singleton type of `0 :: HNil`
-  final def selectMany[Ids <: HList](ids: Ids)(using s: SelectMany[L, Ids]): s.Out = s(l)
+  final def selectMany[Ids <: HList](@annotation.nowarn("msg=unused") ids: Ids)(using s: SelectMany[L, Ids]): s.Out = s(l)
 
   /**
    * Returns the elements of this `HList` specified by the range of ids in [A,B[
@@ -312,7 +312,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    * Permutes this `HList` into the same order as the supplied `HList` with the same element types. Available only if
    * both `HList`s have elements of the same types.
    */
-  final def align[M <: HList](m: M)(using a: Align[L, M]): M = a(l)
+  final def align[M <: HList](@annotation.nowarn("msg=unused") m: M)(using a: Align[L, M]): M = a(l)
 
   /**
    * Reverses this `HList`.
@@ -417,7 +417,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    * Doesn't require this to be the same length as its `HList` argument, but does require evidence that its
    * `Poly2` argument is defined at their intersection.
    */
-  final def zipWith[R <: HList, P <: Poly2](r: R)(p: P)(using z: ZipWith[L, R, P]): z.Out = z(l, r)
+  final def zipWith[R <: HList, P <: Poly2](r: R)(@annotation.nowarn("msg=unused") p: P)(using z: ZipWith[L, R, P]): z.Out = z(l, r)
 
   /**
    * Zips this `HList` with its element indices,  resulting in a `HList` of  `HList`s of the form
@@ -528,7 +528,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
   /**
    * Converts this `HList` of values into a record with the provided keys.
    */
-  final def zipWithKeys[K <: HList](keys: K)(using z: ZipWithKeys[K, L]): z.Out = z(l)
+  final def zipWithKeys[K <: HList](@annotation.nowarn("msg=unused") keys: K)(using z: ZipWithKeys[K, L]): z.Out = z(l)
 
   /**
    * Converts this `HList` of values into a record with given keys. A type argument must be provided.

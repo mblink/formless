@@ -12,7 +12,7 @@ object Remover {
   type Aux[T, K, O] = Remover[T, K] { type Out = O }
 
   inline def apply[T, K](using r: Remover[T, K]): Remover.Aux[T, K, r.Out] = r
-  inline def apply[T, K](t: T, k: K)(using r: Remover[T, K]): r.Out = r(t)
+  inline def apply[T, K](t: T, @annotation.nowarn("msg=unused") k: K)(using r: Remover[T, K]): r.Out = r(t)
 
   given removerInst[T <: HList, K](
     using f: FindField[T, K ->> Any, <:<]

@@ -3,7 +3,7 @@ import formless._
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.17"
-lazy val scala3 = "3.3.5"
+lazy val scala3 = "3.3.7"
 lazy val scala3_6 = "3.6.4"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_6)
@@ -60,6 +60,7 @@ lazy val baseSettings = Seq(
     "-language:experimental.macros",
     "-language:implicitConversions"
   ),
+  Test / scalacOptions -= "-Wunused:nowarn",
   licenses += License.Apache2,
 )
 

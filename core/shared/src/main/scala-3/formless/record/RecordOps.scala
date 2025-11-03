@@ -8,31 +8,31 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Returns the value associated with the singleton typed key k. Only available if this record has a field with
    * with keyType equal to the singleton type K.
    */
-  final def get[K <: Singleton](k: K)(using s: Selector[T, K]): s.Out = s(t)
+  final def get[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using s: Selector[T, K]): s.Out = s(t)
 
   /**
    * Returns the value associated with the singleton typed key k. Only available if this record has a field with
    * with keyType equal to the singleton type K.
    */
-  final def apply[K <: Singleton](k: K)(using s: Selector[T, K]): s.Out = s(t)
+  final def apply[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using s: Selector[T, K]): s.Out = s(t)
 
   /**
    * Returns the value associated with the singleton typed key k. Only available if this record has a field with
    * with keyType equal to the singleton type K.
    */
-  final def fieldAt[K <: Singleton](k: K)(using s: Selector[T, K]): K ->> s.Out = label[K](s(t))
+  final def fieldAt[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using s: Selector[T, K]): K ->> s.Out = label[K](s(t))
 
   /**
    * Updates or adds to this record a field with key k. The new field has a value of type V. Only available if this
    * record has a field with keyType equal to the singleton type K.
    */
-  final def updated[K <: Singleton, V](k: K, v: V)(using u: Updater[T, K ->> V]): u.Out = u(t, label[K](v))
+  final def updated[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(using u: Updater[T, K ->> V]): u.Out = u(t, label[K](v))
 
   /**
    * Replaces the value of field k with a value of the same type. Only available if this record has a field with
    * keyType equal to the singleton type K and valueType equal to V.
    */
-  final def replace[K <: Singleton, V](k: K, v: V)(
+  final def replace[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(
     using s: Selector.Aux[T, K, V],
     u: Updater[T, K ->> V],
   ): u.Out = u(t, label[K](v))
@@ -46,7 +46,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Remove the field associated with the singleton typed key k, returning both the corresponding value and the updated
    * record. Only available if this record has a field with keyType equal to the singleton type K.
    */
-  final def remove[K <: Singleton](k: K)(using r: Remover[T, K]): r.Out = r(t)
+  final def remove[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using r: Remover[T, K]): r.Out = r(t)
 
   /**
    * Updates or adds to this record a field of type F.
@@ -57,7 +57,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Remove the field associated with the singleton typed key k, returning the updated record. Only available if this
    * record has a field with keyType equal to the singleton type K.
    */
-  final def -[K <: Singleton, R, V, O](k: K)(using r: Remover.Aux[T, K, R], ev: R <:< (V, O)): O = r(t)._2
+  final def -[K <: Singleton, R, V, O](@annotation.nowarn("msg=unused") k: K)(using r: Remover.Aux[T, K, R], ev: R <:< (V, O)): O = r(t)._2
 
   /**
    * Returns the union of this record and another record.
@@ -80,7 +80,10 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Rename the field associated with the singleton typed key oldKey. Only available if this
    * record has a field with keyType equal to the singleton type K1.
    */
-  final def renameField[K1 <: Singleton, K2 <: Singleton](oldKey: K1, newKey: K2)(using r: Renamer[T, K1, K2]): r.Out = r(t)
+  final def renameField[K1 <: Singleton, K2 <: Singleton](
+    @annotation.nowarn("msg=unused") oldKey: K1,
+    @annotation.nowarn("msg=unused") newKey: K2,
+  )(using r: Renamer[T, K1, K2]): r.Out = r(t)
 
   /**
    * Returns the keys of this record as a `HList` of singleton typed values.
