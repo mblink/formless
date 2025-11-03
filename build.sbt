@@ -4,9 +4,9 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.17"
 lazy val scala3 = "3.3.7"
-lazy val scala3_6 = "3.6.4"
+lazy val scala3Next = "3.7.3"
 
-ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3_6)
+ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3Next)
 ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.7.0"
 
@@ -38,7 +38,7 @@ lazy val mavenRepoUrl = "https://maven.bondlink-cdn.com"
 
 lazy val baseSettings = Seq(
   scalaVersion := scala3,
-  crossScalaVersions := Seq(scala213, scala3, scala3_6),
+  crossScalaVersions := Seq(scala213, scala3, scala3Next),
   organization := "com.bondlink",
   publishTo := Some("BondLink S3".at("s3://bondlink-maven-repo")),
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
@@ -113,8 +113,8 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("c
       )
     },
     // Disable publishing for Scala 3.6
-    publish := { if (scalaVersion.value == scala3_6) () else publish.value },
-    publishLocal := { if (scalaVersion.value == scala3_6) () else publishLocal.value },
+    publish := { if (scalaVersion.value == scala3Next) () else publish.value },
+    publishLocal := { if (scalaVersion.value == scala3Next) () else publishLocal.value },
   )
 
 lazy val docs = project.in(file("formless-docs"))
