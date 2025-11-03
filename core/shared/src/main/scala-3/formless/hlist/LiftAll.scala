@@ -12,7 +12,7 @@ object LiftAll {
   type Aux[F[_], T, O] = LiftAll[F, T] { type Out = O }
 
   final class Curried[F[_]](private val dummy: Boolean = false) extends AnyVal {
-    final def apply[In](in: In)(using l: LiftAll[F, In]): LiftAll.Aux[F, In, l.Out] = l
+    final def apply[In](@annotation.nowarn("msg=unused") in: In)(using l: LiftAll[F, In]): LiftAll.Aux[F, In, l.Out] = l
   }
 
   def apply[F[_]]: Curried[F] = new Curried[F]

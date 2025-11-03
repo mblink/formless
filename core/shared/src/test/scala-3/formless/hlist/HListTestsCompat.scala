@@ -70,7 +70,7 @@ trait HListTestsCompat { self: HListTests =>
     assert(!ununified2.isDefined)
     typed[Option[APBP]](ununified2)
 
-    def getUnifier[L <: HList, Out <: HList](l: L)(using u: Unifier.Aux[L, Out]) = u
+    def getUnifier[L <: HList, Out <: HList](@annotation.nowarn("msg=unused") l: L)(using u: Unifier.Aux[L, Out]) = u
 
     val u2 = getUnifier(a :: HNil)
     typed[Unifier.Aux[Apple :: HNil, Apple :: HNil]](u2)

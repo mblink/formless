@@ -10,5 +10,4 @@ import scala.compiletime.testing.typeChecks
  */
 object illTyped {
   inline def apply(code: String)(using loc: Location): Unit = assert(!typeChecks(code))
-  inline def apply(code: String, expected: String)(using loc: Location): Unit = apply(code)
 }

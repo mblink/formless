@@ -16,7 +16,7 @@ object MapCons {
   inline def apply[A, M](using m: MapCons[A, M]): MapCons.Aux[A, M, m.Out] = m
 
   given mapConsHList[A, M <: HList](
-    using ev: LiftAll[[a] =>> a <:< HList, M],
+    using @annotation.nowarn("msg=unused") ev: LiftAll[[a] =>> a <:< HList, M],
   ): MapCons.Aux[A, M, MapConsT[A, M]] =
     new MapCons[A, M] {
       type Out = MapConsT[A, M]

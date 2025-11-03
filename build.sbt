@@ -60,6 +60,7 @@ lazy val baseSettings = Seq(
     "-language:experimental.macros",
     "-language:implicitConversions"
   ),
+  Test / scalacOptions -= "-Wunused:nowarn",
   licenses += License.Apache2,
 )
 

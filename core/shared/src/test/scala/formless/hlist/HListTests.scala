@@ -416,7 +416,9 @@ class HListTests extends FunSuite with HListTestsCompat {
     {
       // must compile without requiring an implicit ReversePrepend
       def reversePrependWithHNil[L <: HList](list: L) = HNil reverse_::: list
-      def reversePrependToHNil[L <: HList: Reverse](list: L) = list reverse_::: HNil
+      def reversePrependToHNil[L <: HList](list: L)(
+        implicit @annotation.nowarn("msg=unused") r: Reverse[L],
+      ) = list reverse_::: HNil
       val r4 = reversePrependWithHNil(ap)
       assertTypedEquals[AP](ap, r4)
       val r5 = reversePrependToHNil(ap)
