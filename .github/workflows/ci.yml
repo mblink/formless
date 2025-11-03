@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.17, 3.3.5, 3.6.4]
+        scala: [2.13.17, 3.3.7, 3.6.4]
         java: [temurin@8, temurin@11, temurin@17, temurin@21]
     runs-on: ${{ matrix.os }}
     steps:
@@ -78,5 +78,5 @@ jobs:
         run: sbt '++ ${{ matrix.scala }}' mimaReportBinaryIssues
 
       - name: Build docs
-        if: matrix.java == 'temurin@8' && matrix.scala == '3.3.5'
+        if: matrix.java == 'temurin@8' && matrix.scala == '3.3.7'
         run: sbt '++ ${{ matrix.scala }}' docs/mdoc
