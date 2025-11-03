@@ -45,7 +45,7 @@ lazy val baseSettings = Seq(
   mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.6.0"),
   mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
-    Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.patch)),
+    Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.4" cross CrossVersion.patch)),
     Seq(),
   ),
   scalacOptions ++= foldScalaV(scalaVersion.value)(
