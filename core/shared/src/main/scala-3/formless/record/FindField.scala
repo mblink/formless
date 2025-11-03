@@ -53,14 +53,15 @@ object FindField {
         case '[::[head, tail]] if Expr.summon[Cmp[head, F]].nonEmpty =>
           // We need to replace `->>` with a concrete `class` type so the match works
           // Matches on opaque types like `->>` will *never* match
-          concrete(TypeRepr.of[head].dealias).asType match {
+          val concretTypeRepr = concrete(TypeRepr.of[head].dealias)
+          concretTypeRepr.asType match {
             case '[ConcreteLabelled[k, v]] =>
               (unConcrete(TypeRepr.of[k]).asType, unConcrete(TypeRepr.of[v]).asType) match {
                 case ('[key], '[value]) =>
                   '{ FindField.Inst[T, F, Cmp, key, value, [a] =>> HList.Concat[Rep[a], tail], HList.Concat[Rem, tail]](${ Expr(idx) }) }
-              }
-            case '[t] =>
-              report.errorAndAbort(s"Unexpected type: ${Type.show[t]}")
+              }: @annotation.nowarn("msg=match may not be exhaustive")
+            case _ =>
+              report.errorAndAbort(s"Unexpected type: ${concretTypeRepr.show}")
           }
         case '[::[head, tail]] =>
           go[[a] =>> HList.Append[Rep[head], a], HList.Append[Rem, head], tail](idx + 1)
