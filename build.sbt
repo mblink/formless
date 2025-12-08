@@ -4,7 +4,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.18"
 lazy val scala3 = "3.3.7"
-lazy val scala3Next = "3.7.4"
+lazy val scala3Next = "3.8.0-RC3"
 
 ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3Next)
 ThisBuild / scalaVersion := scala3
@@ -16,6 +16,9 @@ val javaVersions = Seq(8, 11, 17, 21, 25).map(v => JavaSpec.temurin(v.toString))
 ThisBuild / githubWorkflowJavaVersions := javaVersions
 ThisBuild / githubWorkflowArtifactUpload := false
 ThisBuild / githubWorkflowBuildMatrixFailFast := Some(false)
+ThisBuild / githubWorkflowBuildMatrixExclusions := Seq(8, 11).map(v =>
+  MatrixExclude(Map("scala" -> scala3Next, "java" -> javaVersions.find(_.version == v.toString).get.render))
+)
 ThisBuild / githubWorkflowTargetBranches := Seq("main")
 
 val isJava8 = s"matrix.java == '${javaVersions.find(_.version == "8").get.render}'"
@@ -48,17 +51,18 @@ lazy val baseSettings = Seq(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.4" cross CrossVersion.patch)),
     Seq(),
   ),
-  scalacOptions ++= foldScalaV(scalaVersion.value)(
+  scalacOptions ++= Seq("-Werror") ++ foldScalaV(scalaVersion.value)(
     Seq("-Vimplicits", "-Vimplicits-verbose-tree"),
     Seq(
       "-no-indent",
-      "-Wunused:unsafe-warn-patvars",
+      "-Wunused:patvars",
     ),
   ),
   scalacOptions --= Seq(
     "-language:existentials",
     "-language:experimental.macros",
-    "-language:implicitConversions"
+    "-language:implicitConversions",
+    "-Xfatal-warnings",
   ),
   Test / scalacOptions -= "-Wunused:nowarn",
   licenses += License.Apache2,
@@ -112,7 +116,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("c
         gen("RemoverTest.scala", SourceGenerator.RemoverTest),
       )
     },
-    // Disable publishing for Scala 3.6
+    // Disable publishing for Scala 3 next
     publish := { if (scalaVersion.value == scala3Next) () else publish.value },
     publishLocal := { if (scalaVersion.value == scala3Next) () else publishLocal.value },
   )
@@ -127,7 +131,7 @@ lazy val docs = project.in(file("formless-docs"))
       "BL_MAVEN_REPO_URL" -> mavenRepoUrl,
       "SHAPELESS_NAT_PREFIX" -> foldScalaV(scalaVersion.value)("shapeless.nat._", ""),
     ),
-    scalacOptions -= "-Xfatal-warnings",
+    scalacOptions -= "-Werror",
   )
   .dependsOn(core.jvm)
   .enablePlugins(MdocPlugin)
