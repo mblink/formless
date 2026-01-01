@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.18, 3.3.7, 3.8.0-RC4]
+        scala: [2.13.18, 3.3.7, 3.8.0-RC5]
         java:
           - temurin@8
           - temurin@11
@@ -31,9 +31,9 @@ jobs:
           - temurin@21
           - temurin@25
         exclude:
-          - scala: 3.8.0-RC4
+          - scala: 3.8.0-RC5
             java: temurin@8
-          - scala: 3.8.0-RC4
+          - scala: 3.8.0-RC5
             java: temurin@11
     runs-on: ${{ matrix.os }}
     steps:
