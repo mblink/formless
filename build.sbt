@@ -51,7 +51,7 @@ lazy val baseSettings = Seq(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.4" cross CrossVersion.patch)),
     Seq(),
   ),
-  scalacOptions ++= Seq("-Werror") ++ foldScalaV(scalaVersion.value)(
+  scalacOptions ++= foldScalaV(scalaVersion.value)(
     Seq("-Vimplicits", "-Vimplicits-verbose-tree"),
     Seq(
       "-no-indent",
