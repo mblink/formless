@@ -87,6 +87,9 @@ object HList {
 
   def fromArray[A](a: Array[A]): HList = a.foldRight(HNil: HList)(_ :: _)
 
+  type Head[H <: HList] = H match { case h :: _ => h }
+  type Tail[H <: HList] = H match { case _ :: t => t }
+
   type FromTuple[T <: Tuple] <: HList = T match {
     case EmptyTuple => HNil
     case h *: t => h :: FromTuple[t]
