@@ -9,6 +9,7 @@ lazy val scala3Next = "3.8.4-RC2"
 ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3Next)
 ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.8.0"
+ThisBuild / libraryDependencySchemes += "org.scala-native" %% "test-interface_native0.5" % VersionScheme.EarlySemVer
 
 // GitHub Actions config
 val javaVersions = Seq(8, 11, 17, 21, 25).map(v => JavaSpec.temurin(v.toString))
