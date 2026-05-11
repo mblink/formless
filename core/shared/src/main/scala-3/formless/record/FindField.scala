@@ -67,7 +67,7 @@ object FindField {
           go[[a] =>> HList.Append[Rep[head], a], HList.Append[Rem, head], tail](idx + 1)
         case '[HNil] =>
           report.errorAndAbort(s"Failed to find field ${Type.show[F]} in record ${Type.show[T]}")
-      }
+      }: @annotation.nowarn("msg=match may not be exhaustive")
 
     go[[a] =>> a :: HNil, HNil, T](0)
   }
