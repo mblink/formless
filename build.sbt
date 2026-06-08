@@ -5,12 +5,8 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 lazy val scala213 = "2.13.18"
 lazy val scala3 = "3.3.7"
 lazy val scala3Next = "3.8.4"
-lazy val scala3NextAxis = new VirtualAxis.WeakAxis {
-  val idSuffix = "Next"
-  val directorySuffix = "next"
-}
-lazy val scalaVersions = Seq(scala213, scala3)
 
+ThisBuild / crossScalaVersions := Seq(scala213, scala3, scala3Next)
 ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.8.0"
 
@@ -20,14 +16,17 @@ val javaVersions = Seq(8, 11, 17, 21, 25).map(v => JavaSpec.temurin(v.toString))
 ThisBuild / githubWorkflowJavaVersions := javaVersions
 ThisBuild / githubWorkflowArtifactUpload := false
 ThisBuild / githubWorkflowBuildMatrixFailFast := Some(false)
+ThisBuild / githubWorkflowBuildMatrixExclusions := Seq(8, 11).map(v =>
+  MatrixExclude(Map("scala" -> scala3Next, "java" -> javaVersions.find(_.version == v.toString).get.render))
+)
 ThisBuild / githubWorkflowTargetBranches := Seq("main")
 
-val isJava25 = s"matrix.java == '${javaVersions.find(_.version == "25").get.render}'"
+val isJava8 = s"matrix.java == '${javaVersions.find(_.version == "8").get.render}'"
+val isScala3 = s"matrix.scala == '$scala3'"
 
-ThisBuild / githubWorkflowBuild := Seq(
-  WorkflowStep.Run(List("sbt test"), name = Some("Build project")),
-  WorkflowStep.Run(List("sbt mimaReportBinaryIssues"), name = Some("Check binary compatibility"), cond = Some(isJava25)),
-  WorkflowStep.Run(List("sbt mdoc"), name = Some("Build docs"), cond = Some(isJava25)),
+ThisBuild / githubWorkflowBuild ++= Seq(
+  WorkflowStep.Sbt(List("mimaReportBinaryIssues"), name = Some("Check binary compatibility"), cond = Some(isJava8)),
+  WorkflowStep.Sbt(List("docs/mdoc"), name = Some("Build docs"), cond = Some(isJava8 ++ " && " ++ isScala3)),
 )
 
 ThisBuild / githubWorkflowPublishTargetBranches := Seq()
@@ -41,7 +40,13 @@ def foldScalaV[A](scalaVersion: String)(_213: => A, _3: => A): A =
 lazy val mavenRepoUrl = "https://maven.bondlink-cdn.com"
 
 lazy val baseSettings = Seq(
+  scalaVersion := scala3,
+  crossScalaVersions := Seq(scala213, scala3, scala3Next),
   organization := "com.bondlink",
+  publishTo := Some("BondLink S3".at("s3://bondlink-maven-repo")),
+  resolvers += "bondlink-maven-repo" at mavenRepoUrl,
+  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.6.0"),
+  mimaFailOnNoPrevious := false,
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
     Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.4" cross CrossVersion.patch)),
     Seq(),
@@ -58,42 +63,27 @@ lazy val baseSettings = Seq(
   ),
   Test / scalacOptions -= "-Wunused:nowarn",
   licenses += License.Apache2,
-  publish / skip := true,
-  mimaFailOnNoPrevious := false,
 )
 
-baseSettings
-
-lazy val publishSettings = Seq(
-  publish / skip := false,
-  publishTo := Some("BondLink S3".at("s3://bondlink-maven-repo")),
-  resolvers += "bondlink-maven-repo" at mavenRepoUrl,
-  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.6.0"),
+lazy val noPublishSettings = Seq(
+  publish := {},
+  publishLocal := {},
 )
+
+lazy val root = project.in(file("."))
+  .aggregate(
+    (core.componentProjects ++ Seq(docs)).map(p => p: ProjectReference):_*
+  )
+  .settings(baseSettings)
+  .settings(noPublishSettings)
+  .disablePlugins(MimaPlugin)
 
 lazy val munit = Def.setting("org.scalameta" %%% "munit" % "1.3.2" % Test)
 lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.13")
 lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.19.0" % Test)
 
-def maybeAddScala3Next(matrix: sbt.internal.ProjectMatrix) = {
-  val jv = sys.props.getOrElse("java.specification.version", "")
-  if (jv == "1.8" || jv == "8" || jv == "11") matrix
-  else matrix.jvmPlatform(
-    scalaVersions = Seq(scala3Next),
-    axisValues = Seq(scala3NextAxis),
-    settings = Seq(
-      publish / skip := true,
-      mimaPreviousArtifacts := Set(),
-    ),
-  )
-}
-
-lazy val core = maybeAddScala3Next(projectMatrix.in(file("core")))
-  .jvmPlatform(scalaVersions = scalaVersions)
-  .jsPlatform(scalaVersions = scalaVersions)
-  .nativePlatform(scalaVersions = scalaVersions)
+lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).in(file("core"))
   .settings(baseSettings)
-  .settings(publishSettings)
   .settings(
     name := "formless",
     libraryDependencies ++= Seq(munit.value, scalacheck.value),
@@ -123,11 +113,14 @@ lazy val core = maybeAddScala3Next(projectMatrix.in(file("core")))
         gen("RemoverTest.scala", SourceGenerator.RemoverTest),
       )
     },
+    // Disable publishing for Scala 3 next
+    publish := { if (scalaVersion.value == scala3Next) () else publish.value },
+    publishLocal := { if (scalaVersion.value == scala3Next) () else publishLocal.value },
   )
 
-lazy val docs = projectMatrix.in(file("formless-docs"))
-  .jvmPlatform(scalaVersions = Seq(scala3))
+lazy val docs = project.in(file("formless-docs"))
   .settings(baseSettings)
+  .settings(noPublishSettings)
   .settings(
     mdocOut := file("."),
     mdocVariables ++= Map(
@@ -137,5 +130,6 @@ lazy val docs = projectMatrix.in(file("formless-docs"))
     ),
     scalacOptions -= "-Werror",
   )
-  .dependsOn(core)
+  .dependsOn(core.jvm)
   .enablePlugins(MdocPlugin)
+  .disablePlugins(MimaPlugin)

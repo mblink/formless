@@ -13,7 +13,7 @@ Add the following to your `build.sbt`:
 
 ```scala
 resolvers += "bondlink-maven-repo" at "https://maven.bondlink-cdn.com"
-libraryDependencies += "com.bondlink" %% "formless" % "0.8.0"
+libraryDependencies += "com.bondlink" %% "formless" % "0.6.0"
 ```
 
 If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the following:
@@ -25,7 +25,7 @@ def repositoriesTask = T.task {
   super.repositoriesTask() ++ Seq(MavenRepository("https://maven.bondlink-cdn.com"))
 }
 
-def ivyDeps = Agg(ivy"com.bondlink::formless:0.8.0")
+def ivyDeps = Agg(ivy"com.bondlink::formless:0.6.0")
 ```
 
 ## Usage
@@ -67,10 +67,6 @@ HNil.tail
 //     ^
 // error: 
 // value tail is not a member of object formless.hlist.HNil - did you mean HNil.wait?
-// warn:
-// unused value of type (repl.MdocSession.MdocApp.x.head : Int)
-// HNil.head
-//     ^
 ```
 
 From there, you can perform a number of operations on your `HList`:
@@ -153,7 +149,7 @@ x.removeAll[String :: Boolean :: HNil]
 
 // Find the union with another `HList`
 x.union(3 :: () :: Some("baz") :: HNil)
-// res22: ::[Int, ::[String, ::[Boolean, ::[Unit, ::[Some[String], HNil]]]]] = 1 :: "foo" :: true :: () :: Some("baz") :: HNil
+// res22: ::[Int, ::[String, ::[Boolean, ::[Unit, ::[Some[String], HNil]]]]] = 1 :: "foo" :: true :: () :: Some(value = "baz") :: HNil
 
 // Find the intersection with another `HList`
 x.intersect[Int :: Boolean :: HNil]
@@ -312,7 +308,7 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x0000038006216748@1d8cd64c :: repl.MdocSession$MdocApp$$Lambda/0x0000038006216370@93197a7 :: repl.MdocSession$MdocApp$$Lambda/0x0000038006215f98@641810ce :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x000000c803768780@5ad5b471 :: repl.MdocSession$MdocApp$$Lambda/0x000000c8037683c0@73afe742 :: repl.MdocSession$MdocApp$$Lambda/0x000000c803768000@61f4ac77 :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil
