@@ -3,7 +3,7 @@ import formless._
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.18"
-lazy val scala3 = "3.3.7"
+lazy val scala3 = "3.3.8"
 lazy val scala3Next = "3.8.4"
 lazy val scala3NextAxis = new VirtualAxis.WeakAxis {
   val idSuffix = "Next"
