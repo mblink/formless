@@ -66,7 +66,7 @@ baseSettings
 
 lazy val publishSettings = Seq(
   publish / skip := false,
-  publishTo := Some("BondLink S3".at("s3://bondlink-maven-repo")),
+  s3PublishBucket := "bondlink-maven-repo",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
   mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.6.0"),
 )
