@@ -15,7 +15,7 @@ ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.8.0"
 
 // GitHub Actions config
-val javaVersions = Seq(8, 11, 17, 21, 25).map(v => JavaSpec.temurin(v.toString))
+val javaVersions = Seq(17, 21, 25).map(v => JavaSpec.temurin(v.toString))
 
 ThisBuild / githubWorkflowJavaVersions := javaVersions
 ThisBuild / githubWorkflowArtifactUpload := false
@@ -75,11 +75,9 @@ lazy val munit = "org.scalameta" %% "munit" % "1.3.3" % Test
 lazy val shapeless = "com.chuusai" %% "shapeless" % "2.3.13"
 lazy val scalacheck = "org.scalacheck" %% "scalacheck" % "1.19.0" % Test
 
-// Newer versions of Scala 3 require Java 17 so we can't use Java 8 or 11 with them
-def maybeAddScala3Next(matrix: ProjectMatrix) = {
-  val jv = sys.props.getOrElse("java.specification.version", "")
-  if (jv == "1.8" || jv == "8" || jv == "11") matrix
-  else matrix.jvmPlatform(
+lazy val core = projectMatrix.in(file("core"))
+  .jvmPlatform(scalaVersions = scalaVersions)
+  .jvmPlatform(
     scalaVersions = Seq(scala3Next),
     axisValues = Seq(scala3NextAxis),
     settings = Seq(
@@ -87,10 +85,6 @@ def maybeAddScala3Next(matrix: ProjectMatrix) = {
       mimaPreviousArtifacts := Set(),
     ),
   )
-}
-
-lazy val core = maybeAddScala3Next(projectMatrix.in(file("core")))
-  .jvmPlatform(scalaVersions = scalaVersions)
   .jsPlatform(scalaVersions = scalaVersions)
   .nativePlatform(scalaVersions = scalaVersions)
   .settings(baseSettings)
