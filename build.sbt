@@ -15,12 +15,13 @@ ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.8.0"
 
 // GitHub Actions config
-val javaVersions = Seq(8, 11, 17, 21, 25).map(v => JavaSpec.temurin(v.toString))
+val javaVersions = Seq(17, 21, 25).map(v => JavaSpec.temurin(v.toString))
 
 ThisBuild / githubWorkflowJavaVersions := javaVersions
 ThisBuild / githubWorkflowArtifactUpload := false
 ThisBuild / githubWorkflowBuildMatrixFailFast := Some(false)
 ThisBuild / githubWorkflowTargetBranches := Seq("main")
+ThisBuild / githubWorkflowUseSbtThinClient := true
 
 val isJava25 = s"matrix.java == '${javaVersions.find(_.version == "25").get.render}'"
 
@@ -43,7 +44,7 @@ lazy val mavenRepoUrl = "https://maven.bondlink-cdn.com"
 lazy val baseSettings = Seq(
   organization := "com.bondlink",
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
-    Seq(compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.4" cross CrossVersion.patch)),
+    Seq(compilerPlugin(("org.typelevel" %% "kind-projector" % "0.13.4").cross(CrossVersion.patch))),
     Seq(),
   ),
   scalacOptions ++= foldScalaV(scalaVersion.value)(
@@ -68,18 +69,16 @@ lazy val publishSettings = Seq(
   publish / skip := false,
   s3PublishBucket := "bondlink-maven-repo",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
-  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.6.0"),
+  mimaPreviousArtifacts := Set("com.bondlink" %% name.value % "0.6.0"),
 )
 
-lazy val munit = Def.setting("org.scalameta" %%% "munit" % "1.3.3" % Test)
-lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.13")
-lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.19.0" % Test)
+lazy val munit = "org.scalameta" %% "munit" % "1.3.3" % Test
+lazy val shapeless = "com.chuusai" %% "shapeless" % "2.3.13"
+lazy val scalacheck = "org.scalacheck" %% "scalacheck" % "1.19.0" % Test
 
-// Newer versions of Scala 3 require Java 17 so we can't use Java 8 or 11 with them
-def maybeAddScala3Next(matrix: sbt.internal.ProjectMatrix) = {
-  val jv = sys.props.getOrElse("java.specification.version", "")
-  if (jv == "1.8" || jv == "8" || jv == "11") matrix
-  else matrix.jvmPlatform(
+lazy val core = projectMatrix.in(file("core"))
+  .jvmPlatform(scalaVersions = scalaVersions)
+  .jvmPlatform(
     scalaVersions = Seq(scala3Next),
     axisValues = Seq(scala3NextAxis),
     settings = Seq(
@@ -87,20 +86,16 @@ def maybeAddScala3Next(matrix: sbt.internal.ProjectMatrix) = {
       mimaPreviousArtifacts := Set(),
     ),
   )
-}
-
-lazy val core = maybeAddScala3Next(projectMatrix.in(file("core")))
-  .jvmPlatform(scalaVersions = scalaVersions)
   .jsPlatform(scalaVersions = scalaVersions)
   .nativePlatform(scalaVersions = scalaVersions)
   .settings(baseSettings)
   .settings(publishSettings)
   .settings(
     name := "formless",
-    libraryDependencies ++= Seq(munit.value, scalacheck.value),
+    libraryDependencies ++= Seq(munit, scalacheck),
     libraryDependencies ++= foldScalaV(scalaVersion.value)(
       Seq(
-        shapeless.value,
+        shapeless,
         scalaOrganization.value % "scala-compiler" % scalaVersion.value % "provided",
       ),
       Seq(),
