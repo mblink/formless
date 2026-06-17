@@ -21,6 +21,7 @@ ThisBuild / githubWorkflowJavaVersions := javaVersions
 ThisBuild / githubWorkflowArtifactUpload := false
 ThisBuild / githubWorkflowBuildMatrixFailFast := Some(false)
 ThisBuild / githubWorkflowTargetBranches := Seq("main")
+ThisBuild / githubWorkflowUseSbtThinClient := true
 
 val isJava25 = s"matrix.java == '${javaVersions.find(_.version == "25").get.render}'"
 
