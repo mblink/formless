@@ -73,7 +73,7 @@ lazy val publishSettings = Seq(
 
 lazy val munit = Def.setting("org.scalameta" %%% "munit" % "1.3.5" % Test)
 lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.13")
-lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.19.0" % Test)
+lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.20.0" % Test)
 
 // Newer versions of Scala 3 require Java 17 so we can't use Java 8 or 11 with them
 def maybeAddScala3Next(matrix: sbt.internal.ProjectMatrix) = {
