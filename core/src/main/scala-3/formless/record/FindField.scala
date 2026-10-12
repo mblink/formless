@@ -31,45 +31,80 @@ object FindField {
     final type Removed = Rem
   }
 
-  private class ConcreteLabelled[K, V]
-
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using q: Quotes): Expr[FindField[T, F, Cmp]] = {
     import q.reflect.*
 
-    val labelled = TypeRepr.of[->>]
-    val labelledSym = labelled.typeSymbol
-    val concreteLabelled = TypeRepr.of[ConcreteLabelled]
-    val concreteLabelledSym = concreteLabelled.typeSymbol
+    val labelledSym = TypeRepr.of[->>].typeSymbol
+    val consSym = TypeRepr.of[Any :: HNil].typeSymbol
+    val consTpe = consSym.typeRef
+    val hnilTpe = TypeRepr.of[HNil]
+    val instSym = TypeRepr.of[Inst[HNil, Any, =:=, Any, Any, [a] =>> HNil, HNil]].typeSymbol
+    val fTpe = TypeRepr.of[F]
+    val cmpTpe = TypeRepr.of[Cmp]
 
-    def concrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(labelledSym), List(concreteLabelled))
-    def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
+    def cons(h: TypeRepr, t: TypeRepr): TypeRepr = consTpe.appliedTo(List(h, t))
 
-    def go[
-      Rep[_] <: HList: Type,
-      Rem <: HList: Type,
-      RestT <: HList: Type,
-    ](idx: Int): Expr[FindField[T, F, Cmp]] =
-      Type.of[RestT] match {
-        case '[::[head, tail]] if Expr.summon[Cmp[head, F]].nonEmpty =>
-          // We need to replace `->>` with a concrete `class` type so the match works
-          // Matches on opaque types like `->>` will *never* match
-          val concretTypeRepr = concrete(TypeRepr.of[head].dealias)
-          concretTypeRepr.asType match {
-            case '[ConcreteLabelled[k, v]] =>
-              (unConcrete(TypeRepr.of[k]).asType, unConcrete(TypeRepr.of[v]).asType) match {
-                case ('[key], '[value]) =>
-                  '{ FindField.Inst[T, F, Cmp, key, value, [a] =>> HList.Concat[Rep[a], tail], HList.Concat[Rem, tail]](${ Expr(idx) }) }
-              }: @annotation.nowarn("msg=match may not be exhaustive")
-            case _ =>
-              report.errorAndAbort(s"Unexpected type: ${concretTypeRepr.show}")
-          }
-        case '[::[head, tail]] =>
-          go[[a] =>> HList.Append[Rep[head], a], HList.Append[Rem, head], tail](idx + 1)
-        case '[HNil] =>
+    def labelledArgs(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+      t.dealias match {
+        case AppliedType(tycon, List(k, v)) if tycon.typeSymbol == labelledSym => Some((k, v))
+        case _ => None
+      }
+
+    // `->>` is invariant in its key, so a field whose key is a different constant can never satisfy `Cmp[field, F]`
+    val fKey: Option[Constant] = labelledArgs(fTpe).flatMap {
+      case (ConstantType(c), _) => Some(c)
+      case _ => None
+    }
+
+    def keyCannotMatch(head: TypeRepr): Boolean =
+      fKey.exists(fk =>
+        labelledArgs(head).exists {
+          case (ConstantType(c), _) => c.value != fk.value
+          case _ => false
+        }
+      )
+
+    def cmpHolds(head: TypeRepr): Boolean =
+      !keyCannotMatch(head) && (Implicits.search(cmpTpe.appliedTo(List(head, fTpe))) match {
+        case _: ImplicitSearchSuccess => true
+        case _ => false
+      })
+
+    def found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr, idx: Int): Expr[FindField[T, F, Cmp]] =
+      labelledArgs(head) match {
+        case Some((key, value)) =>
+          val replaced = TypeLambda(
+            List("a"),
+            _ => List(TypeBounds.empty),
+            tl => revInit.foldLeft(cons(tl.param(0), tail))((acc, h) => cons(h, acc)),
+          )
+          val removed = revInit.foldLeft(tail)((acc, h) => cons(h, acc))
+          val targs = List(TypeRepr.of[T], fTpe, cmpTpe, key, value, replaced, removed)
+          New(Inferred(instSym.typeRef.appliedTo(targs)))
+            .select(instSym.primaryConstructor)
+            .appliedToTypes(targs)
+            .appliedTo(Literal(IntConstant(idx)))
+            .asExprOf[FindField[T, F, Cmp]]
+        case None =>
+          report.errorAndAbort(s"Unexpected type: ${head.show}")
+      }
+
+    @annotation.tailrec
+    def go(rest: TypeRepr, revInit: List[TypeRepr], idx: Int): Expr[FindField[T, F, Cmp]] =
+      rest.dealias.simplified match {
+        case t if t <:< hnilTpe =>
           report.errorAndAbort(s"Failed to find field ${Type.show[F]} in record ${Type.show[T]}")
-      }: @annotation.nowarn("msg=match may not be exhaustive")
+        case t =>
+          t.baseType(consSym) match {
+            case AppliedType(_, List(head, tail)) =>
+              if (cmpHolds(head)) found(revInit, head, tail, idx)
+              else go(tail, head :: revInit, idx + 1)
+            case _ =>
+              report.errorAndAbort(s"Failed to find field ${Type.show[F]} in record ${Type.show[T]}")
+          }
+      }
 
-    go[[a] =>> a :: HNil, HNil, T](0)
+    go(TypeRepr.of[T], Nil, 0)
   }
 
   transparent inline given findFieldInst[T <: HList, F, Cmp[_, _]]: FindField[T, F, Cmp] = ${ findFieldInstImpl[T, F, Cmp] }
