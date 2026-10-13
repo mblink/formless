@@ -46,6 +46,7 @@ object FindField {
     final case class Found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr, index: Int) extends Outcome
     case object Absent extends Outcome
     final case class Unknown(rest: TypeRepr) extends Outcome
+    final case class Undecided(head: TypeRepr, index: Int) extends Outcome
 
     private val labelled = TypeRepr.of[->>]
     private val labelledSym = labelled.typeSymbol
@@ -97,10 +98,38 @@ object FindField {
         }
       }
 
+    private def union(a: TypeRepr, b: TypeRepr): TypeRepr = if (a =:= b) a else OrType(a, b)
+
     private def stringKey(t: TypeRepr): Option[String] =
       labelledArgs(t).flatMap {
         case (ConstantType(StringConstant(k)), _) => Some(k)
         case _ => None
+      }
+
+    // Free of type parameters and abstract type members, so a failed `Cmp` check against it is final
+    private def isGround(t: TypeRepr): Boolean =
+      t.dealias match {
+        case tr: TypeRef =>
+          !(tr.typeSymbol.isTypeParam || (tr.typeSymbol.isAbstractType && !tr.typeSymbol.flags.is(Flags.Opaque))) && isGround(tr.qualifier)
+        case AppliedType(tycon, args) => isGround(tycon) && args.forall(isGround)
+        case AndType(a, b) => isGround(a) && isGround(b)
+        case OrType(a, b) => isGround(a) && isGround(b)
+        case AnnotatedType(u, _) => isGround(u)
+        case Refinement(parent, _, info) => isGround(parent) && isGround(info)
+        case TypeBounds(lo, hi) => isGround(lo) && isGround(hi)
+        case ByNameType(u) => isGround(u)
+        case _: ConstantType | _: TermRef | _: ThisType | _: NoPrefix => true
+        case _ => false
+      }
+
+    private def labelledKey(t: TypeRepr): Option[TypeRepr] =
+      labelledArgs(t).orElse(upperBound(t).flatMap(labelledArgs)).map(_._1)
+
+    // Whether `Cmp[head, F]` could hold once the abstract types in `head` or `F` are known
+    private def mightMatch(head: TypeRepr): Boolean =
+      (labelledKey(head), labelledKey(fTpe)) match {
+        case (Some(hk), Some(fk)) if isGround(hk) && isGround(fk) && !(hk =:= fk) => false
+        case _ => !(isGround(head) && isGround(fTpe))
       }
 
     // `->>` is invariant in its key, so a field keyed by a different string literal can never satisfy `Cmp[field, F]`
@@ -114,8 +143,6 @@ object FindField {
           case _: AmbiguousImplicits => true
           case _ => false
         })
-
-    private def union(a: TypeRepr, b: TypeRepr): TypeRepr = if (a =:= b) a else OrType(a, b)
 
     // The head and tail of a record type: directly for `H :: T`, through the base type otherwise (an abstract record's
     // upper bound, an intersection, a singleton), and arm by arm for a union of records
@@ -142,7 +169,8 @@ object FindField {
       }
 
     /**
-     * @param decided whether proving absence, so a union of records may be split into arms that end at different points
+     * @param decided whether proving absence, so every element must be ruled out, and a union of records may be split
+     *                into arms that end at different points
      * @param expanded the abstract records already walked through their bound, so `type L <: Int :: L` doesn't loop
      */
     @annotation.tailrec
@@ -153,6 +181,7 @@ object FindField {
       else consParts(t) match {
         case Some((head, tail)) =>
           if (cmpHolds(head)) Found(revInit, head, tail, idx)
+          else if (decided && mightMatch(head)) Undecided(head, idx)
           else go(tail, head :: revInit, idx + 1, decided, if (direct) expanded else t :: expanded)
         case None =>
           if (t <:< hnilTpe) Absent
@@ -171,10 +200,10 @@ object FindField {
         case other => other
       }
 
-    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, decided = false, Nil)
+    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, decided = false, expanded = Nil)
 
-    /** Like `outcome`, but splits a union of records into arms when they end at different points */
-    def absence: Outcome = go(TypeRepr.of[T], Nil, 0, decided = true, Nil)
+    /** Like `outcome`, but `Undecided` at the first element that doesn't match yet might once its types are known */
+    def absence: Outcome = go(TypeRepr.of[T], Nil, 0, decided = true, expanded = Nil)
   }
 
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
@@ -211,6 +240,8 @@ object FindField {
         report.errorAndAbort(
           s"Cannot find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}: its tail `${lookup.display(rest)}` is not statically known"
         )
+      case lookup.Undecided(head, idx) =>
+        report.errorAndAbort(s"Unexpected undecided element ${lookup.display(head)} at index $idx")
     }
   }
 
@@ -218,9 +249,10 @@ object FindField {
 }
 
 /**
- * Evidence that no field `head` of the record `T` satisfies `Cmp[head, F]`, for a record whose every element is
- * statically known. Unlike `NotGiven[FindField[T, F, Cmp]]`, it does not resolve for a record with an abstract tail,
- * which might contain the field, or for one with a field that satisfies `Cmp[head, F]` but that `FindField` can't use.
+ * Evidence that no field `head` of the record `T` satisfies `Cmp[head, F]`, whatever its abstract types turn out to be.
+ * Unlike `NotGiven[FindField[T, F, Cmp]]`, it does not resolve for a record with an abstract tail, with an element that
+ * might match once its type parameters are known, or with a field that satisfies `Cmp[head, F]` but that `FindField`
+ * can't use.
  */
 private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Unit
 
@@ -239,6 +271,10 @@ object FieldAbsent {
       case lookup.Unknown(rest) =>
         report.errorAndAbort(
           s"Cannot prove ${lookup.display(TypeRepr.of[F])} is absent from ${lookup.display(TypeRepr.of[T])}: its tail `${lookup.display(rest)}` is not statically known"
+        )
+      case lookup.Undecided(head, idx) =>
+        report.errorAndAbort(
+          s"Cannot prove ${lookup.display(TypeRepr.of[F])} is absent from ${lookup.display(TypeRepr.of[T])}: element `${lookup.display(head)}` at index $idx might match"
         )
     }
   }
