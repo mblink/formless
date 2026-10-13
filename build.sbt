@@ -1,4 +1,3 @@
-import com.typesafe.tools.mima.core.{MissingClassProblem, ProblemFilters}
 import formless._
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
@@ -98,9 +97,6 @@ lazy val core = maybeAddScala3Next(projectMatrix.in(file("core")))
   .settings(publishSettings)
   .settings(
     name := "formless",
-    mimaBinaryIssueFilters ++= Seq(
-      ProblemFilters.exclude[MissingClassProblem]("formless.record.FindField$ConcreteLabelled"),
-    ),
     libraryDependencies ++= Seq(munit.value, scalacheck.value),
     libraryDependencies ++= foldScalaV(scalaVersion.value)(
       Seq(
