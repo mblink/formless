@@ -62,14 +62,25 @@ object FindField {
         case _ => None
       }
 
+    // `show` throws CyclicReference for a type owned by a method whose result type is still being inferred
+    def display(t: TypeRepr): String = scala.util.Try(t.show).getOrElse(t.typeSymbol.name)
+
+    // A type parameter or abstract type member stands for some subtype of its upper bound
+    private def upperBound(t: TypeRepr): Option[TypeRepr] =
+      t.dealias match {
+        case tr: TypeRef if tr.typeSymbol.isTypeParam || (tr.typeSymbol.isAbstractType && !tr.typeSymbol.flags.is(Flags.Opaque)) =>
+          scala.util.Try(tr.typeSymbol.tree).toOption.collect { case TypeDef(_, b: TypeBoundsTree) => b.hi.tpe }
+        case _ => None
+      }
+
     // Matches up to subtyping (e.g. an intersection around `K ->> V`); matches on the opaque `->>` itself never succeed
     def keyValue(head: TypeRepr): (TypeRepr, TypeRepr) =
-      labelledArgs(head).getOrElse {
+      labelledArgs(head).orElse(upperBound(head).map(keyValue)).getOrElse {
         val concreteHead = head.dealias.substituteTypes(List(labelledSym), List(concreteLabelled))
         def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
         concreteHead.asType match {
           case '[ConcreteLabelled[k, v]] => (unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v]))
-          case _ => report.errorAndAbort(s"Unexpected type: ${concreteHead.show}")
+          case _ => report.errorAndAbort(s"Unexpected type: ${display(concreteHead)}")
         }
       }
 
@@ -97,7 +108,7 @@ object FindField {
           if (cmpHolds(head)) Found(revInit, head, tail, idx)
           else go(tail, head :: revInit, idx + 1)
         case _ =>
-          if (t =:= hnilTpe) Absent else Unknown(t)
+          if (t <:< hnilTpe) Absent else Unknown(t)
       }
     }
 
@@ -128,9 +139,11 @@ object FindField {
           .appliedTo(Literal(IntConstant(idx)))
           .asExprOf[FindField[T, F, Cmp]]
       case lookup.Absent =>
-        report.errorAndAbort(s"Failed to find field ${Type.show[F]} in record ${Type.show[T]}")
+        report.errorAndAbort(s"Failed to find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}")
       case lookup.Unknown(rest) =>
-        report.errorAndAbort(s"Cannot find field ${Type.show[F]} in record ${Type.show[T]}: its tail `${rest.show}` is not statically known")
+        report.errorAndAbort(
+          s"Cannot find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}: its tail `${lookup.display(rest)}` is not statically known"
+        )
     }
   }
 
@@ -142,22 +155,24 @@ object FindField {
  * statically known. Unlike `NotGiven[FindField[T, F, Cmp]]`, it does not resolve for a record with an abstract tail,
  * which might contain the field.
  */
-private[formless] sealed trait FieldAbsent[T <: HList, F, Cmp[_, _]]
+private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Unit
 
 object FieldAbsent {
-  val instance: FieldAbsent[HNil, Any, =:=] = new FieldAbsent[HNil, Any, =:=] {}
-
   private def fieldAbsentImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FieldAbsent[T, F, Cmp]] = {
     val lookup = FindField.Lookup[T, F, Cmp]
     import lookup.q.reflect.*
 
     lookup.outcome match {
       case lookup.Absent =>
-        '{ FieldAbsent.instance.asInstanceOf[FieldAbsent[T, F, Cmp]] }
+        '{ ().asInstanceOf[FieldAbsent[T, F, Cmp]] }
       case lookup.Found(_, head, _, idx) =>
-        report.errorAndAbort(s"Record ${Type.show[T]} has field ${head.show} at index $idx matching ${Type.show[F]}")
+        report.errorAndAbort(
+          s"Record ${lookup.display(TypeRepr.of[T])} has field ${lookup.display(head)} at index $idx matching ${lookup.display(TypeRepr.of[F])}"
+        )
       case lookup.Unknown(rest) =>
-        report.errorAndAbort(s"Cannot prove ${Type.show[F]} is absent from ${Type.show[T]}: its tail `${rest.show}` is not statically known")
+        report.errorAndAbort(
+          s"Cannot prove ${lookup.display(TypeRepr.of[F])} is absent from ${lookup.display(TypeRepr.of[T])}: its tail `${lookup.display(rest)}` is not statically known"
+        )
     }
   }
 
