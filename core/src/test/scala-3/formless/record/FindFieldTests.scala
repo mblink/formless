@@ -516,4 +516,25 @@ class FindFieldTests extends FunSuite {
     val s = Selector[("a" ->> Int) :: Nothing, "a"]
     summon[s.Out =:= Int]
   }
+
+  test("absence is not proven when an element might match once its type parameters are known") {
+    refused("""def f[H] = LacksKey[H :: HNil, "a"]""")
+    refused("""def f[K] = LacksKey[(K ->> Int) :: HNil, "a"]""")
+    refused("""def f[K] = LacksKey[("a" ->> Int) :: HNil, K]""")
+    refused("""def f[H] = Updater[H :: HNil, "a" ->> Int]""")
+    refused("""def f[V] = Updater[("a" ->> V) :: HNil, "a" ->> Int]""")
+    abortsWith("""def f[H] = FieldAbsent.fieldAbsentInst[H :: HNil, "a" ->> Any, <:<]""", "might match")
+  }
+
+  test("absence is proven past elements that can't match whatever their type parameters are") {
+    assertEquals(typeCheckErrors("""def f[V] = LacksKey[("a" ->> V) :: HNil, "b"]""").map(_.message), Nil)
+    assertEquals(typeCheckErrors("""def f[H <: ("a" ->> Int)] = LacksKey[H :: HNil, "b"]""").map(_.message), Nil)
+    assertEquals(
+      typeCheckErrors("""def f[V] = { val u = Updater[("a" ->> V) :: HNil, "b" ->> Int]; summon[u.Out =:= (("a" ->> V) :: ("b" ->> Int) :: HNil)] }""")
+        .map(_.message),
+      Nil,
+    )
+    val u = Updater[("a" ->> String) :: HNil, "a" ->> Int]
+    summon[u.Out =:= (("a" ->> String) :: ("a" ->> Int) :: HNil)]
+  }
 }
