@@ -46,6 +46,7 @@ object FindField {
     final case class Found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr, index: Int) extends Outcome
     case object Absent extends Outcome
     final case class Unknown(rest: TypeRepr) extends Outcome
+    final case class Undecided(head: TypeRepr, index: Int) extends Outcome
 
     private val labelled = TypeRepr.of[->>]
     private val labelledSym = labelled.typeSymbol
@@ -92,6 +93,32 @@ object FindField {
         case _ => None
       }
 
+    // Free of type parameters and abstract type members, so a failed `Cmp` check against it is final
+    private def isGround(t: TypeRepr): Boolean =
+      t.dealias match {
+        case tr: TypeRef =>
+          !(tr.typeSymbol.isTypeParam || (tr.typeSymbol.isAbstractType && !tr.typeSymbol.flags.is(Flags.Opaque))) && isGround(tr.qualifier)
+        case AppliedType(tycon, args) => isGround(tycon) && args.forall(isGround)
+        case AndType(a, b) => isGround(a) && isGround(b)
+        case OrType(a, b) => isGround(a) && isGround(b)
+        case AnnotatedType(u, _) => isGround(u)
+        case Refinement(parent, _, info) => isGround(parent) && isGround(info)
+        case TypeBounds(lo, hi) => isGround(lo) && isGround(hi)
+        case ByNameType(u) => isGround(u)
+        case _: ConstantType | _: TermRef | _: ThisType | _: NoPrefix => true
+        case _ => false
+      }
+
+    private def labelledKey(t: TypeRepr): Option[TypeRepr] =
+      labelledArgs(t).orElse(upperBound(t).flatMap(labelledArgs)).map(_._1)
+
+    // Whether `Cmp[head, F]` could hold once the abstract types in `head` or `F` are known
+    private def mightMatch(head: TypeRepr): Boolean =
+      (labelledKey(head), labelledKey(fTpe)) match {
+        case (Some(hk), Some(fk)) if isGround(hk) && isGround(fk) && !(hk =:= fk) => false
+        case _ => !(isGround(head) && isGround(fTpe))
+      }
+
     // `->>` is invariant in its key, so a field keyed by a different string literal can never satisfy `Cmp[field, F]`
     private val fKey = stringKey(fTpe)
 
@@ -103,18 +130,22 @@ object FindField {
         })
 
     @annotation.tailrec
-    private def go(rest: TypeRepr, revInit: List[TypeRepr], idx: Int): Outcome = {
+    private def go(rest: TypeRepr, revInit: List[TypeRepr], idx: Int, decided: Boolean): Outcome = {
       val t = rest.dealias.simplified
       t.baseType(consSym) match {
         case AppliedType(_, List(head, tail)) =>
           if (cmpHolds(head)) Found(revInit, head, tail, idx)
-          else go(tail, head :: revInit, idx + 1)
+          else if (decided && mightMatch(head)) Undecided(head, idx)
+          else go(tail, head :: revInit, idx + 1, decided)
         case _ =>
           if (t <:< hnilTpe) Absent else Unknown(t)
       }
     }
 
-    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0)
+    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, decided = false)
+
+    /** Like `outcome`, but `Undecided` at the first element that doesn't match yet might once its types are known */
+    def absence: Outcome = go(TypeRepr.of[T], Nil, 0, decided = true)
   }
 
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
@@ -151,6 +182,8 @@ object FindField {
         report.errorAndAbort(
           s"Cannot find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}: its tail `${lookup.display(rest)}` is not statically known"
         )
+      case lookup.Undecided(head, idx) =>
+        report.errorAndAbort(s"Unexpected undecided element ${lookup.display(head)} at index $idx")
     }
   }
 
@@ -158,9 +191,10 @@ object FindField {
 }
 
 /**
- * Evidence that no field `head` of the record `T` satisfies `Cmp[head, F]`, for a record whose every element is
- * statically known. Unlike `NotGiven[FindField[T, F, Cmp]]`, it does not resolve for a record with an abstract tail,
- * which might contain the field, or for one with a field that satisfies `Cmp[head, F]` but that `FindField` can't use.
+ * Evidence that no field `head` of the record `T` satisfies `Cmp[head, F]`, whatever its abstract types turn out to be.
+ * Unlike `NotGiven[FindField[T, F, Cmp]]`, it does not resolve for a record with an abstract tail, with an element that
+ * might match once its type parameters are known, or with a field that satisfies `Cmp[head, F]` but that `FindField`
+ * can't use.
  */
 private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Unit
 
@@ -169,7 +203,7 @@ object FieldAbsent {
     val lookup = FindField.Lookup[T, F, Cmp]
     import lookup.q.reflect.*
 
-    lookup.outcome match {
+    lookup.absence match {
       case lookup.Absent =>
         '{ ().asInstanceOf[FieldAbsent[T, F, Cmp]] }
       case lookup.Found(_, head, _, idx) =>
@@ -179,6 +213,10 @@ object FieldAbsent {
       case lookup.Unknown(rest) =>
         report.errorAndAbort(
           s"Cannot prove ${lookup.display(TypeRepr.of[F])} is absent from ${lookup.display(TypeRepr.of[T])}: its tail `${lookup.display(rest)}` is not statically known"
+        )
+      case lookup.Undecided(head, idx) =>
+        report.errorAndAbort(
+          s"Cannot prove ${lookup.display(TypeRepr.of[F])} is absent from ${lookup.display(TypeRepr.of[T])}: element `${lookup.display(head)}` at index $idx might match"
         )
     }
   }
