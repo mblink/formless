@@ -37,7 +37,7 @@ object FindField {
    * Walks a record type looking for the first field `head` such that `Cmp[head, F]` holds.
    *
    * A record whose tail is not statically known (an abstract `L <: HList`) is `Unknown`: it neither contains nor lacks
-   * the field.
+   * the field, so neither `FindField` nor `FieldAbsent` resolves for it.
    */
   private[formless] final class Lookup[T <: HList: Type, F: Type, Cmp[_, _]: Type](using val q: Quotes) {
     import q.reflect.*
@@ -95,7 +95,7 @@ object FindField {
     // `->>` is invariant in its key, so a field keyed by a different string literal can never satisfy `Cmp[field, F]`
     private val fKey = stringKey(fTpe)
 
-    def cmpHolds(head: TypeRepr): Boolean =
+    private def cmpHolds(head: TypeRepr): Boolean =
       !fKey.exists(fk => stringKey(head).exists(_ != fk)) &&
         (Implicits.search(cmpTpe.appliedTo(List(head, fTpe))) match {
           case _: ImplicitSearchSuccess => true
@@ -142,19 +142,16 @@ object FindField {
         .asExprOf[FindField[T, F, Cmp]]
     }
 
-    // `revInit` holds the fields before `RestT`, nearest first
-    def go[RestT <: HList: Type](revInit: List[TypeRepr], idx: Int): Expr[FindField[T, F, Cmp]] =
-      Type.of[RestT] match {
-        case '[::[head, tail]] if lookup.cmpHolds(TypeRepr.of[head]) =>
-          found(revInit, TypeRepr.of[head], TypeRepr.of[tail], idx)
-        // Checked before `head :: tail`, which `Nothing` also matches, with a `Nothing` tail that would never end the walk
-        case _ if TypeRepr.of[RestT] <:< TypeRepr.of[HNil] =>
-          report.errorAndAbort(s"Failed to find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}")
-        case '[::[head, tail]] =>
-          go[tail](TypeRepr.of[head] :: revInit, idx + 1)
-      }: @annotation.nowarn("msg=match may not be exhaustive")
-
-    go[T](Nil, 0)
+    lookup.outcome match {
+      case lookup.Found(revInit, head, tail, idx) =>
+        found(revInit, head, tail, idx)
+      case lookup.Absent =>
+        report.errorAndAbort(s"Failed to find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}")
+      case lookup.Unknown(rest) =>
+        report.errorAndAbort(
+          s"Cannot find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}: its tail `${lookup.display(rest)}` is not statically known"
+        )
+    }
   }
 
   transparent inline given findFieldInst[T <: HList, F, Cmp[_, _]]: FindField[T, F, Cmp] = ${ findFieldInstImpl[T, F, Cmp] }

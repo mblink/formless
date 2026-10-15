@@ -485,4 +485,35 @@ class FindFieldTests extends FunSuite {
     refused("""Selector[Opaque.A :: HNil, "a"]""")
     refused("""Remover[Opaque.A :: HNil, "a"]""")
   }
+
+  test("a field that could only be in an abstract tail is not found") {
+    refused("""def a[L <: HList] = Selector[("b" ->> Int) :: L, "a"]""")
+    refused("""def a[L <: HList](r: ("b" ->> Int) :: L) = Selector[("b" ->> Int) :: L, "a"].apply(r)""")
+    refused("""def a[L <: HList] = Remover[("b" ->> Int) :: L, "a"]""")
+    refused("""def a[L <: HList] = Modifier[("b" ->> Int) :: L, "a", Int, Int]""")
+    refused("""def a[L <: HList] = Updater[("b" ->> Int) :: L, "a" ->> Int]""")
+    refused("""def a[L <: HList] = Selector[L, "a"]""")
+    refused("""def a[L <: HList]: Any = Selector[("b" ->> Int) :: ("c" ->> Int) :: L, "a"]""")
+    abortsWith("""def f[L <: HList] = FindField.findFieldInst[("b" ->> Int) :: L, "a" ->> Any, <:<]""", "is not statically known")
+    abortsWith("""def f[L <: HList] = FindField.findFieldInst[L, "a" ->> Any, <:<]""", "is not statically known")
+  }
+
+  test("a tail bounded by a concrete record is walked through its bound") {
+    def ops[L <: ("b" ->> Int) :: HNil](r: ("a" ->> String) :: L) = {
+      val s = Selector[("a" ->> String) :: L, "b"]
+      summon[s.Out =:= Int]
+      val rm = Remover[("a" ->> String) :: L, "b"]
+      summon[rm.Out =:= (Int, ("a" ->> String) :: HNil)]
+      (s(r), rm(r))
+    }
+    assertEquals(ops(("a" ->> "x") :: ("b" ->> 1) :: HNil), (1, (1, ("a" ->> "x") :: HNil)))
+  }
+
+  test("a field missing from a record ending in `Nothing` is not found") {
+    refused("""Selector[("a" ->> Int) :: Nothing, "b"]""")
+    refused("""Remover[("a" ->> Int) :: Nothing, "b"]""")
+    refused("""Selector[Nothing, "a"]""")
+    val s = Selector[("a" ->> Int) :: Nothing, "a"]
+    summon[s.Out =:= Int]
+  }
 }
