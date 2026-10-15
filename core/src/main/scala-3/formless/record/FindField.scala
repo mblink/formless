@@ -40,15 +40,31 @@ object FindField {
     val labelledSym = labelled.typeSymbol
     val concreteLabelled = TypeRepr.of[ConcreteLabelled]
     val concreteLabelledSym = concreteLabelled.typeSymbol
+    val consTpe = TypeRepr.of[Any :: HNil].typeSymbol.typeRef
+    val instSym = TypeRepr.of[Inst[HNil, Any, =:=, Any, Any, [a] =>> HNil, HNil]].typeSymbol
 
     def concrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(labelledSym), List(concreteLabelled))
     def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
+    def cons(h: TypeRepr, t: TypeRepr): TypeRepr = consTpe.appliedTo(List(h, t))
 
-    def go[
-      Rep[_] <: HList: Type,
-      Rem <: HList: Type,
-      RestT <: HList: Type,
-    ](idx: Int): Expr[FindField[T, F, Cmp]] =
+    // `Replaced` and `Removed` are built as concrete HList types, not as nested `HList.Append`/`HList.Concat` match types
+    def found(revInit: List[TypeRepr], key: TypeRepr, value: TypeRepr, tail: TypeRepr, idx: Int): Expr[FindField[T, F, Cmp]] = {
+      val replaced = TypeLambda(
+        List("a"),
+        _ => List(TypeBounds.empty),
+        tl => revInit.foldLeft(cons(tl.param(0), tail))((acc, h) => cons(h, acc)),
+      )
+      val removed = revInit.foldLeft(tail)((acc, h) => cons(h, acc))
+      val targs = List(TypeRepr.of[T], TypeRepr.of[F], TypeRepr.of[Cmp], key, value, replaced, removed)
+      New(Inferred(instSym.typeRef.appliedTo(targs)))
+        .select(instSym.primaryConstructor)
+        .appliedToTypes(targs)
+        .appliedTo(Literal(IntConstant(idx)))
+        .asExprOf[FindField[T, F, Cmp]]
+    }
+
+    // `revInit` holds the fields before `RestT`, nearest first
+    def go[RestT <: HList: Type](revInit: List[TypeRepr], idx: Int): Expr[FindField[T, F, Cmp]] =
       Type.of[RestT] match {
         case '[::[head, tail]] if Expr.summon[Cmp[head, F]].nonEmpty =>
           // We need to replace `->>` with a concrete `class` type so the match works
@@ -56,20 +72,18 @@ object FindField {
           val concretTypeRepr = concrete(TypeRepr.of[head].dealias)
           concretTypeRepr.asType match {
             case '[ConcreteLabelled[k, v]] =>
-              (unConcrete(TypeRepr.of[k]).asType, unConcrete(TypeRepr.of[v]).asType) match {
-                case ('[key], '[value]) =>
-                  '{ FindField.Inst[T, F, Cmp, key, value, [a] =>> HList.Concat[Rep[a], tail], HList.Concat[Rem, tail]](${ Expr(idx) }) }
-              }: @annotation.nowarn("msg=match may not be exhaustive")
+              found(revInit, unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v]), TypeRepr.of[tail], idx)
             case _ =>
               report.errorAndAbort(s"Unexpected type: ${concretTypeRepr.show}")
           }
-        case '[::[head, tail]] =>
-          go[[a] =>> HList.Append[Rep[head], a], HList.Append[Rem, head], tail](idx + 1)
-        case '[HNil] =>
+        // Checked before `head :: tail`, which `Nothing` also matches, with a `Nothing` tail that would never end the walk
+        case _ if TypeRepr.of[RestT] <:< TypeRepr.of[HNil] =>
           report.errorAndAbort(s"Failed to find field ${Type.show[F]} in record ${Type.show[T]}")
+        case '[::[head, tail]] =>
+          go[tail](TypeRepr.of[head] :: revInit, idx + 1)
       }: @annotation.nowarn("msg=match may not be exhaustive")
 
-    go[[a] =>> a :: HNil, HNil, T](0)
+    go[T](Nil, 0)
   }
 
   transparent inline given findFieldInst[T <: HList, F, Cmp[_, _]]: FindField[T, F, Cmp] = ${ findFieldInstImpl[T, F, Cmp] }
