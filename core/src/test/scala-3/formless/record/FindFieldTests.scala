@@ -6,6 +6,8 @@ import munit.{FunSuite, Location}
 import scala.compiletime.testing.typeCheckErrors
 
 class FindFieldTests extends FunSuite {
+  object intKey extends FieldOf[Int]
+
   type ABCD = ("a" ->> Int) :: ("b" ->> String) :: ("c" ->> Int) :: ("d" ->> Boolean) :: HNil
   val abcd: ABCD = ("a" ->> 1) :: ("b" ->> "two") :: ("c" ->> 3) :: ("d" ->> true) :: HNil
 
@@ -227,5 +229,77 @@ class FindFieldTests extends FunSuite {
     val rest = Remover[ABCD, "b"].apply(abcd)._2
     assertEquals(Selector[rest.type, "c"].apply(rest), 3)
     refused("""Selector[rest.type, "b"]""")
+  }
+
+  test("keys of different kinds that look alike are told apart") {
+    type R = (1 ->> String) :: ("1" ->> Int) :: intKey.F :: (1L ->> Boolean) :: ('1' ->> Double) :: ("k" ->> Char) :: HNil
+    val r: R = (1 ->> "int") :: ("1" ->> 2) :: (intKey ->> 3) :: (1L ->> true) :: ('1' ->> 4.0) :: ("k" ->> 'c') :: HNil
+
+    val int = Selector[R, 1]
+    summon[int.Out =:= String]
+    assertEquals(int(r), "int")
+    val string = Selector[R, "1"]
+    summon[string.Out =:= Int]
+    assertEquals(string(r), 2)
+    val obj = Selector[R, intKey.type]
+    summon[obj.Out =:= Int]
+    assertEquals(obj(r), 3)
+    val long = Selector[R, 1L]
+    summon[long.Out =:= Boolean]
+    assertEquals(long(r), true)
+    val char = Selector[R, '1']
+    summon[char.Out =:= Double]
+    assertEquals(char(r), 4.0)
+    val k = Selector[R, "k"]
+    summon[k.Out =:= Char]
+    assertEquals(k(r), 'c')
+
+    val rm = Remover[R, "1"]
+    summon[rm.Out =:= (Int, (1 ->> String) :: intKey.F :: (1L ->> Boolean) :: ('1' ->> Double) :: ("k" ->> Char) :: HNil)]
+    assertEquals(rm(r)._1, 2)
+
+    refused("""Selector[R, 2]""")
+    refused("""Selector[R, "2"]""")
+    refused("""Selector[R, 1.0]""")
+    refused("""LacksKey[R, "1"]""")
+    summon[LacksKey[R, "2"]]
+  }
+
+  test("a string key is found past fields keyed by type parameters, aliases and unions") {
+    type A = "a"
+    def f[K](r: (K ->> Int) :: (("x" | "y") ->> Long) :: (A ->> String) :: ("b" ->> Boolean) :: HNil) = {
+      val a = Selector[(K ->> Int) :: (("x" | "y") ->> Long) :: (A ->> String) :: ("b" ->> Boolean) :: HNil, "a"]
+      summon[a.Out =:= String]
+      val b = Selector[(K ->> Int) :: (("x" | "y") ->> Long) :: (A ->> String) :: ("b" ->> Boolean) :: HNil, "b"]
+      summon[b.Out =:= Boolean]
+      val k = Selector[(K ->> Int) :: (("x" | "y") ->> Long) :: (A ->> String) :: ("b" ->> Boolean) :: HNil, K]
+      summon[k.Out =:= Int]
+      (a(r), b(r), k(r))
+    }
+    val xy: ("x" | "y") ->> Long = label["x" | "y"](5L)
+    assertEquals(f[Unit](label[Unit](1) :: xy :: label[A]("s") :: ("b" ->> true) :: HNil), ("s", true, 1))
+  }
+
+  test("a string key spelled through an alias matches the literal") {
+    type A = "a"
+    val viaFieldKey = Selector[(A ->> Int) :: HNil, "a"]
+    summon[viaFieldKey.Out =:= Int]
+    val viaSearchedKey = Selector[("b" ->> String) :: ("a" ->> Int) :: HNil, A]
+    summon[viaSearchedKey.Out =:= Int]
+    assertEquals(viaSearchedKey(("b" ->> "x") :: ("a" ->> 1) :: HNil), 1)
+    refused("""LacksKey[(A ->> Int) :: HNil, "a"]""")
+    refused("""LacksKey[("a" ->> Int) :: HNil, A]""")
+  }
+
+  test("string keys are compared by value") {
+    val escaped = Selector[("a" ->> Int) :: HNil, "\u0061"]
+    summon[escaped.Out =:= Int]
+    val empty = Selector[("a" ->> Int) :: ("" ->> String) :: HNil, ""]
+    summon[empty.Out =:= String]
+    assertEquals(empty(("a" ->> 1) :: ("" ->> "e") :: HNil), "e")
+    refused("""Selector[("a" ->> Int) :: HNil, "A"]""")
+    refused("""Selector[("a" ->> Int) :: HNil, "a "]""")
+    refused("""Selector[("a" ->> Int) :: HNil, ""]""")
+    refused("""Selector[("ab" ->> Int) :: HNil, "a"]""")
   }
 }
