@@ -382,4 +382,107 @@ class FindFieldTests extends FunSuite {
     abortsWith("""def f[L <: HList] = FieldAbsent.fieldAbsentInst[("b" ->> Int) :: L, "a" ->> Any, <:<]""", "is not statically known")
     abortsWith("""def f[H] = FieldAbsent.fieldAbsentInst[(H ->> Int) :: HNil, H ->> Any, <:<]""", "has field")
   }
+
+  def selectBounded[H <: ("a" ->> Int)](r: H :: HNil) = Selector[H :: HNil, "a"].apply(r)
+
+  test("a field typed as a type parameter takes its key and value from the parameter's bound") {
+    def ops[H <: ("a" ->> Int)](r: H :: ("b" ->> String) :: HNil) = {
+      val s = Selector[H :: ("b" ->> String) :: HNil, "a"]
+      summon[s.Out =:= Int]
+      val rmA = Remover[H :: ("b" ->> String) :: HNil, "a"]
+      summon[rmA.Out =:= (Int, ("b" ->> String) :: HNil)]
+      val rmB = Remover[H :: ("b" ->> String) :: HNil, "b"]
+      summon[rmB.Out =:= (String, H :: HNil)]
+      val u = Updater[H :: ("b" ->> String) :: HNil, H]
+      summon[u.Out =:= (H :: ("b" ->> String) :: HNil)]
+      (s(r), rmA(r), rmB(r)._1)
+    }
+    assertEquals(ops(("a" ->> 1) :: ("b" ->> "x") :: HNil), (1, (1, ("b" ->> "x") :: HNil), "x"))
+    assertEquals(selectBounded(("a" ->> 1) :: HNil), 1)
+  }
+
+  test("a bound is followed through other type parameters, aliases and intersections") {
+    def chain[H1 <: ("a" ->> Int), H2 <: H1](r: H2 :: HNil) = {
+      val s = Selector[H2 :: HNil, "a"]
+      summon[s.Out =:= Int]
+      s(r)
+    }
+    assertEquals(chain(("a" ->> 1) :: HNil), 1)
+
+    type A = "a" ->> Int
+    def alias[H <: A](r: H :: HNil) = {
+      val s = Selector[H :: HNil, "a"]
+      summon[s.Out =:= Int]
+      s(r)
+    }
+    assertEquals(alias(("a" ->> 2) :: HNil), 2)
+
+    def intersection[H <: ("a" ->> Int) & Serializable](r: H :: HNil) = {
+      val s = Selector[H :: HNil, "a"]
+      summon[s.Out =:= Int]
+      s(r)
+    }
+    assertEquals(intersection(("a" ->> 3).asInstanceOf[("a" ->> Int) & Serializable] :: HNil), 3)
+  }
+
+  test("a bound's key and value may themselves be type parameters") {
+    def value[V, H <: ("a" ->> V)](r: H :: HNil) = {
+      val s = Selector[H :: HNil, "a"]
+      summon[s.Out =:= V]
+      s(r)
+    }
+    assertEquals(value[String, "a" ->> String](("a" ->> "v") :: HNil), "v")
+
+    def key[K, H <: (K ->> Int)](r: H :: HNil) = {
+      val s = Selector[H :: HNil, K]
+      summon[s.Out =:= Int]
+      s(r)
+    }
+    assertEquals(key[Unit, Unit ->> Int](label[Unit](4) :: HNil), 4)
+  }
+
+  test("a field typed as an abstract type member takes its key and value from the member's bound") {
+    trait WithField {
+      type H <: ("a" ->> Int)
+    }
+    def get(w: WithField)(r: w.H :: HNil) = {
+      val s = Selector[w.H :: HNil, "a"]
+      summon[s.Out =:= Int]
+      s(r)
+    }
+    val w = new WithField { type H = "a" ->> Int }
+    assertEquals(get(w)(("a" ->> 1) :: HNil), 1)
+  }
+
+  test("a field typed as a class's type parameter takes its key and value from the parameter's bound") {
+    class C[H <: ("a" ->> Int)] {
+      def get(r: H :: HNil) = {
+        val s = Selector[H :: HNil, "a"]
+        summon[s.Out =:= Int]
+        s(r)
+      }
+    }
+    assertEquals(C["a" ->> Int]().get(("a" ->> 1) :: HNil), 1)
+  }
+
+  test("an abstract field whose bound isn't a field with the key is refused") {
+    refused("""def f[H <: ("b" ->> Int)] = Selector[H :: HNil, "a"]""")
+    refused("""def f[H <: Int] = Selector[H :: HNil, "a"]""")
+    refused("""trait W { type H }; def f(w: W) = Selector[w.H :: HNil, "a"]""")
+    refused("""trait W { type H <: ("b" ->> Int) }; def f(w: W) = Selector[w.H :: HNil, "a"]""")
+  }
+
+  test("an element typed as a type parameter without a field bound is not a field") {
+    refused("""def f[A] = FindField.findFieldInst[A :: HNil, A, =:=]""")
+    refused("""def f[A] = Updater[A :: HNil, A]""")
+  }
+
+  test("Modifier still needs an abstract field to be exactly `K ->> A`") {
+    refused("""def f[H <: ("a" ->> Int)] = Modifier[H :: HNil, "a", Int, String]""")
+  }
+
+  test("an opaque type is not looked through, even when it's bounded by a field") {
+    refused("""Selector[Opaque.A :: HNil, "a"]""")
+    refused("""Remover[Opaque.A :: HNil, "a"]""")
+  }
 }
