@@ -302,4 +302,25 @@ class FindFieldTests extends FunSuite {
     refused("""Selector[("a" ->> Int) :: HNil, ""]""")
     refused("""Selector[("ab" ->> Int) :: HNil, "a"]""")
   }
+
+  test("a lookup that fails inside a method without a result type is refused cleanly") {
+    refused("""def f[H] = Selector[H :: HNil, "a"]""")
+    refused("""def f[H] = Remover[H :: HNil, "a"]""")
+    refused("""def f[H] = Modifier[H :: HNil, "a", Int, Int]""")
+    refused("""def f[H] = Selector[("b" ->> Int) :: H :: HNil, "a"]""")
+    refused("""def f[V] = Selector[("b" ->> V) :: HNil, "a"]""")
+    refused("""def f[K] = Selector[("a" ->> Int) :: HNil, K]""")
+    refused("""def f[K] = Remover[("a" ->> Int) :: HNil, K]""")
+    refused("""class C[H] { def s = Selector[H :: HNil, "a"] }""")
+    refused("""def f[L <: HList] = Modifier[("b" ->> Int) :: L, "a", Int, Int]""")
+  }
+
+  test("abort messages say what was looked for, even inside a method without a result type") {
+    abortsWith("""FindField.findFieldInst[ABCD, "e" ->> Any, <:<]""", "Failed to find field")
+    abortsWith("""FindField.findFieldInst[ABCD, "e" ->> Any, <:<]""", "ABCD")
+    abortsWith("""def f[H] = FindField.findFieldInst[H :: HNil, "e" ->> Any, <:<]""", "Failed to find field")
+    abortsWith("""def f[H] = FindField.findFieldInst[H :: HNil, "e" ->> Any, <:<]""", "\"e\"")
+    abortsWith("""def f[K] = FindField.findFieldInst[("a" ->> Int) :: HNil, K ->> Any, <:<]""", "Failed to find field")
+    abortsWith("""def f[A] = FindField.findFieldInst[List[A] :: HNil, List[A], =:=]""", "Unexpected type")
+  }
 }
