@@ -65,16 +65,26 @@ object FindField {
     // `show` throws CyclicReference for a type owned by a method whose result type is still being inferred
     def display(t: TypeRepr): String = scala.util.Try(t.show).getOrElse(t.typeSymbol.name)
 
-    // We need to replace `->>` with a concrete `class` type so the match works
-    // Matches on opaque types like `->>` will *never* match
-    def keyValue(head: TypeRepr): (TypeRepr, TypeRepr) = {
-      val concreteHead = head.dealias.substituteTypes(List(labelledSym), List(concreteLabelled))
-      def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
-      concreteHead.asType match {
-        case '[ConcreteLabelled[k, v]] => (unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v]))
-        case _ => report.errorAndAbort(s"Unexpected type: ${display(concreteHead)}")
+    // A type parameter or abstract type member stands for some subtype of its upper bound
+    private def upperBound(t: TypeRepr): Option[TypeRepr] =
+      t.dealias match {
+        case tr: TypeRef if tr.typeSymbol.isTypeParam || (tr.typeSymbol.isAbstractType && !tr.typeSymbol.flags.is(Flags.Opaque)) =>
+          scala.util.Try(tr.typeSymbol.tree).toOption.collect { case TypeDef(_, b: TypeBoundsTree) => b.hi.tpe }
+        case _ => None
       }
-    }
+
+    // Takes the key and value from an abstract field's upper bound, otherwise from a quoted match up to subtyping
+    // (e.g. an intersection around `K ->> V`); `->>` is replaced with a concrete class there since matches on an
+    // opaque type never succeed
+    def keyValue(head: TypeRepr): (TypeRepr, TypeRepr) =
+      upperBound(head).map(keyValue).getOrElse {
+        val concreteHead = head.dealias.substituteTypes(List(labelledSym), List(concreteLabelled))
+        def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
+        concreteHead.asType match {
+          case '[ConcreteLabelled[k, v]] => (unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v]))
+          case _ => report.errorAndAbort(s"Unexpected type: ${display(concreteHead)}")
+        }
+      }
 
     private def stringKey(t: TypeRepr): Option[String] =
       labelledArgs(t).flatMap {
