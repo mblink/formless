@@ -323,4 +323,49 @@ class FindFieldTests extends FunSuite {
     abortsWith("""def f[K] = FindField.findFieldInst[("a" ->> Int) :: HNil, K ->> Any, <:<]""", "Failed to find field")
     abortsWith("""def f[A] = FindField.findFieldInst[List[A] :: HNil, List[A], =:=]""", "Unexpected type")
   }
+
+  test("a field keyed by a union of literals is found by that union") {
+    type R = ("x" ->> Int) :: (("a" | "b") ->> Int) :: ("y" ->> String) :: HNil
+    val r: R = ("x" ->> 1) :: label["a" | "b"](2) :: ("y" ->> "z") :: HNil
+
+    val s = Selector[R, "a" | "b"]
+    summon[s.Out =:= Int]
+    assertEquals(s(r), 2)
+    val reordered = Selector[R, "b" | "a"]
+    summon[reordered.Out =:= Int]
+    assertEquals(reordered(r), 2)
+
+    val u = Updater[R, ("a" | "b") ->> Int]
+    summon[u.Out =:= R]
+    assertEquals(u(r, label["a" | "b"](3)), ("x" ->> 1) :: label["a" | "b"](3) :: ("y" ->> "z") :: HNil)
+
+    val m = Modifier[R, "a" | "b", Int, String]
+    summon[m.Out =:= (("x" ->> Int) :: (("a" | "b") ->> String) :: ("y" ->> String) :: HNil)]
+    assertEquals(m(r, _.toString), ("x" ->> 1) :: label["a" | "b"]("2") :: ("y" ->> "z") :: HNil)
+
+    val rm = Remover[R, "a" | "b"]
+    summon[rm.Out =:= (Int, ("x" ->> Int) :: ("y" ->> String) :: HNil)]
+    assertEquals(rm(r), (2, ("x" ->> 1) :: ("y" ->> "z") :: HNil))
+
+    refused("""LacksKey[R, "a" | "b"]""")
+  }
+
+  test("a field keyed by a union of non-literal types is found by that union") {
+    type R = ((Int | String) ->> Boolean) :: HNil
+    val r: R = label[Int | String](true) :: HNil
+    val s = Selector[R, Int | String]
+    summon[s.Out =:= Boolean]
+    assertEquals(s(r), true)
+    refused("""LacksKey[R, Int | String]""")
+  }
+
+  test("a union key is a key of its own, not one of its members") {
+    type R = (("a" | "b") ->> Int) :: HNil
+    refused("""Selector[R, "a"]""")
+    refused("""Selector[R, "b"]""")
+    refused("""Selector[R, "a" | "c"]""")
+    refused("""Selector[R, "a" | "b" | "c"]""")
+    summon[LacksKey[R, "a"]]
+    summon[LacksKey[R, "a" | "c"]]
+  }
 }

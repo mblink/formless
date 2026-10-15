@@ -58,6 +58,18 @@ object FindField {
         case _ => None
       }
 
+    // A field typed `K ->> V` gives its key and value directly; the quoted match below can't bind some keys, e.g. a
+    // union of literals. It matches a subtype of `K ->> V`, e.g. an intersection around it, once `->>` is replaced
+    // with a concrete class, since matches on an opaque type like `->>` never succeed
+    def keyValue(head: TypeRepr): (TypeRepr, TypeRepr) =
+      labelledArgs(head).getOrElse {
+        val concreteHead = concrete(head.dealias)
+        concreteHead.asType match {
+          case '[ConcreteLabelled[k, v]] => (unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v]))
+          case _ => report.errorAndAbort(s"Unexpected type: ${display(concreteHead)}")
+        }
+      }
+
     def stringKey(t: TypeRepr): Option[String] =
       labelledArgs(t).flatMap {
         case (ConstantType(StringConstant(k)), _) => Some(k)
@@ -94,15 +106,8 @@ object FindField {
     def go[RestT <: HList: Type](revInit: List[TypeRepr], idx: Int): Expr[FindField[T, F, Cmp]] =
       Type.of[RestT] match {
         case '[::[head, tail]] if cmpHolds(TypeRepr.of[head]) =>
-          // We need to replace `->>` with a concrete `class` type so the match works
-          // Matches on opaque types like `->>` will *never* match
-          val concretTypeRepr = concrete(TypeRepr.of[head].dealias)
-          concretTypeRepr.asType match {
-            case '[ConcreteLabelled[k, v]] =>
-              found(revInit, unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v]), TypeRepr.of[tail], idx)
-            case _ =>
-              report.errorAndAbort(s"Unexpected type: ${display(concretTypeRepr)}")
-          }
+          val (key, value) = keyValue(TypeRepr.of[head])
+          found(revInit, key, value, TypeRepr.of[tail], idx)
         // Checked before `head :: tail`, which `Nothing` also matches, with a `Nothing` tail that would never end the walk
         case _ if TypeRepr.of[RestT] <:< TypeRepr.of[HNil] =>
           report.errorAndAbort(s"Failed to find field ${display(fTpe)} in record ${display(TypeRepr.of[T])}")
