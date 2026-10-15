@@ -8,6 +8,12 @@ import scala.compiletime.testing.typeCheckErrors
 class FindFieldTests extends FunSuite {
   object intKey extends FieldOf[Int]
 
+  object Opaque {
+    opaque type A <: ("a" ->> Int) = "a" ->> Int
+  }
+
+  val hnil: HNil = HNil
+
   type ABCD = ("a" ->> Int) :: ("b" ->> String) :: ("c" ->> Int) :: ("d" ->> Boolean) :: HNil
   val abcd: ABCD = ("a" ->> 1) :: ("b" ->> "two") :: ("c" ->> 3) :: ("d" ->> true) :: HNil
 
@@ -322,5 +328,58 @@ class FindFieldTests extends FunSuite {
     abortsWith("""def f[H] = FindField.findFieldInst[H :: HNil, "e" ->> Any, <:<]""", "\"e\"")
     abortsWith("""def f[K] = FindField.findFieldInst[("a" ->> Int) :: HNil, K ->> Any, <:<]""", "Failed to find field")
     abortsWith("""def f[A] = FindField.findFieldInst[List[A] :: HNil, List[A], =:=]""", "Unexpected type")
+  }
+
+  test("absence is proven for a record that lacks the key, and refused when it has it") {
+    summon[LacksKey[ABCD, "e"]]
+    summon[LacksKey[HNil, "a"]]
+    refused("""LacksKey[ABCD, "a"]""")
+    refused("""LacksKey[ABCD, "c"]""")
+    refused("""LacksKey[ABCD, "d"]""")
+  }
+
+  test("Updater appends a field the record lacks") {
+    val u = Updater[ABCD, "e" ->> Long]
+    summon[u.Out =:= HList.Append[ABCD, "e" ->> Long]]
+    assertEquals(u(abcd, "e" ->> 5L), ("a" ->> 1) :: ("b" ->> "two") :: ("c" ->> 3) :: ("d" ->> true) :: ("e" ->> 5L) :: HNil)
+
+    val empty = Updater[HNil, "a" ->> Int]
+    summon[empty.Out =:= (("a" ->> Int) :: HNil)]
+    assertEquals(empty(HNil, "a" ->> 1), ("a" ->> 1) :: HNil)
+  }
+
+  test("a tail that is a subtype of HNil ends the record") {
+    summon[LacksKey[("a" ->> Int) :: hnil.type, "b"]]
+    summon[LacksKey[("a" ->> Int) :: Nothing, "b"]]
+    refused("""LacksKey[("a" ->> Int) :: hnil.type, "a"]""")
+    val u = Updater[("a" ->> Int) :: hnil.type, "b" ->> Int]
+    assertEquals(u(("a" ->> 1) :: hnil, "b" ->> 2), ("a" ->> 1) :: ("b" ->> 2) :: HNil)
+  }
+
+  test("absence is not proven for a record with an abstract tail") {
+    refused("""def a[L <: HList] = LacksKey[("b" ->> Int) :: L, "a"]""")
+    refused("""def a[L <: HList] = LacksKey[L, "a"]""")
+    refused("""def a[L <: HList] = Updater[("b" ->> Int) :: L, "a" ->> Int]""")
+    refused("""def a[L <: HList] = Updater[L, "a" ->> Int]""")
+  }
+
+  test("absence is not proven for a field that has the key but whose value can't be read") {
+    refused("""LacksKey[Opaque.A :: HNil, "a"]""")
+    refused("""Updater[Opaque.A :: HNil, Opaque.A]""")
+    summon[LacksKey[Opaque.A :: HNil, "b"]]
+  }
+
+  test("a plain HList is extended with an element type it lacks, and not with one it has") {
+    val u = Updater[Int :: String :: HNil, Boolean]
+    summon[u.Out =:= (Int :: String :: Boolean :: HNil)]
+    assertEquals(u(1 :: "x" :: HNil, true), 1 :: "x" :: true :: HNil)
+    refused("""Updater[Int :: String :: HNil, Int]""")
+    refused("""Updater[Int :: String :: HNil, String]""")
+  }
+
+  test("absence abort messages say why, even inside a method without a result type") {
+    abortsWith("""FieldAbsent.fieldAbsentInst[ABCD, "c" ->> Any, <:<]""", "has field")
+    abortsWith("""def f[L <: HList] = FieldAbsent.fieldAbsentInst[("b" ->> Int) :: L, "a" ->> Any, <:<]""", "is not statically known")
+    abortsWith("""def f[H] = FieldAbsent.fieldAbsentInst[(H ->> Int) :: HNil, H ->> Any, <:<]""", "has field")
   }
 }
