@@ -88,6 +88,9 @@ object FindField {
         case OrType(a, b) =>
           val ((ka, va), (kb, vb)) = (keyValue(a), keyValue(b))
           Some((union(ka, kb), union(va, vb)))
+        // e.g. `("a" ->> Int) & ("b" ->> String)` looked up by `"b"`: the quoted match below would pick a key and value
+        // from neither conjunct in particular, so take them from the conjuncts keyed like `F`
+        case and: AndType => intersectionKeyValue(and)
         case _ => None
       }).getOrElse {
         val concreteHead = head.dealias.substituteTypes(List(labelledSym), List(concreteLabelled))
@@ -99,6 +102,23 @@ object FindField {
       }
 
     private def union(a: TypeRepr, b: TypeRepr): TypeRepr = if (a =:= b) a else OrType(a, b)
+
+    private def conjuncts(t: TypeRepr): List[TypeRepr] =
+      t.dealias match {
+        case AndType(a, b) => conjuncts(a) ++ conjuncts(b)
+        case other => List(other)
+      }
+
+    // `F`'s key, when `F` is a field whose key is statically known
+    private lazy val fFieldKey: Option[TypeRepr] = labelledKey(fTpe).filter(isGround)
+
+    private def intersectionKeyValue(t: AndType): Option[(TypeRepr, TypeRepr)] =
+      fFieldKey.flatMap { fk =>
+        conjuncts(t)
+          .flatMap(c => labelledArgs(c).orElse(upperBound(c).flatMap(labelledArgs)))
+          .filter(_._1 =:= fk)
+          .reduceOption((x, y) => (x._1, if (x._2 =:= y._2) x._2 else AndType(x._2, y._2)))
+      }
 
     private def stringKey(t: TypeRepr): Option[String] =
       labelledArgs(t).flatMap {

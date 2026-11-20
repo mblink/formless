@@ -182,6 +182,24 @@ class FindFieldTests extends FunSuite {
     assertEquals(rmB(r)._1, "x")
   }
 
+  test("a field whose type is an intersection of fields takes its value from the fields with the key looked up") {
+    type Both = ("a" ->> Any) & ("b" ->> String)
+    val r: Both :: HNil = ("b" ->> "text").asInstanceOf[Both] :: HNil
+
+    val sb = Selector[Both :: HNil, "b"]
+    summon[sb.Out =:= String]
+    assertEquals(sb(r), "text")
+    val sa = Selector[Both :: HNil, "a"]
+    summon[sa.Out =:= Any]
+
+    val rm = Remover[Both :: HNil, "b"]
+    summon[rm.Out =:= (String, HNil)]
+
+    type Twice = ("a" ->> Int) & ("a" ->> Serializable) & ("b" ->> String)
+    val st = Selector[Twice :: HNil, "a"]
+    summon[st.Out =:= (Int & Serializable)]
+  }
+
   test("a long record") {
     type R =
       ("k0" ->> Int) :: ("k1" ->> Int) :: ("k2" ->> Int) :: ("k3" ->> Int) :: ("k4" ->> Int) :: ("k5" ->> Int) ::
