@@ -12,7 +12,14 @@ object Modifier {
 
   inline def apply[T <: HList, K, A, B](using m: Modifier[T, K, A, B]): Modifier.Aux[T, K, A, B, m.Out] = m
 
-  given modifierInst[T <: HList, K, A, B](using ff: FindField[T, K ->> A, =:=]): Modifier.Aux[T, K, A, B, ff.Replaced[K ->> B]] =
+  given modifierAt[T <: HList, K, A, B](using op: FieldOp[T, K ->> A, FieldOp.Modify[K, B]]): Modifier.Aux[T, K, A, B, op.Out] =
+    new Modifier[T, K, A, B] {
+      type Out = op.Out
+      def apply(t: T, f: A => B): Out = HList.updatedAt(t, op.index, a => f(a.asInstanceOf[A])).asInstanceOf[Out]
+    }
+
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[record] def modifierInst[T <: HList, K, A, B](using ff: FindField[T, K ->> A, =:=]): Modifier.Aux[T, K, A, B, ff.Replaced[K ->> B]] =
     new Modifier[T, K, A, B] {
       type Out = ff.Replaced[K ->> B]
       def apply(t: T, f: A => B): Out = HList.updatedAt(t, ff.index, a => f(a.asInstanceOf[A])).asInstanceOf[Out]

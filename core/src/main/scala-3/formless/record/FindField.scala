@@ -42,6 +42,8 @@ object FindField {
   private[formless] final class Lookup[T <: HList: Type, F: Type, Cmp[_, _]: Type](using val q: Quotes) {
     import q.reflect.*
 
+    private enum Mode { case Find, Prove, Update }
+
     sealed trait Outcome
     final case class Found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr, index: Int) extends Outcome
     case object Absent extends Outcome
@@ -83,23 +85,35 @@ object FindField {
     // (e.g. an intersection around `K ->> V`); `->>` is replaced with a concrete class there since matches on an
     // opaque type never succeed
     def keyValue(head: TypeRepr): (TypeRepr, TypeRepr) =
-      upperBound(head).map(keyValue).orElse(head.dealias match {
-        // e.g. `("a" ->> Int) | ("a" ->> String)`, from a union of records; its arms may be aliases `dealias` leaves alone
-        case OrType(a, b) =>
-          val ((ka, va), (kb, vb)) = (keyValue(a), keyValue(b))
-          Some((union(ka, kb), union(va, vb)))
-        // e.g. `("a" ->> Int) & ("b" ->> String)` looked up by `"b"`: the quoted match below would pick a key and value
-        // from neither conjunct in particular, so take them from the conjuncts keyed like `F`
-        case and: AndType => intersectionKeyValue(and)
-        case _ => None
-      }).getOrElse {
-        val concreteHead = head.dealias.substituteTypes(List(labelledSym), List(concreteLabelled))
-        def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
-        concreteHead.asType match {
-          case '[ConcreteLabelled[k, v]] => (unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v]))
-          case _ => report.errorAndAbort(s"Unexpected type: ${display(concreteHead)}")
-        }
+      keyValueOpt(head).getOrElse(report.errorAndAbort(s"Unexpected type: ${display(head.dealias)}"))
+
+    def keyValueOpt(head: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+      upperBound(head) match {
+        case Some(bound) => keyValueOpt(bound)
+        case None =>
+          head.dealias match {
+            // e.g. `("a" ->> Int) | ("a" ->> String)`, from a union of records; its arms may be aliases `dealias` leaves
+            // alone
+            case OrType(a, b) =>
+              for {
+                (ka, va) <- keyValueOpt(a)
+                (kb, vb) <- keyValueOpt(b)
+              } yield (union(ka, kb), union(va, vb))
+            // e.g. `("a" ->> Int) & ("b" ->> String)` looked up by `"b"`: the quoted match below would pick a key and
+            // value from neither conjunct in particular, so take them from the conjuncts keyed like `F`
+            case and: AndType => intersectionKeyValue(and).orElse(matchedKeyValue(head))
+            case _ => matchedKeyValue(head)
+          }
       }
+
+    private def matchedKeyValue(head: TypeRepr): Option[(TypeRepr, TypeRepr)] = {
+      val concreteHead = head.dealias.substituteTypes(List(labelledSym), List(concreteLabelled))
+      def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
+      concreteHead.asType match {
+        case '[ConcreteLabelled[k, v]] => Some((unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v])))
+        case _ => None
+      }
+    }
 
     private def union(a: TypeRepr, b: TypeRepr): TypeRepr = if (a =:= b) a else OrType(a, b)
 
@@ -110,7 +124,7 @@ object FindField {
       }
 
     // `F`'s key, when `F` is a field whose key is statically known
-    private lazy val fFieldKey: Option[TypeRepr] = labelledKey(fTpe).filter(isGround)
+    private lazy val fFieldKey: Option[TypeRepr] = fLabelledKey.filter(isGround)
 
     private def intersectionKeyValue(t: AndType): Option[(TypeRepr, TypeRepr)] =
       fFieldKey.flatMap { fk =>
@@ -157,6 +171,8 @@ object FindField {
     // and `head =:= F` both need `head`'s key to be `"b"`.
     private val cmpIsEq = cmpTpe.typeSymbol == TypeRepr.of[=:=].typeSymbol
 
+    private lazy val fLabelledKey = labelledKey(fTpe)
+
     // Whether `Cmp[head, F]` could hold once the abstract types in `head` or `F` are known. A `bounded` head was read
     // off the upper bound of an abstract record, so the element it stands for may be any subtype of it.
     private def mightMatch(head: TypeRepr, bounded: Boolean): Boolean = {
@@ -164,7 +180,7 @@ object FindField {
         if (cmpIsEq) labelledKey(head)
         else if (bounded) None
         else labelledArgs(head).map(_._1)
-      (headKey, labelledKey(fTpe)) match {
+      (headKey, fLabelledKey) match {
         case (Some(hk), Some(fk)) if isGround(hk) && isGround(fk) && !(hk =:= fk) => false
         case _ => bounded || !(isGround(head) && isGround(fTpe))
       }
@@ -211,8 +227,11 @@ object FindField {
       }
 
     /**
-     * @param decided whether proving absence, so every element must be ruled out, and a union of records may be split
-     *                into arms that end at different points
+     * @param mode `Find` looks for the first match; `Prove` also stops, `Undecided`, at the first element that might
+     *             match once its types are known, and splits a union of records into arms that end at different points;
+     *             `Update` looks for the first match like `Find`, but ends `Undecided` rather than `Absent` when an
+     *             element it walked past might have matched
+     * @param pending in `Update` mode, the first element walked past that might have matched
      * @param bounded whether the elements so far were read off an abstract record's upper bound, so each stands for
      *                some subtype of itself
      * @param expanded the abstract records already walked through their bound, so `type L <: Int :: L` doesn't loop
@@ -222,7 +241,8 @@ object FindField {
       rest: TypeRepr,
       revInit: List[TypeRepr],
       idx: Int,
-      decided: Boolean,
+      mode: Mode,
+      pending: Option[Undecided],
       bounded: Boolean,
       expanded: List[TypeRepr],
     ): Outcome = {
@@ -236,15 +256,19 @@ object FindField {
       else consParts(t) match {
         case Some((head, tail)) =>
           val nowBounded = bounded || !(direct || isGround(t))
+          lazy val undecided = mightMatch(head, nowBounded)
           if (cmpHolds(head)) Found(revInit, head, tail, idx)
-          else if (decided && mightMatch(head, nowBounded)) Undecided(head, idx)
-          else go(tail, head :: revInit, idx + 1, decided, nowBounded, if (direct) expanded else t :: expanded)
+          else if (mode == Mode.Prove && undecided) Undecided(head, idx)
+          else {
+            val nowPending = if (mode == Mode.Update && pending.isEmpty && undecided) Some(Undecided(head, idx)) else pending
+            go(tail, head :: revInit, idx + 1, mode, nowPending, nowBounded, if (direct) expanded else t :: expanded)
+          }
         case None =>
-          if (t <:< hnilTpe) Absent
+          if (t <:< hnilTpe) pending.getOrElse(Absent)
           else t match {
             // A union of records that don't all have another element, e.g. `HNil | (A :: HNil)`: absent only when it's
             // absent from every arm
-            case OrType(a, b) if decided => absenceInArms(a, b, revInit, idx, bounded, expanded)
+            case OrType(a, b) if mode == Mode.Prove => absenceInArms(a, b, revInit, idx, bounded, expanded)
             case _ => Unknown(t)
           }
       }
@@ -258,15 +282,67 @@ object FindField {
       bounded: Boolean,
       expanded: List[TypeRepr],
     ): Outcome =
-      go(a, revInit, idx, decided = true, bounded, expanded) match {
-        case Absent => go(b, revInit, idx, decided = true, bounded, expanded)
+      go(a, revInit, idx, Mode.Prove, None, bounded, expanded) match {
+        case Absent => go(b, revInit, idx, Mode.Prove, None, bounded, expanded)
         case other => other
       }
 
-    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, decided = false, bounded = false, expanded = Nil)
+    private def start(mode: Mode): Outcome = go(TypeRepr.of[T], Nil, 0, mode, None, bounded = false, expanded = Nil)
+
+    def outcome: Outcome = start(Mode.Find)
+
+    /** The field `outcome` finds, aborting with why when there's none */
+    def foundOrAbort: Found =
+      outcome match {
+        case f: Found => f
+        case Absent =>
+          report.errorAndAbort(s"Failed to find field ${display(TypeRepr.of[F])} in record ${display(TypeRepr.of[T])}")
+        case Unknown(rest) =>
+          report.errorAndAbort(
+            s"Cannot find field ${display(TypeRepr.of[F])} in record ${display(TypeRepr.of[T])}: its tail `${display(rest)}` is not statically known"
+          )
+        case Undecided(head, idx) =>
+          report.errorAndAbort(s"Unexpected undecided element ${display(head)} at index $idx")
+      }
+
+    def cons(h: TypeRepr, t: TypeRepr): TypeRepr = consSym.typeRef.appliedTo(List(h, t))
+
+    /** The record with `newHead` in place of the field `found` */
+    def replaced(found: Found, newHead: TypeRepr): TypeRepr =
+      found.revInit.foldLeft(cons(newHead, found.tail))((acc, h) => cons(h, acc))
+
+    /** The record without the field `found` */
+    def removed(found: Found): TypeRepr =
+      found.revInit.foldLeft(found.tail)((acc, h) => cons(h, acc))
+
+    /** `t` with `f` appended, when `t` is spelled out as `H1 :: ... :: HNil` */
+    def appended(t: TypeRepr, f: TypeRepr): Option[TypeRepr] = {
+      @annotation.tailrec def loop(rest: TypeRepr, revInit: List[TypeRepr]): Option[TypeRepr] =
+        rest.dealias match {
+          case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym => loop(tail, head :: revInit)
+          case end if end =:= hnilTpe => Some(revInit.foldLeft(consSym.typeRef.appliedTo(List(f, end)))((acc, h) => consSym.typeRef.appliedTo(List(h, acc))))
+          case _ => None
+        }
+      loop(t, Nil)
+    }
 
     /** Like `outcome`, but `Undecided` at the first element that doesn't match yet might once its types are known */
-    def absence: Outcome = go(TypeRepr.of[T], Nil, 0, decided = true, bounded = false, expanded = Nil)
+    def absence: Outcome = start(Mode.Prove)
+
+    /**
+     * In one walk, what `outcome` finds, or else what `absence` proves: `Found` for the first match, otherwise `Absent`
+     * only when no element might match. A union of records whose arms end at different points falls back to `absence`.
+     */
+    def replaceOrAppend: Outcome =
+      start(Mode.Update) match {
+        case _: Unknown =>
+          absence match {
+            // Found in only some arms of a union of records, so neither replaced nor absent
+            case Found(_, head, _, idx) => Undecided(head, idx)
+            case other => other
+          }
+        case other => other
+      }
   }
 
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
@@ -294,18 +370,8 @@ object FindField {
         .asExprOf[FindField[T, F, Cmp]]
     }
 
-    lookup.outcome match {
-      case lookup.Found(revInit, head, tail, idx) =>
-        found(revInit, head, tail, idx)
-      case lookup.Absent =>
-        report.errorAndAbort(s"Failed to find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}")
-      case lookup.Unknown(rest) =>
-        report.errorAndAbort(
-          s"Cannot find field ${lookup.display(TypeRepr.of[F])} in record ${lookup.display(TypeRepr.of[T])}: its tail `${lookup.display(rest)}` is not statically known"
-        )
-      case lookup.Undecided(head, idx) =>
-        report.errorAndAbort(s"Unexpected undecided element ${lookup.display(head)} at index $idx")
-    }
+    val f = lookup.foundOrAbort
+    found(f.revInit, f.head, f.tail, f.index)
   }
 
   transparent inline given findFieldInst[T <: HList, F, Cmp[_, _]]: FindField[T, F, Cmp] = ${ findFieldInstImpl[T, F, Cmp] }
@@ -344,3 +410,95 @@ object FieldAbsent {
 
   transparent inline given fieldAbsentInst[T <: HList, F, Cmp[_, _]]: FieldAbsent[T, F, Cmp] = ${ fieldAbsentImpl[T, F, Cmp] }
 }
+
+/**
+ * The result of a record operation `Op` on the field `F` of `T`, with the index it acts on. Unlike `FindField`, it carries
+ * only the result type its operation needs, so the macro builds only that one.
+ */
+private[formless] sealed trait FieldOp[T <: HList, F, Op] {
+  type Out
+  val index: Int
+}
+
+object FieldOp {
+  /** Selects the first field `<:` `F`; `Out` is its value */
+  sealed trait Select
+  /** Removes the first field `<:` `F`; `Out` is its value and the rest of the record */
+  sealed trait Remove
+  /** Replaces the first field `=:=` `F` with `K ->> B`; `Out` is the new record */
+  sealed trait Modify[K, B]
+  /** Replaces the first field `=:=` `F` with `F`, or appends `F` (`index` -1) when no field could be; `Out` is the new record */
+  sealed trait Update
+
+  final class Inst[T <: HList, F, Op, O](val index: Int) extends FieldOp[T, F, Op] {
+    final type Out = O
+  }
+
+  private def fieldOpImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] =
+    Type.of[Op] match {
+      case '[Select] => selectImpl[T, F, Op]
+      case '[Remove] => removeImpl[T, F, Op]
+      case '[Modify[k, b]] => modifyImpl[T, F, Op, k, b]
+      case '[Update] => updateImpl[T, F, Op]
+      case _ => quotes.reflect.report.errorAndAbort(s"Unexpected record operation ${Type.show[Op]}")
+    }
+
+  private def inst[T <: HList: Type, F: Type, Op: Type, O: Type](idx: Int)(using Quotes): Expr[FieldOp[T, F, Op]] =
+    '{ new Inst[T, F, Op, O](${ Expr(idx) }) }
+
+  private def selectImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
+    val lookup = FindField.Lookup[T, F, <:<]
+    val f = lookup.foundOrAbort
+    (lookup.keyValue(f.head)._2.asType: @unchecked) match {
+      case '[v] => inst[T, F, Op, v](f.index)
+    }
+  }
+
+  private def removeImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
+    val lookup = FindField.Lookup[T, F, <:<]
+    val f = lookup.foundOrAbort
+    ((lookup.keyValue(f.head)._2.asType, lookup.removed(f).asType): @unchecked) match {
+      case ('[v], '[rem]) => inst[T, F, Op, (v, rem)](f.index)
+    }
+  }
+
+  private def modifyImpl[T <: HList: Type, F: Type, Op: Type, K: Type, B: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
+    val lookup = FindField.Lookup[T, F, =:=]
+    import lookup.q.reflect.*
+    val f = lookup.foundOrAbort
+    // As with `FindField`, the field must have a key and value that can be read
+    val _ = lookup.keyValue(f.head)
+    (lookup.replaced(f, TypeRepr.of[K ->> B]).asType: @unchecked) match {
+      case '[o] => inst[T, F, Op, o](f.index)
+    }
+  }
+
+  private def updateImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
+    val lookup = FindField.Lookup[T, F, =:=]
+    import lookup.q.reflect.*
+
+    def instOf(out: TypeRepr, idx: Int): Expr[FieldOp[T, F, Op]] =
+      (out.asType: @unchecked) match {
+        case '[o] => inst[T, F, Op, o](idx)
+      }
+    def refuse(why: String): Nothing =
+      report.errorAndAbort(s"Cannot update ${lookup.display(TypeRepr.of[T])} with ${lookup.display(TypeRepr.of[F])}: $why")
+
+    lookup.replaceOrAppend match {
+      case f @ lookup.Found(_, head, _, idx) =>
+        // As with `FindField`, a field matched up to `=:=` is only replaced when its key and value can be read
+        if (lookup.keyValueOpt(head).isEmpty) refuse(s"element `${lookup.display(head)}` at index $idx matches but isn't a field")
+        instOf(lookup.replaced(f, TypeRepr.of[F]), idx)
+      case lookup.Absent =>
+        // Built directly for a record spelled out as `H1 :: ... :: HNil`, rather than left to `HList.Append` to reduce
+        instOf(lookup.appended(TypeRepr.of[T], TypeRepr.of[F]).getOrElse(TypeRepr.of[HList.Append[T, F]]), -1)
+      case lookup.Unknown(rest) =>
+        refuse(s"its tail `${lookup.display(rest)}` is not statically known")
+      case lookup.Undecided(head, idx) =>
+        refuse(s"element `${lookup.display(head)}` at index $idx might match")
+    }
+  }
+
+  transparent inline given fieldOpInst[T <: HList, F, Op]: FieldOp[T, F, Op] = ${ fieldOpImpl[T, F, Op] }
+}
+
