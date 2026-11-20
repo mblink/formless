@@ -82,7 +82,13 @@ object FindField {
     // (e.g. an intersection around `K ->> V`); `->>` is replaced with a concrete class there since matches on an
     // opaque type never succeed
     def keyValue(head: TypeRepr): (TypeRepr, TypeRepr) =
-      upperBound(head).map(keyValue).getOrElse {
+      upperBound(head).map(keyValue).orElse(head.dealias match {
+        // e.g. `("a" ->> Int) | ("a" ->> String)`, from a union of records; its arms may be aliases `dealias` leaves alone
+        case OrType(a, b) =>
+          val ((ka, va), (kb, vb)) = (keyValue(a), keyValue(b))
+          Some((union(ka, kb), union(va, vb)))
+        case _ => None
+      }).getOrElse {
         val concreteHead = head.dealias.substituteTypes(List(labelledSym), List(concreteLabelled))
         def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
         concreteHead.asType match {
@@ -135,34 +141,40 @@ object FindField {
         case _ => false
       }
 
-    /** @param expanded the abstract records already walked through their bound, so `type L <: Int :: L` doesn't loop */
+    /**
+     * @param decided whether proving absence, so a union of records may be split into arms that end at different points
+     * @param expanded the abstract records already walked through their bound, so `type L <: Int :: L` doesn't loop
+     */
     @annotation.tailrec
-    private def go(rest: TypeRepr, revInit: List[TypeRepr], idx: Int, expanded: List[TypeRepr]): Outcome = {
+    private def go(rest: TypeRepr, revInit: List[TypeRepr], idx: Int, decided: Boolean, expanded: List[TypeRepr]): Outcome = {
       val t = rest.dealias.simplified
       val direct = isDirectCons(t)
       if (!direct && expanded.exists(_ =:= t)) Unknown(t)
       else consParts(t) match {
         case Some((head, tail)) =>
           if (cmpHolds(head)) Found(revInit, head, tail, idx)
-          else go(tail, head :: revInit, idx + 1, if (direct) expanded else t :: expanded)
+          else go(tail, head :: revInit, idx + 1, decided, if (direct) expanded else t :: expanded)
         case None =>
           if (t <:< hnilTpe) Absent
           else t match {
             // A union of records that don't all have another element, e.g. `HNil | (A :: HNil)`: absent only when it's
             // absent from every arm
-            case OrType(a, b) => absenceInArms(a, b, revInit, idx, expanded)
+            case OrType(a, b) if decided => absenceInArms(a, b, revInit, idx, expanded)
             case _ => Unknown(t)
           }
       }
     }
 
     private def absenceInArms(a: TypeRepr, b: TypeRepr, revInit: List[TypeRepr], idx: Int, expanded: List[TypeRepr]): Outcome =
-      go(a, revInit, idx, expanded) match {
-        case Absent => go(b, revInit, idx, expanded)
+      go(a, revInit, idx, decided = true, expanded) match {
+        case Absent => go(b, revInit, idx, decided = true, expanded)
         case other => other
       }
 
-    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, Nil)
+    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, decided = false, Nil)
+
+    /** Like `outcome`, but splits a union of records into arms when they end at different points */
+    def absence: Outcome = go(TypeRepr.of[T], Nil, 0, decided = true, Nil)
   }
 
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
@@ -217,7 +229,7 @@ object FieldAbsent {
     val lookup = FindField.Lookup[T, F, Cmp]
     import lookup.q.reflect.*
 
-    lookup.outcome match {
+    lookup.absence match {
       case lookup.Absent =>
         '{ ().asInstanceOf[FieldAbsent[T, F, Cmp]] }
       case lookup.Found(_, head, _, idx) =>

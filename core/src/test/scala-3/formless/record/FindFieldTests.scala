@@ -528,6 +528,23 @@ class FindFieldTests extends FunSuite {
     abortsWith("""def f[L <: HList] = FindField.findFieldInst[L, "a" ->> Any, <:<]""", "is not statically known")
   }
 
+  test("a record type whose bound refers to itself is refused rather than walked forever") {
+    refused("""trait Cyclic { type L <: ("b" ->> Int) :: L }; def f(c: Cyclic) = Selector[c.L, "a"]""")
+  }
+
+  test("a union of records is walked arm by arm") {
+    type A = "a" ->> Int
+    type B = "b" ->> String
+    type R = (A :: HNil) | (A :: B :: HNil)
+    val r: R = ("a" ->> 1) :: ("b" ->> "x") :: HNil
+    val s = Selector[R, "a"]
+    summon[s.Out =:= Int]
+    assertEquals(s(r), 1)
+    // A field typed as a union of fields with the same key
+    val su = Selector[(A | ("a" ->> String)) :: HNil, "a"]
+    summon[su.Out =:= (Int | String)]
+  }
+
   test("a tail bounded by a concrete record is walked through its bound") {
     def ops[L <: ("b" ->> Int) :: HNil](r: ("a" ->> String) :: L) = {
       val s = Selector[("a" ->> String) :: L, "b"]
