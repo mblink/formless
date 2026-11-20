@@ -49,6 +49,9 @@ object FindField {
     def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
     def cons(h: TypeRepr, t: TypeRepr): TypeRepr = consTpe.appliedTo(List(h, t))
 
+    // `show` throws CyclicReference for a type owned by a method whose result type is still being inferred
+    def display(t: TypeRepr): String = scala.util.Try(t.show).getOrElse(t.typeSymbol.name)
+
     def labelledArgs(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
       t.dealias match {
         case AppliedType(tycon, List(k, v)) if tycon.typeSymbol == labelledSym => Some((k, v))
@@ -98,11 +101,11 @@ object FindField {
             case '[ConcreteLabelled[k, v]] =>
               found(revInit, unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v]), TypeRepr.of[tail], idx)
             case _ =>
-              report.errorAndAbort(s"Unexpected type: ${concretTypeRepr.show}")
+              report.errorAndAbort(s"Unexpected type: ${display(concretTypeRepr)}")
           }
         // Checked before `head :: tail`, which `Nothing` also matches, with a `Nothing` tail that would never end the walk
         case _ if TypeRepr.of[RestT] <:< TypeRepr.of[HNil] =>
-          report.errorAndAbort(s"Failed to find field ${Type.show[F]} in record ${Type.show[T]}")
+          report.errorAndAbort(s"Failed to find field ${display(fTpe)} in record ${display(TypeRepr.of[T])}")
         case '[::[head, tail]] =>
           go[tail](TypeRepr.of[head] :: revInit, idx + 1)
       }: @annotation.nowarn("msg=match may not be exhaustive")
