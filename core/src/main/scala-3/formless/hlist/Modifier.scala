@@ -12,7 +12,18 @@ object Modifier {
 
   inline def apply[L, U, V](using r: Modifier[L, U, V]): Modifier.Aux[L, U, V, r.Out] = r
 
-  given modifierHList[T <: HList, U, V](using ff: FindField[T, U]): Modifier.Aux[T, U, V, (U, ff.Replaced[V])] =
+  given modifierAt[T <: HList, U, V](using op: ElemOp[T, U, ElemOp.Replace[V]]): Modifier.Aux[T, U, V, (U, op.A)] =
+    new Modifier[T, U, V] {
+      type Out = (U, op.A)
+      def apply(t: T, f: U => V): Out = {
+        var u: Any = null
+        val replaced = HList.updatedAt(t, op.index, x => { u = x; f(x.asInstanceOf[U]) })
+        (u, replaced).asInstanceOf[Out]
+      }
+    }
+
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[hlist] def modifierHList[T <: HList, U, V](using ff: FindField[T, U]): Modifier.Aux[T, U, V, (U, ff.Replaced[V])] =
     new Modifier[T, U, V] {
       type Out = (U, ff.Replaced[V])
       def apply(t: T, f: U => V): Out = {
