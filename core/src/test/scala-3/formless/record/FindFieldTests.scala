@@ -471,6 +471,19 @@ class FindFieldTests extends FunSuite {
     assertEquals(get(w)(("a" ->> 1) :: HNil), 1)
   }
 
+  test("an abstract type member's bound is seen from its prefix") {
+    trait WithField[A] {
+      type H <: ("a" ->> A)
+    }
+    def get(w: WithField[Int])(r: w.H :: HNil): Int = {
+      val s = Selector[w.H :: HNil, "a"]
+      summon[s.Out =:= Int]
+      s(r)
+    }
+    val w = new WithField[Int] { type H = "a" ->> Int }
+    assertEquals(get(w)(("a" ->> 1) :: HNil), 1)
+  }
+
   test("a field typed as a class's type parameter takes its key and value from the parameter's bound") {
     class C[H <: ("a" ->> Int)] {
       def get(r: H :: HNil) = {

@@ -65,11 +65,16 @@ object FindField {
     // `show` throws CyclicReference for a type owned by a method whose result type is still being inferred
     def display(t: TypeRepr): String = scala.util.Try(t.show).getOrElse(t.typeSymbol.name)
 
-    // A type parameter or abstract type member stands for some subtype of its upper bound
+    // A type parameter or abstract type member stands for some subtype of its upper bound. A member's bound is taken as
+    // seen from its prefix, so `c.H` for `c: C[Int]` and `trait C[A] { type H <: "a" ->> A }` is bounded by `"a" ->> Int`
     private def upperBound(t: TypeRepr): Option[TypeRepr] =
       t.dealias match {
         case tr: TypeRef if tr.typeSymbol.isTypeParam || (tr.typeSymbol.isAbstractType && !tr.typeSymbol.flags.is(Flags.Opaque)) =>
-          scala.util.Try(tr.typeSymbol.tree).toOption.collect { case TypeDef(_, b: TypeBoundsTree) => b.hi.tpe }
+          val bounds = tr.qualifier match {
+            case NoPrefix() => scala.util.Try(tr.typeSymbol.tree).toOption.collect { case TypeDef(_, b: TypeBoundsTree) => b.tpe }
+            case pre => scala.util.Try(pre.memberType(tr.typeSymbol)).toOption
+          }
+          bounds.collect { case TypeBounds(_, hi) => hi }
         case _ => None
       }
 
