@@ -377,6 +377,23 @@ class FindFieldTests extends FunSuite {
     refused("""Updater[Int :: String :: HNil, String]""")
   }
 
+  test("absence is not proven for a record type whose bound refers to itself, rather than walked forever") {
+    refused("""trait Cyclic { type L <: Int :: L }; def f(c: Cyclic) = LacksKey[c.L, "a"]""")
+  }
+
+  test("ambiguous comparison evidence still counts as a match") {
+    refused("""def f(using p: ("a" ->> Int) <:< ("a" ->> Any), q: ("a" ->> Int) <:< ("a" ->> Any)) = LacksKey[("a" ->> Int) :: HNil, "a"]""")
+  }
+
+  test("absence from a union of records is proven arm by arm") {
+    type A = "a" ->> Int
+    type B = "b" ->> String
+    summon[LacksKey[(A :: HNil) | (A :: B :: HNil), "c"]]
+    refused("""LacksKey[(A :: HNil) | (A :: B :: HNil), "b"]""")
+    refused("""LacksKey[HNil | (A :: HNil), "a"]""")
+    summon[LacksKey[HNil | (A :: HNil), "c"]]
+  }
+
   test("absence abort messages say why, even inside a method without a result type") {
     abortsWith("""FieldAbsent.fieldAbsentInst[ABCD, "c" ->> Any, <:<]""", "has field")
     abortsWith("""def f[L <: HList] = FieldAbsent.fieldAbsentInst[("b" ->> Int) :: L, "a" ->> Any, <:<]""", "is not statically known")

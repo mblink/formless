@@ -89,22 +89,65 @@ object FindField {
       !fKey.exists(fk => stringKey(head).exists(_ != fk)) &&
         (Implicits.search(cmpTpe.appliedTo(List(head, fTpe))) match {
           case _: ImplicitSearchSuccess => true
+          // More than one witness, e.g. from local givens, still means `Cmp[head, F]` holds
+          case _: AmbiguousImplicits => true
           case _ => false
         })
 
-    @annotation.tailrec
-    private def go(rest: TypeRepr, revInit: List[TypeRepr], idx: Int): Outcome = {
-      val t = rest.dealias.simplified
-      t.baseType(consSym) match {
-        case AppliedType(_, List(head, tail)) =>
-          if (cmpHolds(head)) Found(revInit, head, tail, idx)
-          else go(tail, head :: revInit, idx + 1)
+    private def union(a: TypeRepr, b: TypeRepr): TypeRepr = if (a =:= b) a else OrType(a, b)
+
+    // The head and tail of a record type: directly for `H :: T`, through the base type otherwise (an abstract record's
+    // upper bound, an intersection, a singleton), and arm by arm for a union of records
+    private def consParts(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+      t match {
+        case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym => Some((head, tail))
+        case OrType(a, b) =>
+          for {
+            (ha, ta) <- consParts(a.dealias.simplified)
+            (hb, tb) <- consParts(b.dealias.simplified)
+          } yield (union(ha, hb), union(ta, tb))
         case _ =>
-          if (t <:< hnilTpe) Absent else Unknown(t)
+          t.baseType(consSym) match {
+            case AppliedType(_, List(head, tail)) => Some((head, tail))
+            case _ => None
+          }
+      }
+
+    private def isDirectCons(t: TypeRepr): Boolean =
+      t match {
+        case AppliedType(tycon, _) => tycon.typeSymbol == consSym
+        case OrType(a, b) => isDirectCons(a.dealias.simplified) && isDirectCons(b.dealias.simplified)
+        case _ => false
+      }
+
+    /** @param expanded the abstract records already walked through their bound, so `type L <: Int :: L` doesn't loop */
+    @annotation.tailrec
+    private def go(rest: TypeRepr, revInit: List[TypeRepr], idx: Int, expanded: List[TypeRepr]): Outcome = {
+      val t = rest.dealias.simplified
+      val direct = isDirectCons(t)
+      if (!direct && expanded.exists(_ =:= t)) Unknown(t)
+      else consParts(t) match {
+        case Some((head, tail)) =>
+          if (cmpHolds(head)) Found(revInit, head, tail, idx)
+          else go(tail, head :: revInit, idx + 1, if (direct) expanded else t :: expanded)
+        case None =>
+          if (t <:< hnilTpe) Absent
+          else t match {
+            // A union of records that don't all have another element, e.g. `HNil | (A :: HNil)`: absent only when it's
+            // absent from every arm
+            case OrType(a, b) => absenceInArms(a, b, revInit, idx, expanded)
+            case _ => Unknown(t)
+          }
       }
     }
 
-    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0)
+    private def absenceInArms(a: TypeRepr, b: TypeRepr, revInit: List[TypeRepr], idx: Int, expanded: List[TypeRepr]): Outcome =
+      go(a, revInit, idx, expanded) match {
+        case Absent => go(b, revInit, idx, expanded)
+        case other => other
+      }
+
+    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, Nil)
   }
 
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
