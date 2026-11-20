@@ -87,6 +87,45 @@ object HList {
 
   def fromArray[A](a: Array[A]): HList = a.foldRight(HNil: HList)(_ :: _)
 
+  /**
+   * Replaces the list from index `idx` on with `f` of it, rebuilding only the elements before `idx`. The rest of the
+   * list is shared rather than copied, so a singleton tail type like `t.type` still describes it.
+   */
+  private def rebuildAt(l: HList, idx: Int)(f: ::[Any, HList] => HList): HList = {
+    val prefix = new Array[Any](idx)
+
+    @annotation.tailrec def loop(h: HList, i: Int): HList =
+      h match {
+        case c: ::[Any, HList] @unchecked =>
+          if (i == idx) f(c)
+          else {
+            prefix(i) = c.head
+            loop(c.tail, i + 1)
+          }
+        case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength - 1})")
+      }
+
+    var acc = loop(l, 0)
+    var i = idx - 1
+    while (i >= 0) {
+      acc = prefix(i) :: acc
+      i -= 1
+    }
+    acc
+  }
+
+  private[formless] def updatedAt(l: HList, idx: Int, f: Any => Any): HList =
+    rebuildAt(l, idx)(c => f(c.head) :: c.tail)
+
+  private[formless] def removedAt(l: HList, idx: Int): (Any, HList) = {
+    var removed: Any = null
+    val rest = rebuildAt(l, idx) { c =>
+      removed = c.head
+      c.tail
+    }
+    (removed, rest)
+  }
+
   type Head[H <: HList] = H match { case h :: _ => h }
   type Tail[H <: HList] = H match { case _ :: t => t }
 

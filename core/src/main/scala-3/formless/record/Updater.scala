@@ -30,10 +30,6 @@ object Updater extends UpdaterLP {
   given updaterFound[T <: HList, F](using ff: FindField[T, F, =:=]): Updater.Aux[T, F, ff.Replaced[F]] =
     new Updater[T, F] {
       type Out = ff.Replaced[F]
-      def apply(t: T, f: F): Out = {
-        val a = t.toArray
-        a.update(ff.index, f)
-        HList.fromArray(a).asInstanceOf[Out]
-      }
+      def apply(t: T, f: F): Out = HList.updatedAt(t, ff.index, _ => f).asInstanceOf[Out]
     }
 }

@@ -15,10 +15,6 @@ object Modifier {
   given modifierInst[T <: HList, K, A, B](using ff: FindField[T, K ->> A, =:=]): Modifier.Aux[T, K, A, B, ff.Replaced[K ->> B]] =
     new Modifier[T, K, A, B] {
       type Out = ff.Replaced[K ->> B]
-      def apply(t: T, f: A => B): Out = {
-        val a = t.toArray
-        a.update(ff.index, f(a(ff.index).asInstanceOf[A]))
-        HList.fromArray(a).asInstanceOf[Out]
-      }
+      def apply(t: T, f: A => B): Out = HList.updatedAt(t, ff.index, a => f(a.asInstanceOf[A])).asInstanceOf[Out]
     }
 }
