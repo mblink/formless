@@ -575,7 +575,11 @@ class FindFieldTests extends FunSuite {
 
   test("absence is proven past elements that can't match whatever their type parameters are") {
     assertEquals(typeCheckErrors("""def f[V] = LacksKey[("a" ->> V) :: HNil, "b"]""").map(_.message), Nil)
-    assertEquals(typeCheckErrors("""def f[H <: ("a" ->> Int)] = LacksKey[H :: HNil, "b"]""").map(_.message), Nil)
+    assertEquals(
+      typeCheckErrors("""def f[H <: ("a" ->> Int)] = { val u = Updater[H :: HNil, "b" ->> Int]; summon[u.Out =:= (H :: ("b" ->> Int) :: HNil)] }""")
+        .map(_.message),
+      Nil,
+    )
     assertEquals(
       typeCheckErrors("""def f[V] = { val u = Updater[("a" ->> V) :: HNil, "b" ->> Int]; summon[u.Out =:= (("a" ->> V) :: ("b" ->> Int) :: HNil)] }""")
         .map(_.message),
@@ -583,5 +587,39 @@ class FindFieldTests extends FunSuite {
     )
     val u = Updater[("a" ->> String) :: HNil, "a" ->> Int]
     summon[u.Out =:= (("a" ->> String) :: ("a" ->> Int) :: HNil)]
+  }
+
+  test("absence is not proven for an abstract field bounded by another key, which may have both keys") {
+    // `H` may be `("a" ->> Int) & ("b" ->> Int)`, for which absence of `"b"` isn't proven either
+    refused("""def f[H <: ("a" ->> Int)] = LacksKey[H :: HNil, "b"]""")
+    refused("""LacksKey[(("a" ->> Int) & ("b" ->> Int)) :: HNil, "b"]""")
+  }
+
+  test("absence is not proven for an element that is a singleton of an abstract type") {
+    refused("""def f[T](x: T) = LacksKey[x.type :: HNil, "b"]""")
+    // `b.field.type` widens to `Any` here, but is a subtype of `"a" ->> Int` once `B` is `BoxA.type`
+    refused("""trait Box { val field: Any }; def f[B <: Box](b: B) = LacksKey[b.field.type :: HNil, "a"]""")
+    assertEquals(typeCheckErrors("""val x = 1; LacksKey[x.type :: HNil, "b"]""").map(_.message), Nil)
+  }
+
+  test("absence is not proven from an abstract record's bound, whose elements may be narrower") {
+    // `L` may be `("a" ->> Int) :: HNil`, which already has the field
+    refused("""def f[L <: ("a" ->> Any) :: HNil] = Updater[L, "a" ->> Int]""")
+    refused("""def f[L <: ("a" ->> Any) :: HNil] = LacksKey[L, "b"]""")
+    // Under `=:=`, a bound's key still rules out other keys
+    assertEquals(
+      typeCheckErrors("""def f[L <: ("a" ->> Any) :: HNil] = { val u = Updater[L, "b" ->> Int]; summon[u.Out =:= HList.Append[L, "b" ->> Int]] }""")
+        .map(_.message),
+      Nil,
+    )
+    // A field found through the bound still resolves
+    assertEquals(typeCheckErrors("""def f[L <: ("a" ->> Int) :: HNil] = Selector[L, "a"]""").map(_.message), Nil)
+  }
+
+  test("a field whose value has a method refinement is not mistaken for an abstract one") {
+    type Payload = AnyRef { def value(i: Int): String }
+    val u = Updater[("a" ->> Payload) :: HNil, "a" ->> Int]
+    summon[u.Out =:= (("a" ->> Payload) :: ("a" ->> Int) :: HNil)]
+    summon[LacksKey[("a" ->> Payload) :: HNil, "b"]]
   }
 }

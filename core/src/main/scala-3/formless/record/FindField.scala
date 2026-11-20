@@ -118,19 +118,34 @@ object FindField {
         case Refinement(parent, _, info) => isGround(parent) && isGround(info)
         case TypeBounds(lo, hi) => isGround(lo) && isGround(hi)
         case ByNameType(u) => isGround(u)
-        case _: ConstantType | _: TermRef | _: ThisType | _: NoPrefix => true
+        case mt: MethodType => mt.paramTypes.forall(isGround) && isGround(mt.resType)
+        // A singleton of an abstract type, e.g. `x.type` for `x: T`, could become a subtype of anything `T` could be, and
+        // so could `b.x.type` for `b: B` once `B` is known
+        case tr: TermRef => isGround(tr.qualifier) && isGround(tr.widen)
+        case _: ConstantType | _: ThisType | _: NoPrefix => true
         case _ => false
       }
 
     private def labelledKey(t: TypeRepr): Option[TypeRepr] =
       labelledArgs(t).orElse(upperBound(t).flatMap(labelledArgs)).map(_._1)
 
-    // Whether `Cmp[head, F]` could hold once the abstract types in `head` or `F` are known
-    private def mightMatch(head: TypeRepr): Boolean =
-      (labelledKey(head), labelledKey(fTpe)) match {
+    // An abstract element bounded by `"a" ->> V` may still be `("a" ->> V) & ("b" ->> W)`, a subtype of `"b" ->> Any`, so
+    // its bound's key rules out other keys only under `=:=`. Bounding `F` instead is fine: `head <: F <: ("b" ->> W)`
+    // and `head =:= F` both need `head`'s key to be `"b"`.
+    private val cmpIsEq = cmpTpe.typeSymbol == TypeRepr.of[=:=].typeSymbol
+
+    // Whether `Cmp[head, F]` could hold once the abstract types in `head` or `F` are known. A `bounded` head was read
+    // off the upper bound of an abstract record, so the element it stands for may be any subtype of it.
+    private def mightMatch(head: TypeRepr, bounded: Boolean): Boolean = {
+      val headKey =
+        if (cmpIsEq) labelledKey(head)
+        else if (bounded) None
+        else labelledArgs(head).map(_._1)
+      (headKey, labelledKey(fTpe)) match {
         case (Some(hk), Some(fk)) if isGround(hk) && isGround(fk) && !(hk =:= fk) => false
-        case _ => !(isGround(head) && isGround(fTpe))
+        case _ => bounded || !(isGround(head) && isGround(fTpe))
       }
+    }
 
     // `->>` is invariant in its key, so a field keyed by a different string literal can never satisfy `Cmp[field, F]`
     private val fKey = stringKey(fTpe)
@@ -171,39 +186,56 @@ object FindField {
     /**
      * @param decided whether proving absence, so every element must be ruled out, and a union of records may be split
      *                into arms that end at different points
+     * @param bounded whether the elements so far were read off an abstract record's upper bound, so each stands for
+     *                some subtype of itself
      * @param expanded the abstract records already walked through their bound, so `type L <: Int :: L` doesn't loop
      */
     @annotation.tailrec
-    private def go(rest: TypeRepr, revInit: List[TypeRepr], idx: Int, decided: Boolean, expanded: List[TypeRepr]): Outcome = {
+    private def go(
+      rest: TypeRepr,
+      revInit: List[TypeRepr],
+      idx: Int,
+      decided: Boolean,
+      bounded: Boolean,
+      expanded: List[TypeRepr],
+    ): Outcome = {
       val t = rest.dealias.simplified
       val direct = isDirectCons(t)
       if (!direct && expanded.exists(_ =:= t)) Unknown(t)
       else consParts(t) match {
         case Some((head, tail)) =>
+          val nowBounded = bounded || !(direct || isGround(t))
           if (cmpHolds(head)) Found(revInit, head, tail, idx)
-          else if (decided && mightMatch(head)) Undecided(head, idx)
-          else go(tail, head :: revInit, idx + 1, decided, if (direct) expanded else t :: expanded)
+          else if (decided && mightMatch(head, nowBounded)) Undecided(head, idx)
+          else go(tail, head :: revInit, idx + 1, decided, nowBounded, if (direct) expanded else t :: expanded)
         case None =>
           if (t <:< hnilTpe) Absent
           else t match {
             // A union of records that don't all have another element, e.g. `HNil | (A :: HNil)`: absent only when it's
             // absent from every arm
-            case OrType(a, b) if decided => absenceInArms(a, b, revInit, idx, expanded)
+            case OrType(a, b) if decided => absenceInArms(a, b, revInit, idx, bounded, expanded)
             case _ => Unknown(t)
           }
       }
     }
 
-    private def absenceInArms(a: TypeRepr, b: TypeRepr, revInit: List[TypeRepr], idx: Int, expanded: List[TypeRepr]): Outcome =
-      go(a, revInit, idx, decided = true, expanded) match {
-        case Absent => go(b, revInit, idx, decided = true, expanded)
+    private def absenceInArms(
+      a: TypeRepr,
+      b: TypeRepr,
+      revInit: List[TypeRepr],
+      idx: Int,
+      bounded: Boolean,
+      expanded: List[TypeRepr],
+    ): Outcome =
+      go(a, revInit, idx, decided = true, bounded, expanded) match {
+        case Absent => go(b, revInit, idx, decided = true, bounded, expanded)
         case other => other
       }
 
-    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, decided = false, expanded = Nil)
+    def outcome: Outcome = go(TypeRepr.of[T], Nil, 0, decided = false, bounded = false, expanded = Nil)
 
     /** Like `outcome`, but `Undecided` at the first element that doesn't match yet might once its types are known */
-    def absence: Outcome = go(TypeRepr.of[T], Nil, 0, decided = true, expanded = Nil)
+    def absence: Outcome = go(TypeRepr.of[T], Nil, 0, decided = true, bounded = false, expanded = Nil)
   }
 
   private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
