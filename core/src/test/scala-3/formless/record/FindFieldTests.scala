@@ -200,6 +200,30 @@ class FindFieldTests extends FunSuite {
     summon[st.Out =:= (Int & Serializable)]
   }
 
+  test("the fields after the one updated, modified or removed are shared, not copied") {
+    val tail = ("b" ->> "tail") :: ("c" ->> true) :: HNil
+    type R = ("z" ->> Long) :: ("a" ->> Int) :: tail.type
+    val r: R = ("z" ->> 0L) :: ::[("a" ->> Int), tail.type]("a" ->> 1, tail)
+
+    val (removedA, removed) = Remover[R, "a"].apply(r)
+    assertEquals(removedA, 1)
+    val removedTail: tail.type = removed.tail
+    assert(removedTail eq tail)
+    assertEquals(removed, ("z" ->> 0L) :: tail)
+
+    val modified = Modifier[R, "a", Int, Long].apply(r, _.toLong)
+    val modifiedTail: tail.type = modified.tail.tail
+    assert(modifiedTail eq tail)
+    assertEquals(modified, ("z" ->> 0L) :: ("a" ->> 1L) :: tail)
+
+    val updated = Updater[R, "a" ->> Int].apply(r, "a" ->> 2)
+    assert(updated.tail.tail eq tail)
+    assertEquals(updated, ("z" ->> 0L) :: ("a" ->> 2) :: tail)
+
+    // The last field, so the shared rest is `HNil`
+    assertEquals(Remover[ABCD, "d"].apply(abcd), (true, ("a" ->> 1) :: ("b" ->> "two") :: ("c" ->> 3) :: HNil))
+  }
+
   test("a long record") {
     type R =
       ("k0" ->> Int) :: ("k1" ->> Int) :: ("k2" ->> Int) :: ("k3" ->> Int) :: ("k4" ->> Int) :: ("k5" ->> Int) ::

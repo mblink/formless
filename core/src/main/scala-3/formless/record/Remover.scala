@@ -19,9 +19,6 @@ object Remover {
   ): Remover.Aux[T, K, (f.Value, f.Removed)] =
     new Remover[T, K] {
       type Out = (f.Value, f.Removed)
-      def apply(t: T): Out = {
-        val a = t.toArray
-        (a(f.index), HList.fromArray(a.patch(f.index, Nil, 1))).asInstanceOf[Out]
-      }
+      def apply(t: T): Out = HList.removedAt(t, f.index).asInstanceOf[Out]
     }
 }
