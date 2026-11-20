@@ -107,8 +107,18 @@ object FindField {
           }
       }
 
+    // Aliases inside intersections and unions too, e.g. `A` in `A & Serializable` for `type A = "a" ->> Int`, which
+    // `substituteTypes` would otherwise not see through
+    private def deepDealias(t: TypeRepr): TypeRepr =
+      t.dealias match {
+        case AndType(a, b) => AndType(deepDealias(a), deepDealias(b))
+        case OrType(a, b) => OrType(deepDealias(a), deepDealias(b))
+        case AnnotatedType(u, _) => deepDealias(u)
+        case other => other
+      }
+
     private def matchedKeyValue(head: TypeRepr): Option[(TypeRepr, TypeRepr)] = {
-      val concreteHead = head.dealias.substituteTypes(List(labelledSym), List(concreteLabelled))
+      val concreteHead = deepDealias(head).substituteTypes(List(labelledSym), List(concreteLabelled))
       def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
       concreteHead.asType match {
         case '[ConcreteLabelled[k, v]] => Some((unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v])))
@@ -145,23 +155,46 @@ object FindField {
       }
 
     // Free of type parameters and abstract type members, so a failed `Cmp` check against it is final
-    private def isGround(t: TypeRepr): Boolean =
+    private def isGround(t: TypeRepr): Boolean = isGround(t, Set.empty)
+
+    /** @param opaques the opaque types whose bounds are being checked, so a bound that refers to its own type stops */
+    private def isGround(t: TypeRepr, opaques: Set[Symbol]): Boolean = {
+      def ground(t: TypeRepr): Boolean = isGround(t, opaques)
       t.dealias match {
         case tr: TypeRef =>
-          !(tr.typeSymbol.isTypeParam || (tr.typeSymbol.isAbstractType && !tr.typeSymbol.flags.is(Flags.Opaque))) && isGround(tr.qualifier)
-        case AppliedType(tycon, args) => isGround(tycon) && args.forall(isGround)
-        case AndType(a, b) => isGround(a) && isGround(b)
-        case OrType(a, b) => isGround(a) && isGround(b)
-        case AnnotatedType(u, _) => isGround(u)
-        case Refinement(parent, _, info) => isGround(parent) && isGround(info)
-        case TypeBounds(lo, hi) => isGround(lo) && isGround(hi)
-        case ByNameType(u) => isGround(u)
-        case mt: MethodType => mt.paramTypes.forall(isGround) && isGround(mt.resType)
+          val sym = tr.typeSymbol
+          val opaque = sym.flags.is(Flags.Opaque)
+          !(sym.isTypeParam || (sym.isAbstractType && !opaque)) && ground(tr.qualifier) &&
+            // An opaque type stands for some subtype of its bound, which may itself be abstract, e.g. `opaque type X <: T`
+            // in a class with a type parameter `T`
+            (!opaque || sym == labelledSym || opaques(sym) || opaqueBoundGround(tr, opaques + sym))
+        case AppliedType(tycon, args) => ground(tycon) && args.forall(ground)
+        case AndType(a, b) => ground(a) && ground(b)
+        case OrType(a, b) => ground(a) && ground(b)
+        case AnnotatedType(u, _) => ground(u)
+        case Refinement(parent, _, info) => ground(parent) && ground(info)
+        case TypeBounds(lo, hi) => ground(lo) && ground(hi)
+        case ByNameType(u) => ground(u)
+        case mt: MethodType => mt.paramTypes.forall(ground) && ground(mt.resType)
+        // A type lambda's own parameters, e.g. in `Payload[[X] =>> Either[Int, X]]`, are bound within it
+        case tl: TypeLambda => tl.paramBounds.forall(ground) && ground(tl.resType)
+        case pt: PolyType => pt.paramBounds.forall(ground) && ground(pt.resType)
+        case _: ParamRef => true
+        case RecursiveType(u) => ground(u)
+        case _: RecursiveThis => true
         // A singleton of an abstract type, e.g. `x.type` for `x: T`, could become a subtype of anything `T` could be, and
-        // so could `b.x.type` for `b: B` once `B` is known
-        case tr: TermRef => isGround(tr.qualifier) && isGround(tr.widen)
+        // so could `b.x.type` for `b: B` once `B` is known. A method parameter's singleton, e.g. `x.type` for
+        // `x: String`, could become the same path as another one once the method is applied.
+        case tr: TermRef => !tr.termSymbol.flags.is(Flags.Param) && ground(tr.qualifier) && ground(tr.widen)
         case _: ConstantType | _: ThisType | _: NoPrefix => true
         case _ => false
+      }
+    }
+
+    private def opaqueBoundGround(tr: TypeRef, opaques: Set[Symbol]): Boolean =
+      scala.util.Try(tr.qualifier.memberType(tr.typeSymbol)).toOption.forall {
+        case TypeBounds(_, hi) => isGround(hi, opaques)
+        case other => isGround(other, opaques)
       }
 
     private def labelledKey(t: TypeRepr): Option[TypeRepr] =
@@ -183,6 +216,8 @@ object FindField {
         else labelledArgs(head).map(_._1)
       (headKey, fLabelledKey) match {
         case (Some(hk), Some(fk)) if isGround(hk) && isGround(fk) && !(hk =:= fk) => false
+        // `head =:= F` needs `F` within `head`'s upper bound, e.g. never for `H <: String` and `Int`
+        case _ if cmpIsEq && upperBound(head).exists(hi => isGround(hi) && isGround(fTpe) && !(fTpe <:< hi)) => false
         case _ => bounded || !(isGround(head) && isGround(fTpe))
       }
     }

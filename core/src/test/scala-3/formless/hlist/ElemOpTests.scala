@@ -141,6 +141,9 @@ class ElemOpTests extends FunSuite {
     refused("""def f[T <: HList] = NotContains[Int :: T, String]""")
     refused("""def f[H] = NotContains[H :: HNil, Int]""")
     compiles("""def f[T <: HList] = NotContains[Int :: String :: HNil, Char]""")
+    // `H <: String` can never be `Int`
+    compiles("""def f[H <: String] = NotContains[H :: HNil, Int]""")
+    refused("""def f[H <: AnyVal] = NotContains[H :: HNil, Int]""")
   }
 
   test("the elements after the one changed, removed or split at are shared, not copied") {

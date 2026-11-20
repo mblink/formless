@@ -22,7 +22,7 @@ object Remove {
     }
 
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[hlist] def removeHList[L <: HList, E](using f: FindField[L, E]): Remove.Aux[L, E, (E, f.Removed)] =
+  def removeHList[L <: HList, E](using f: FindField[L, E]): Remove.Aux[L, E, (E, f.Removed)] =
     new Remove[L, E] {
       type Out = (E, f.Removed)
       def apply(l: L): Out = {

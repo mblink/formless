@@ -21,7 +21,7 @@ object Remover {
     }
 
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[record] def removerInst[T <: HList, K](
+  def removerInst[T <: HList, K](
     using f: FindField[T, K ->> Any, <:<]
   ): Remover.Aux[T, K, (f.Value, f.Removed)] =
     new Remover[T, K] {

@@ -23,7 +23,7 @@ object Modifier {
     }
 
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[hlist] def modifierHList[T <: HList, U, V](using ff: FindField[T, U]): Modifier.Aux[T, U, V, (U, ff.Replaced[V])] =
+  def modifierHList[T <: HList, U, V](using ff: FindField[T, U]): Modifier.Aux[T, U, V, (U, ff.Replaced[V])] =
     new Modifier[T, U, V] {
       type Out = (U, ff.Replaced[V])
       def apply(t: T, f: U => V): Out = {

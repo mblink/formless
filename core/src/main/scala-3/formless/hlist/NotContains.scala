@@ -16,6 +16,6 @@ object NotContains {
     singleton.asInstanceOf[NotContains[L, U]]
 
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[hlist] def notContainsHList[L <: HList, U](using nf: NotGiven[FindField[L, U]]): NotContains[L, U] =
+  def notContainsHList[L <: HList, U](using nf: NotGiven[FindField[L, U]]): NotContains[L, U] =
     singleton.asInstanceOf[NotContains[L, U]]
 }

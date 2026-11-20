@@ -32,7 +32,7 @@ object ReverseSplitRight {
     }
 
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[hlist] def reverseSplitRightHList[L <: HList, U](
+  def reverseSplitRightHList[L <: HList, U](
     using f: FindField[HList.Reverse[L], U],
   ): ReverseSplitRight.Aux[L, U, U :: f.Tail, HList.Reverse[f.Head]] =
     new ReverseSplitRight[L, U] {
