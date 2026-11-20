@@ -313,6 +313,41 @@ class FindFieldTests extends FunSuite {
     summon[LacksKey[R, "2"]]
   }
 
+  test("literal keys of every kind are told apart by type as well as value") {
+    // `49 == '1'` and `1 == 1L` hold at runtime, but the literal types differ
+    type R = (49 ->> String) :: ('1' ->> Int) :: (true ->> Long) :: (1 ->> Char) :: (1L ->> Double) :: (false ->> Unit) :: HNil
+    val r: R = (49 ->> "int") :: ('1' ->> 2) :: (true ->> 3L) :: (1 ->> 'c') :: (1L ->> 4.0) :: (false ->> ()) :: HNil
+
+    val char = Selector[R, '1']
+    summon[char.Out =:= Int]
+    assertEquals(char(r), 2)
+    val int = Selector[R, 49]
+    summon[int.Out =:= String]
+    assertEquals(int(r), "int")
+    val long = Selector[R, 1L]
+    summon[long.Out =:= Double]
+    assertEquals(long(r), 4.0)
+    val one = Selector[R, 1]
+    summon[one.Out =:= Char]
+    assertEquals(one(r), 'c')
+    val f = Selector[R, false]
+    summon[f.Out =:= Unit]
+
+    type One = 1
+    val alias = Selector[R, One]
+    summon[alias.Out =:= Char]
+    val u = Updater[R, (One ->> Char)]
+    summon[u.Out =:= R]
+    assertEquals(u(r, (1 ->> 'd')).tail.tail.tail.head: Any, 'd')
+
+    refused("""Selector[R, 2]""")
+    refused("""Selector[R, 49L]""")
+    refused("""LacksKey[R, 1]""")
+    summon[LacksKey[R, 2]]
+    summon[LacksKey[R, 49L]]
+    summon[LacksKey[R, '2']]
+  }
+
   test("a string key is found past fields keyed by type parameters, aliases and unions") {
     type A = "a"
     def f[K](r: (K ->> Int) :: (("x" | "y") ->> Long) :: (A ->> String) :: ("b" ->> Boolean) :: HNil) = {

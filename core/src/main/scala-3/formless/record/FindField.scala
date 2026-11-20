@@ -120,10 +120,13 @@ object FindField {
           .reduceOption((x, y) => (x._1, if (x._2 =:= y._2) x._2 else AndType(x._2, y._2)))
       }
 
-    private def stringKey(t: TypeRepr): Option[String] =
-      labelledArgs(t).flatMap {
-        case (ConstantType(StringConstant(k)), _) => Some(k)
-        case _ => None
+    // The value of a field's literal key, e.g. `"a"`, `1`, `1L` or `'1'`
+    private def literalKey(t: TypeRepr): Option[Any] =
+      labelledArgs(t).flatMap { case (k, _) =>
+        k.dealias match {
+          case ConstantType(c) if c.value != null => Some(c.value)
+          case _ => None
+        }
       }
 
     // Free of type parameters and abstract type members, so a failed `Cmp` check against it is final
@@ -167,11 +170,15 @@ object FindField {
       }
     }
 
-    // `->>` is invariant in its key, so a field keyed by a different string literal can never satisfy `Cmp[field, F]`
-    private val fKey = stringKey(fTpe)
+    // `->>` is invariant in its key, so a field keyed by a different literal can never satisfy `Cmp[field, F]`. Literals
+    // of different types differ even when `==` says otherwise, as `1 == 1L` and `49 == '1'` do.
+    private val fKey = literalKey(fTpe)
+
+    private def keyMismatch(head: TypeRepr): Boolean =
+      fKey.exists(fk => literalKey(head).exists(hk => hk.getClass != fk.getClass || hk != fk))
 
     private def cmpHolds(head: TypeRepr): Boolean =
-      !fKey.exists(fk => stringKey(head).exists(_ != fk)) &&
+      !keyMismatch(head) &&
         (Implicits.search(cmpTpe.appliedTo(List(head, fTpe))) match {
           case _: ImplicitSearchSuccess => true
           // More than one witness, e.g. from local givens, still means `Cmp[head, F]` holds
@@ -219,7 +226,11 @@ object FindField {
       bounded: Boolean,
       expanded: List[TypeRepr],
     ): Outcome = {
-      val t = rest.dealias.simplified
+      // Most tails are already `H :: T`, which needs no normalizing
+      val t = rest match {
+        case AppliedType(tycon, _) if tycon.typeSymbol == consSym => rest
+        case _ => rest.dealias.simplified
+      }
       val direct = isDirectCons(t)
       if (!direct && expanded.exists(_ =:= t)) Unknown(t)
       else consParts(t) match {
