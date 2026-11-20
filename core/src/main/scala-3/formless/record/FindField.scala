@@ -45,7 +45,8 @@ object FindField {
     private enum Mode { case Find, Prove, Update }
 
     sealed trait Outcome
-    final case class Found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr, index: Int) extends Outcome
+    /** `bounded` when `head` was read off an abstract record's upper bound, so the element may be narrower */
+    final case class Found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr, index: Int)(val bounded: Boolean) extends Outcome
     case object Absent extends Outcome
     final case class Unknown(rest: TypeRepr) extends Outcome
     final case class Undecided(head: TypeRepr, index: Int) extends Outcome
@@ -247,17 +248,14 @@ object FindField {
       expanded: List[TypeRepr],
     ): Outcome = {
       // Most tails are already `H :: T`, which needs no normalizing
-      val t = rest match {
-        case AppliedType(tycon, _) if tycon.typeSymbol == consSym => rest
-        case _ => rest.dealias.simplified
-      }
+      val t = normalize(rest)
       val direct = isDirectCons(t)
-      if (!direct && expanded.exists(_ =:= t)) Unknown(t)
+      if (!direct && expandedBefore(t, expanded)) Unknown(t)
       else consParts(t) match {
         case Some((head, tail)) =>
           val nowBounded = bounded || !(direct || isGround(t))
           lazy val undecided = mightMatch(head, nowBounded)
-          if (cmpHolds(head)) Found(revInit, head, tail, idx)
+          if (cmpHolds(head)) Found(revInit, head, tail, idx)(nowBounded)
           else if (mode == Mode.Prove && undecided) Undecided(head, idx)
           else {
             val nowPending = if (mode == Mode.Update && pending.isEmpty && undecided) Some(Undecided(head, idx)) else pending
@@ -304,6 +302,55 @@ object FindField {
         case Undecided(head, idx) =>
           report.errorAndAbort(s"Unexpected undecided element ${display(head)} at index $idx")
       }
+
+    // The abstract type a record type stands for, e.g. `L` for `c.L[Int]`, to stop a walk through bounds that refer to
+    // themselves even as their type arguments change, e.g. `type L[A] <: Int :: L[List[A]]`
+    private def abstractSymbol(t: TypeRepr): Option[Symbol] = {
+      val sym = t match {
+        case AppliedType(tycon, _) => tycon.typeSymbol
+        case _ => t.typeSymbol
+      }
+      Option.when(!sym.isNoSymbol && (sym.isTypeParam || (sym.isAbstractType && !sym.flags.is(Flags.Opaque))))(sym)
+    }
+
+    private def expandedBefore(t: TypeRepr, expanded: List[TypeRepr]): Boolean = {
+      val sym = abstractSymbol(t)
+      expanded.exists(e => e =:= t || (sym.nonEmpty && abstractSymbol(e) == sym))
+    }
+
+    private def normalize(t: TypeRepr): TypeRepr =
+      t match {
+        case AppliedType(tycon, _) if tycon.typeSymbol == consSym => t
+        case _ => t.dealias.simplified
+      }
+
+    /** The rest of `T` from index `idx` on, as spelled in `T`, e.g. `tail.type` rather than its elements */
+    def restAt(idx: Int): TypeRepr =
+      (0 until idx).foldLeft(TypeRepr.of[T])((t, _) =>
+        consParts(normalize(t)).fold(report.errorAndAbort(s"Unexpected end of ${display(TypeRepr.of[T])}"))(_._2)
+      )
+
+    /**
+     * The last element `outcome` would find were the elements before it removed, aborting with why when there's none,
+     * or when an element after it might match once its types are known or is in a tail that isn't statically known
+     */
+    def lastFoundOrAbort: Found = {
+      def refuse(why: String): Nothing =
+        report.errorAndAbort(s"Cannot find the last ${display(TypeRepr.of[F])} in ${display(TypeRepr.of[T])}: $why")
+
+      @annotation.tailrec def loop(f: Found, seen: List[TypeRepr]): Found = {
+        val rest = normalize(f.tail)
+        val direct = isDirectCons(rest)
+        if (!direct && expandedBefore(rest, seen)) refuse(s"its tail `${display(rest)}` refers to itself")
+        go(f.tail, f.head :: f.revInit, f.index + 1, Mode.Update, None, f.bounded, expanded = Nil) match {
+          case g: Found => loop(g, if (direct) seen else rest :: seen)
+          case Absent => f
+          case Unknown(tail) => refuse(s"its tail `${display(tail)}` is not statically known")
+          case Undecided(head, idx) => refuse(s"element `${display(head)}` at index $idx might match")
+        }
+      }
+      loop(foundOrAbort, Nil)
+    }
 
     def cons(h: TypeRepr, t: TypeRepr): TypeRepr = consSym.typeRef.appliedTo(List(h, t))
 

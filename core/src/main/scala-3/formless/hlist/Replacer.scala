@@ -19,7 +19,18 @@ object Replacer {
 
   inline def apply[L, U, V](using r: Replacer[L, U, V]): Replacer.Aux[L, U, V, r.Out] = r
 
-  given replacerHList[T <: HList, U, V](using f: FindField[T, U]): Replacer.Aux[T, U, V, (U, f.Replaced[V])] =
+  given replacerAt[T <: HList, U, V](using op: ElemOp[T, U, ElemOp.Replace[V]]): Replacer.Aux[T, U, V, (U, op.A)] =
+    new Replacer[T, U, V] {
+      type Out = (U, op.A)
+      def apply(t: T, v: V): Out = {
+        var u: Any = null
+        val replaced = HList.updatedAt(t, op.index, x => { u = x; v })
+        (u, replaced).asInstanceOf[Out]
+      }
+    }
+
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[hlist] def replacerHList[T <: HList, U, V](using f: FindField[T, U]): Replacer.Aux[T, U, V, (U, f.Replaced[V])] =
     new Replacer[T, U, V] {
       type Out = (U, f.Replaced[V])
       def apply(t: T, v: V): Out = {

@@ -12,6 +12,10 @@ object NotContains {
 
   private val singleton = new NotContains[Any, Any] {}
 
-  given notContainsHList[L <: HList, U](using nf: NotGiven[FindField[L, U]]): NotContains[L, U] =
+  given notContainsAbsent[L <: HList, U](using a: formless.record.FieldAbsent[L, U, =:=]): NotContains[L, U] =
+    singleton.asInstanceOf[NotContains[L, U]]
+
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[hlist] def notContainsHList[L <: HList, U](using nf: NotGiven[FindField[L, U]]): NotContains[L, U] =
     singleton.asInstanceOf[NotContains[L, U]]
 }

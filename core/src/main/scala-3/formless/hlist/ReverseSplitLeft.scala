@@ -22,7 +22,18 @@ object ReverseSplitLeft {
 
   inline def apply[T, U](using s: ReverseSplitLeft[T, U]): ReverseSplitLeft.Aux[T, U, s.Prefix, s.Suffix] = s
 
-  given reverseSplitLeftHList[L <: HList, U](
+  given reverseSplitLeftAt[L <: HList, U](using f: ElemOp[L, U, ElemOp.ReverseSplitLeft]): ReverseSplitLeft.Aux[L, U, f.A, f.B] =
+    new ReverseSplitLeft[L, U] {
+      type Prefix = f.A
+      type Suffix = f.B
+      def apply(l: L): Out = {
+        val prefix = HList.take0(l, f.index).toArray.foldLeft(HNil: HList)((acc, x) => x :: acc)
+        (prefix, HList.drop0(l, f.index)).asInstanceOf[Out]
+      }
+    }
+
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[hlist] def reverseSplitLeftHList[L <: HList, U](
     using f: FindField[L, U],
     ev: (HList.Size[L] >= f.Index) =:= true,
   ): ReverseSplitLeft.Aux[L, U, HList.Reverse[HList.Take[L, f.Index]], HList.Drop[L, f.Index]] =
