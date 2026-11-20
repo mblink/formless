@@ -42,10 +42,34 @@ object FindField {
     val concreteLabelledSym = concreteLabelled.typeSymbol
     val consTpe = TypeRepr.of[Any :: HNil].typeSymbol.typeRef
     val instSym = TypeRepr.of[Inst[HNil, Any, =:=, Any, Any, [a] =>> HNil, HNil]].typeSymbol
+    val fTpe = TypeRepr.of[F]
+    val cmpTpe = TypeRepr.of[Cmp]
 
     def concrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(labelledSym), List(concreteLabelled))
     def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
     def cons(h: TypeRepr, t: TypeRepr): TypeRepr = consTpe.appliedTo(List(h, t))
+
+    def labelledArgs(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+      t.dealias match {
+        case AppliedType(tycon, List(k, v)) if tycon.typeSymbol == labelledSym => Some((k, v))
+        case _ => None
+      }
+
+    def stringKey(t: TypeRepr): Option[String] =
+      labelledArgs(t).flatMap {
+        case (ConstantType(StringConstant(k)), _) => Some(k)
+        case _ => None
+      }
+
+    // `->>` is invariant in its key, so a field keyed by a different string literal can never satisfy `Cmp[field, F]`
+    val fKey = stringKey(fTpe)
+
+    def cmpHolds(head: TypeRepr): Boolean =
+      !fKey.exists(fk => stringKey(head).exists(_ != fk)) &&
+        (Implicits.search(cmpTpe.appliedTo(List(head, fTpe))) match {
+          case _: ImplicitSearchSuccess => true
+          case _ => false
+        })
 
     // `Replaced` and `Removed` are built as concrete HList types, not as nested `HList.Append`/`HList.Concat` match types
     def found(revInit: List[TypeRepr], key: TypeRepr, value: TypeRepr, tail: TypeRepr, idx: Int): Expr[FindField[T, F, Cmp]] = {
@@ -66,7 +90,7 @@ object FindField {
     // `revInit` holds the fields before `RestT`, nearest first
     def go[RestT <: HList: Type](revInit: List[TypeRepr], idx: Int): Expr[FindField[T, F, Cmp]] =
       Type.of[RestT] match {
-        case '[::[head, tail]] if Expr.summon[Cmp[head, F]].nonEmpty =>
+        case '[::[head, tail]] if cmpHolds(TypeRepr.of[head]) =>
           // We need to replace `->>` with a concrete `class` type so the match works
           // Matches on opaque types like `->>` will *never* match
           val concretTypeRepr = concrete(TypeRepr.of[head].dealias)
