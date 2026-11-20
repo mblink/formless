@@ -14,7 +14,15 @@ object Remove {
 
   inline def apply[L, E](using r: Remove[L, E]): Remove.Aux[L, E, r.Out] = r
 
-  given removeHList[L <: HList, E](using f: FindField[L, E]): Remove.Aux[L, E, (E, f.Removed)] =
+  given removeAt[L <: HList, E](using f: ElemOp[L, E, ElemOp.Remove]): Remove.Aux[L, E, (E, f.A)] =
+    new Remove[L, E] {
+      type Out = (E, f.A)
+      def apply(l: L): Out = HList.removedAt(l, f.index).asInstanceOf[Out]
+      def reinsert(out: Out): L = HList.insertedAt(out._2.asInstanceOf[HList], f.index, out._1).asInstanceOf[L]
+    }
+
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[hlist] def removeHList[L <: HList, E](using f: FindField[L, E]): Remove.Aux[L, E, (E, f.Removed)] =
     new Remove[L, E] {
       type Out = (E, f.Removed)
       def apply(l: L): Out = {

@@ -20,7 +20,15 @@ object SplitRight {
 
   inline def apply[T, U](using s: SplitRight[T, U]): SplitRight.Aux[T, U, s.Prefix, s.Suffix] = s
 
-  given splitRightHList[L <: HList, U](
+  given splitRightAt[L <: HList, U](using f: ElemOp[L, U, ElemOp.SplitRight]): SplitRight.Aux[L, U, f.A, f.B] =
+    new SplitRight[L, U] {
+      type Prefix = f.A
+      type Suffix = f.B
+      def apply(l: L): Out = (HList.take0(l, f.index + 1), HList.drop0(l, f.index + 1)).asInstanceOf[Out]
+    }
+
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[hlist] def splitRightHList[L <: HList, U](
     using f: FindField[HList.Reverse[L], U],
   ): SplitRight.Aux[L, U, HList.Append[HList.Reverse[f.Tail], U], HList.Reverse[f.Head]] =
     new SplitRight[L, U] {

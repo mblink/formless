@@ -117,6 +117,28 @@ object HList {
   private[formless] def updatedAt(l: HList, idx: Int, f: Any => Any): HList =
     rebuildAt(l, idx)(c => f(c.head) :: c.tail)
 
+  /** `l` with `x` inserted at index `idx`, which may be `l`'s length; the elements from `idx` on are shared */
+  private[formless] def insertedAt(l: HList, idx: Int, x: Any): HList = {
+    val prefix = new Array[Any](idx)
+
+    @annotation.tailrec def loop(h: HList, i: Int): HList =
+      if (i == idx) h
+      else h match {
+        case c: ::[Any, HList] @unchecked =>
+          prefix(i) = c.head
+          loop(c.tail, i + 1)
+        case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength})")
+      }
+
+    var acc: HList = x :: loop(l, 0)
+    var i = idx - 1
+    while (i >= 0) {
+      acc = prefix(i) :: acc
+      i -= 1
+    }
+    acc
+  }
+
   private[formless] def removedAt(l: HList, idx: Int): (Any, HList) = {
     var removed: Any = null
     val rest = rebuildAt(l, idx) { c =>
