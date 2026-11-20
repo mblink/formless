@@ -20,7 +20,7 @@ object Selector {
     }
 
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[record] def selectorInst[T <: HList, K](using f: FindField[T, K ->> Any, <:<]): Selector.Aux[T, K, f.Value] =
+  def selectorInst[T <: HList, K](using f: FindField[T, K ->> Any, <:<]): Selector.Aux[T, K, f.Value] =
     new Selector[T, K] {
       type Out = f.Value
       def apply(t: T): Out = t.unsafeApply(f.index).asInstanceOf[Out]
