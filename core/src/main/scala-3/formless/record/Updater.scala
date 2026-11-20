@@ -9,7 +9,7 @@ trait Updater[T, F] extends DepFn2[T, F], Serializable
 
 sealed trait UpdaterLP {
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[record] final def updaterNotFound[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] = appendField[T, F]
+  final def updaterNotFound[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] = appendField[T, F]
 
   private def appendField[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] =
     new Updater[T, F] {
@@ -33,7 +33,7 @@ object Updater extends UpdaterLP {
     }
 
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[record] def updaterFound[T <: HList, F](using ff: FindField[T, F, =:=]): Updater.Aux[T, F, ff.Replaced[F]] =
+  def updaterFound[T <: HList, F](using ff: FindField[T, F, =:=]): Updater.Aux[T, F, ff.Replaced[F]] =
     new Updater[T, F] {
       type Out = ff.Replaced[F]
       def apply(t: T, f: F): Out = HList.updatedAt(t, ff.index, _ => f).asInstanceOf[Out]

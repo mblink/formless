@@ -28,7 +28,7 @@ object SplitRight {
     }
 
   @deprecated("Retained for binary compatibility", "0.8.1")
-  private[hlist] def splitRightHList[L <: HList, U](
+  def splitRightHList[L <: HList, U](
     using f: FindField[HList.Reverse[L], U],
   ): SplitRight.Aux[L, U, HList.Append[HList.Reverse[f.Tail], U], HList.Reverse[f.Head]] =
     new SplitRight[L, U] {

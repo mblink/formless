@@ -709,5 +709,40 @@ class FindFieldTests extends FunSuite {
     val u = Updater[HNil | (("a" ->> Int) :: HNil), "b" ->> Int]
     summon[u.Out =:= HList.Append[HNil | (("a" ->> Int) :: HNil), "b" ->> Int]]
   }
+
+  test("absence is not proven for keys that are method parameters' singletons, which may be the same path") {
+    refused("""def lacks(x: String, y: String): LacksKey[(x.type ->> Int) :: HNil, y.type] = summon""")
+    summon[LacksKey[(intKey.type ->> Int) :: HNil, "b"]]
+  }
+
+  test("absence is not proven for an opaque type whose bound is abstract") {
+    refused("""class Box[T] { object O { opaque type X <: T = T }; def lacks = LacksKey[O.X :: HNil, "a"] }""")
+    // A bound that is known still decides it
+    summon[LacksKey[Opaque.A :: HNil, "b"]]
+  }
+
+  test("a field whose value has a type lambda in it is not mistaken for an abstract one") {
+    trait Payload[F[_]]
+    type P = Payload[[X] =>> Either[Int, X]]
+    val u = Updater[("a" ->> P) :: HNil, "a" ->> Int]
+    summon[u.Out =:= (("a" ->> P) :: ("a" ->> Int) :: HNil)]
+    summon[LacksKey[("a" ->> P) :: HNil, "b"]]
+  }
+
+  test("the previous named givens can still be called explicitly") {
+    assertEquals(typeCheckErrors("""Updater.updaterNotFound[HNil, "a" ->> Int]""").map(_.message).filterNot(_.contains("deprecated")), Nil)
+  }
+
+  test("a field that is an intersection with an aliased field in it is replaced, not refused") {
+    val u = Updater[ASAlias.Inter, ASAlias.AS]
+    summon[u.Out =:= ASAlias.Inter]
+    assertEquals(u(ASAlias.inter, ("a" ->> 2).asInstanceOf[ASAlias.AS]), ("a" ->> 2) :: ("b" ->> "x") :: HNil)
+  }
 }
 
+object ASAlias {
+  type A = "a" ->> Int
+  type AS = A & Serializable
+  type Inter = AS :: ("b" ->> String) :: HNil
+  val inter: Inter = ("a" ->> 1).asInstanceOf[AS] :: ("b" ->> "x") :: HNil
+}
