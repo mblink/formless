@@ -8,11 +8,17 @@ import formless.hlist.{DepFn2, HList}
 trait Updater[T, F] extends DepFn2[T, F], Serializable
 
 sealed trait UpdaterLP {
-  final given updaterNotFound[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] =
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[record] final def updaterNotFound[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] = appendField[T, F]
+
+  private def appendField[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] =
     new Updater[T, F] {
       type Out = HList.Append[T, F]
       def apply(t: T, f: F): Out = HList.append(t, f)
     }
+
+  final given updaterAbsent[T <: HList, F](using a: FieldAbsent[T, F, =:=]): Updater.Aux[T, F, HList.Append[T, F]] =
+    appendField[T, F]
 }
 
 object Updater extends UpdaterLP {

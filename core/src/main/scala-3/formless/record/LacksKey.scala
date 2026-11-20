@@ -13,6 +13,10 @@ object LacksKey {
 
   private val singleton = new LacksKey[HList, Any] {}
 
-  given lacksKeyInst[T <: HList, K](using nf: NotGiven[FindField[T, K ->> Any, <:<]]): LacksKey[T, K] =
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[record] def lacksKeyInst[T <: HList, K](using nf: NotGiven[FindField[T, K ->> Any, <:<]]): LacksKey[T, K] =
+    singleton.asInstanceOf[LacksKey[T, K]]
+
+  given lacksKeyAbsent[T <: HList, K](using a: FieldAbsent[T, K ->> Any, <:<]): LacksKey[T, K] =
     singleton.asInstanceOf[LacksKey[T, K]]
 }
