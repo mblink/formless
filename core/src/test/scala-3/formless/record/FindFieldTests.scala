@@ -699,4 +699,15 @@ class FindFieldTests extends FunSuite {
     summon[u.Out =:= (("a" ->> Payload) :: ("a" ->> Int) :: HNil)]
     summon[LacksKey[("a" ->> Payload) :: HNil, "b"]]
   }
+
+  test("Updater says why it neither replaces nor appends") {
+    abortsWith("""def f[V] = FieldOp.fieldOpInst[("a" ->> V) :: HNil, "a" ->> Int, FieldOp.Update]""", "might match")
+    abortsWith("""def f[L <: HList] = FieldOp.fieldOpInst[("b" ->> Int) :: L, "a" ->> Int, FieldOp.Update]""", "is not statically known")
+    abortsWith("""FieldOp.fieldOpInst[Int :: String :: HNil, Int, FieldOp.Update]""", "isn't a field")
+    // A field found in only one arm of a union of records is neither replaced nor proven absent
+    refused("""Updater[HNil | (("a" ->> Int) :: HNil), "a" ->> Int]""")
+    val u = Updater[HNil | (("a" ->> Int) :: HNil), "b" ->> Int]
+    summon[u.Out =:= HList.Append[HNil | (("a" ->> Int) :: HNil), "b" ->> Int]]
+  }
 }
+

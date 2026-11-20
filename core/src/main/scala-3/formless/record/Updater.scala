@@ -16,9 +16,6 @@ sealed trait UpdaterLP {
       type Out = HList.Append[T, F]
       def apply(t: T, f: F): Out = HList.append(t, f)
     }
-
-  final given updaterAbsent[T <: HList, F](using a: FieldAbsent[T, F, =:=]): Updater.Aux[T, F, HList.Append[T, F]] =
-    appendField[T, F]
 }
 
 object Updater extends UpdaterLP {
@@ -27,7 +24,16 @@ object Updater extends UpdaterLP {
   inline def apply[T, F](using u: Updater[T, F]): Updater.Aux[T, F, u.Out] = u
   inline def apply[T, F](t: T, f: F)(using u: Updater[T, F]): u.Out = u(t, f)
 
-  given updaterFound[T <: HList, F](using ff: FindField[T, F, =:=]): Updater.Aux[T, F, ff.Replaced[F]] =
+  /** Replaces the first field `=:=` to `F`, or appends `F` when no field could be, in one walk of the record */
+  given updaterAt[T <: HList, F](using op: FieldOp[T, F, FieldOp.Update]): Updater.Aux[T, F, op.Out] =
+    new Updater[T, F] {
+      type Out = op.Out
+      def apply(t: T, f: F): Out =
+        (if (op.index < 0) HList.append(t, f) else HList.updatedAt(t, op.index, _ => f)).asInstanceOf[Out]
+    }
+
+  @deprecated("Retained for binary compatibility", "0.8.1")
+  private[record] def updaterFound[T <: HList, F](using ff: FindField[T, F, =:=]): Updater.Aux[T, F, ff.Replaced[F]] =
     new Updater[T, F] {
       type Out = ff.Replaced[F]
       def apply(t: T, f: F): Out = HList.updatedAt(t, ff.index, _ => f).asInstanceOf[Out]
