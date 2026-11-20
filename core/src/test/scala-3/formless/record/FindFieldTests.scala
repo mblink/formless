@@ -515,4 +515,52 @@ class FindFieldTests extends FunSuite {
     refused("""Selector[Opaque.A :: HNil, "a"]""")
     refused("""Remover[Opaque.A :: HNil, "a"]""")
   }
+
+  test("a field that could only be in an abstract tail is not found") {
+    refused("""def a[L <: HList] = Selector[("b" ->> Int) :: L, "a"]""")
+    refused("""def a[L <: HList](r: ("b" ->> Int) :: L) = Selector[("b" ->> Int) :: L, "a"].apply(r)""")
+    refused("""def a[L <: HList] = Remover[("b" ->> Int) :: L, "a"]""")
+    refused("""def a[L <: HList] = Modifier[("b" ->> Int) :: L, "a", Int, Int]""")
+    refused("""def a[L <: HList] = Updater[("b" ->> Int) :: L, "a" ->> Int]""")
+    refused("""def a[L <: HList] = Selector[L, "a"]""")
+    refused("""def a[L <: HList]: Any = Selector[("b" ->> Int) :: ("c" ->> Int) :: L, "a"]""")
+    abortsWith("""def f[L <: HList] = FindField.findFieldInst[("b" ->> Int) :: L, "a" ->> Any, <:<]""", "is not statically known")
+    abortsWith("""def f[L <: HList] = FindField.findFieldInst[L, "a" ->> Any, <:<]""", "is not statically known")
+  }
+
+  test("a record type whose bound refers to itself is refused rather than walked forever") {
+    refused("""trait Cyclic { type L <: ("b" ->> Int) :: L }; def f(c: Cyclic) = Selector[c.L, "a"]""")
+  }
+
+  test("a union of records is walked arm by arm") {
+    type A = "a" ->> Int
+    type B = "b" ->> String
+    type R = (A :: HNil) | (A :: B :: HNil)
+    val r: R = ("a" ->> 1) :: ("b" ->> "x") :: HNil
+    val s = Selector[R, "a"]
+    summon[s.Out =:= Int]
+    assertEquals(s(r), 1)
+    // A field typed as a union of fields with the same key
+    val su = Selector[(A | ("a" ->> String)) :: HNil, "a"]
+    summon[su.Out =:= (Int | String)]
+  }
+
+  test("a tail bounded by a concrete record is walked through its bound") {
+    def ops[L <: ("b" ->> Int) :: HNil](r: ("a" ->> String) :: L) = {
+      val s = Selector[("a" ->> String) :: L, "b"]
+      summon[s.Out =:= Int]
+      val rm = Remover[("a" ->> String) :: L, "b"]
+      summon[rm.Out =:= (Int, ("a" ->> String) :: HNil)]
+      (s(r), rm(r))
+    }
+    assertEquals(ops(("a" ->> "x") :: ("b" ->> 1) :: HNil), (1, (1, ("a" ->> "x") :: HNil)))
+  }
+
+  test("a field missing from a record ending in `Nothing` is not found") {
+    refused("""Selector[("a" ->> Int) :: Nothing, "b"]""")
+    refused("""Remover[("a" ->> Int) :: Nothing, "b"]""")
+    refused("""Selector[Nothing, "a"]""")
+    val s = Selector[("a" ->> Int) :: Nothing, "a"]
+    summon[s.Out =:= Int]
+  }
 }
