@@ -20,16 +20,4 @@ object Remove {
       def apply(l: L): Out = HList.removedAt(l, f.index).asInstanceOf[Out]
       def reinsert(out: Out): L = HList.insertedAt(out._2.asInstanceOf[HList], f.index, out._1).asInstanceOf[L]
     }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def removeHList[L <: HList, E](using f: FindField[L, E]): Remove.Aux[L, E, (E, f.Removed)] =
-    new Remove[L, E] {
-      type Out = (E, f.Removed)
-      def apply(l: L): Out = {
-        val a = l.toArray
-        (a(f.index), HList.fromArray(a.patch(f.index, Nil, 1))).asInstanceOf[Out]
-      }
-      def reinsert(out: Out): L =
-        HList.fromArray(out._2.toArray.patch(f.index, List(out._1), 0)).asInstanceOf[L]
-    }
 }

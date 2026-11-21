@@ -12,7 +12,7 @@ lazy val scala3NextAxis = new VirtualAxis.WeakAxis {
 lazy val scalaVersions = Seq(scala213, scala3)
 
 ThisBuild / scalaVersion := scala3
-ThisBuild / version := "0.8.0"
+ThisBuild / version := "0.9.0"
 
 // GitHub Actions config
 val javaVersions = Seq(8, 11, 17, 21, 25).map(v => JavaSpec.temurin(v.toString))
@@ -68,7 +68,8 @@ lazy val publishSettings = Seq(
   publish / skip := false,
   s3PublishBucket := "bondlink-maven-repo",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
-  mimaPreviousArtifacts := Set("com.bondlink" %%% name.value % "0.6.0"),
+  // 0.9.0 breaks binary compatibility with earlier releases; check against it once it is published
+  mimaPreviousArtifacts := Set(),
 )
 
 lazy val munit = Def.setting("org.scalameta" %%% "munit" % "1.3.5" % Test)

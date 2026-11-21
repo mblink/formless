@@ -18,11 +18,4 @@ object Selector {
       type Out = f.Out
       def apply(t: T): Out = t.unsafeApply(f.index).asInstanceOf[Out]
     }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def selectorInst[T <: HList, K](using f: FindField[T, K ->> Any, <:<]): Selector.Aux[T, K, f.Value] =
-    new Selector[T, K] {
-      type Out = f.Value
-      def apply(t: T): Out = t.unsafeApply(f.index).asInstanceOf[Out]
-    }
 }

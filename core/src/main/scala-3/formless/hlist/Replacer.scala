@@ -28,16 +28,4 @@ object Replacer {
         (u, replaced).asInstanceOf[Out]
       }
     }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def replacerHList[T <: HList, U, V](using f: FindField[T, U]): Replacer.Aux[T, U, V, (U, f.Replaced[V])] =
-    new Replacer[T, U, V] {
-      type Out = (U, f.Replaced[V])
-      def apply(t: T, v: V): Out = {
-        val a = t.toArray
-        val u = a(f.index)
-        a.update(f.index, v)
-        (u, HList.fromArray(a)).asInstanceOf[Out]
-      }
-    }
 }

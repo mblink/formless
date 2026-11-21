@@ -258,13 +258,13 @@ class FindFieldTests extends FunSuite {
     refused("""Remover[ABCD, "e"]""")
     refused("""Modifier[ABCD, "e", Int, Int]""")
     refused("""Selector[HNil, "a"]""")
-    abortsWith("""FindField.findFieldInst[ABCD, "e" ->> Any, <:<]""", "Failed to find field")
+    abortsWith("""FieldOp.fieldOpInst[ABCD, "e" ->> Any, FieldOp.Select]""", "Failed to find field")
   }
 
   test("a lookup that matches no field of a record ending in `Nothing` or an abstract tail is refused cleanly") {
     refused("""Modifier[("a" ->> Int) :: Nothing, "b", Int, Int]""")
     refused("""def f[L <: HList]: Any = Modifier[("b" ->> Int) :: L, "a", Int, Int]""")
-    refused("""def f[L <: HList]: Any = FindField.findFieldInst[("b" ->> Int) :: L, "a" ->> Int, =:=]""")
+    refused("""def f[L <: HList]: Any = FieldOp.fieldOpInst[("b" ->> Int) :: L, "a" ->> Int, FieldOp.Modify["a", Int]]""")
   }
 
   test("Modifier refuses a field whose value type doesn't match") {
@@ -399,12 +399,12 @@ class FindFieldTests extends FunSuite {
   }
 
   test("abort messages say what was looked for, even inside a method without a result type") {
-    abortsWith("""FindField.findFieldInst[ABCD, "e" ->> Any, <:<]""", "Failed to find field")
-    abortsWith("""FindField.findFieldInst[ABCD, "e" ->> Any, <:<]""", "ABCD")
-    abortsWith("""def f[H] = FindField.findFieldInst[H :: HNil, "e" ->> Any, <:<]""", "Failed to find field")
-    abortsWith("""def f[H] = FindField.findFieldInst[H :: HNil, "e" ->> Any, <:<]""", "\"e\"")
-    abortsWith("""def f[K] = FindField.findFieldInst[("a" ->> Int) :: HNil, K ->> Any, <:<]""", "Failed to find field")
-    abortsWith("""def f[A] = FindField.findFieldInst[List[A] :: HNil, List[A], =:=]""", "Unexpected type")
+    abortsWith("""FieldOp.fieldOpInst[ABCD, "e" ->> Any, FieldOp.Select]""", "Failed to find field")
+    abortsWith("""FieldOp.fieldOpInst[ABCD, "e" ->> Any, FieldOp.Select]""", "ABCD")
+    abortsWith("""def f[H] = FieldOp.fieldOpInst[H :: HNil, "e" ->> Any, FieldOp.Select]""", "Failed to find field")
+    abortsWith("""def f[H] = FieldOp.fieldOpInst[H :: HNil, "e" ->> Any, FieldOp.Select]""", "\"e\"")
+    abortsWith("""def f[K] = FieldOp.fieldOpInst[("a" ->> Int) :: HNil, K ->> Any, FieldOp.Select]""", "Failed to find field")
+    abortsWith("""def f[A] = FieldOp.fieldOpInst[List[A] :: HNil, List[A], FieldOp.Modify[Any, Int]]""", "Unexpected type")
   }
 
   test("absence is proven for a record that lacks the key, and refused when it has it") {
@@ -580,7 +580,7 @@ class FindFieldTests extends FunSuite {
   }
 
   test("an element typed as a type parameter without a field bound is not a field") {
-    refused("""def f[A] = FindField.findFieldInst[A :: HNil, A, =:=]""")
+    refused("""def f[A] = FieldOp.fieldOpInst[A :: HNil, A, FieldOp.Modify[Any, Int]]""")
     refused("""def f[A] = Updater[A :: HNil, A]""")
   }
 
@@ -601,8 +601,8 @@ class FindFieldTests extends FunSuite {
     refused("""def a[L <: HList] = Updater[("b" ->> Int) :: L, "a" ->> Int]""")
     refused("""def a[L <: HList] = Selector[L, "a"]""")
     refused("""def a[L <: HList]: Any = Selector[("b" ->> Int) :: ("c" ->> Int) :: L, "a"]""")
-    abortsWith("""def f[L <: HList] = FindField.findFieldInst[("b" ->> Int) :: L, "a" ->> Any, <:<]""", "is not statically known")
-    abortsWith("""def f[L <: HList] = FindField.findFieldInst[L, "a" ->> Any, <:<]""", "is not statically known")
+    abortsWith("""def f[L <: HList] = FieldOp.fieldOpInst[("b" ->> Int) :: L, "a" ->> Any, FieldOp.Select]""", "is not statically known")
+    abortsWith("""def f[L <: HList] = FieldOp.fieldOpInst[L, "a" ->> Any, FieldOp.Select]""", "is not statically known")
   }
 
   test("a record type whose bound refers to itself is refused rather than walked forever") {
@@ -727,10 +727,6 @@ class FindFieldTests extends FunSuite {
     val u = Updater[("a" ->> P) :: HNil, "a" ->> Int]
     summon[u.Out =:= (("a" ->> P) :: ("a" ->> Int) :: HNil)]
     summon[LacksKey[("a" ->> P) :: HNil, "b"]]
-  }
-
-  test("the previous named givens can still be called explicitly") {
-    assertEquals(typeCheckErrors("""Updater.updaterNotFound[HNil, "a" ->> Int]""").map(_.message).filterNot(_.contains("deprecated")), Nil)
   }
 
   test("a field that is an intersection with an aliased field in it is replaced, not refused") {

@@ -17,11 +17,4 @@ object Modifier {
       type Out = op.Out
       def apply(t: T, f: A => B): Out = HList.updatedAt(t, op.index, a => f(a.asInstanceOf[A])).asInstanceOf[Out]
     }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def modifierInst[T <: HList, K, A, B](using ff: FindField[T, K ->> A, =:=]): Modifier.Aux[T, K, A, B, ff.Replaced[K ->> B]] =
-    new Modifier[T, K, A, B] {
-      type Out = ff.Replaced[K ->> B]
-      def apply(t: T, f: A => B): Out = HList.updatedAt(t, ff.index, a => f(a.asInstanceOf[A])).asInstanceOf[Out]
-    }
 }
