@@ -26,7 +26,7 @@ class CompilePerfTest extends FunSuite {
   private def compileCost(source: String): (Long, Long) = {
     val dir = Files.createTempDirectory("formless-perf")
     val file = dir.resolve("Bench.scala")
-    Files.write(file, source.getBytes("UTF-8"))
+    Files.writeString(file, source)
     def once(): (Long, Long) = {
       val out = Files.createTempDirectory(dir, "out")
       val (a0, c0) = (threads.getCurrentThreadAllocatedBytes, threads.getCurrentThreadCpuTime)

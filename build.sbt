@@ -77,6 +77,9 @@ def foldScalaV[A](scalaVersion: String)(_213: => A, _3: => A): A =
 
 lazy val mavenRepoUrl = "https://maven.bondlink-cdn.com"
 
+// JVM builds compile against the Java 17 API and emit Java 17 bytecode
+lazy val jvmSettings = Seq(tpolecatScalacOptions += org.typelevel.scalacoptions.ScalacOptions.release("17"))
+
 lazy val baseSettings = Seq(
   organization := "com.bondlink",
   libraryDependencies ++= foldScalaV(scalaVersion.value)(
@@ -120,12 +123,12 @@ lazy val core = projectMatrix.in(file("core"))
   .jvmPlatform(
     scalaVersions = Seq(scala3Next),
     axisValues = Seq(scala3NextAxis),
-    settings = Seq(
+    settings = jvmSettings ++ Seq(
       publish / skip := true,
       mimaPreviousArtifacts := Set(),
     ),
   )
-  .jvmPlatform(scalaVersions = scalaVersions)
+  .jvmPlatform(scalaVersions = scalaVersions, settings = jvmSettings)
   .jsPlatform(scalaVersions = scalaVersions)
   .nativePlatform(scalaVersions = scalaVersions)
   .settings(baseSettings)
@@ -169,7 +172,7 @@ lazy val core = projectMatrix.in(file("core"))
 // Compile-time regression tests: compiles generated workloads and checks the memory the compiler allocates. Not part of
 // `sbt test`; CI runs `sbt perf3/test` on one Java version.
 lazy val perf = projectMatrix.in(file("perf"))
-  .jvmPlatform(scalaVersions = Seq(scala3))
+  .jvmPlatform(scalaVersions = Seq(scala3), settings = jvmSettings)
   .settings(baseSettings)
   .settings(
     libraryDependencies ++= Seq(munit.value, scalaOrganization.value %% "scala3-compiler" % scalaVersion.value % Test),
@@ -179,7 +182,7 @@ lazy val perf = projectMatrix.in(file("perf"))
   .dependsOn(core)
 
 lazy val docs = projectMatrix.in(file("formless-docs"))
-  .jvmPlatform(scalaVersions = Seq(scala3))
+  .jvmPlatform(scalaVersions = Seq(scala3), settings = jvmSettings)
   .settings(baseSettings)
   .settings(
     mdocOut := file("."),
