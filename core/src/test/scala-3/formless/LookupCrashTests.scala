@@ -49,9 +49,11 @@ class LookupCrashTests extends FunSuite {
     refused("""object O { val k = Remove[k.type :: HNil, Int] }""")
   }
 
-  test("operations the macros don't know are refused") {
+  test("operations the macros don't know don't type-check, and an abstract one is refused") {
     refused("""ElemOp.elemOpInst[Int :: HNil, Int, String]""")
     refused("""FieldOp.fieldOpInst[("a" ->> Int) :: HNil, "a" ->> Any, String]""")
+    refused("""def f[O <: FieldOp.Op] = FieldOp.fieldOpInst[("a" ->> Int) :: HNil, "a" ->> Any, O]""")
+    refused("""def f[O <: ElemOp.Op] = ElemOp.elemOpInst[Int :: HNil, Int, O]""")
   }
 
   test("Remove keeps the arms of a union of lists apart, so reinsert only takes what it can rebuild") {

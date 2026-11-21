@@ -8,33 +8,37 @@ import scala.quoted.*
  * such element, or for `SplitRight` and `ReverseSplitRight` the last. `A` and `B` are built directly by a macro, rather
  * than as `HList.Take`, `HList.Drop`, `HList.Reverse` or nested `HList.Append` match types for the compiler to reduce.
  */
-private[formless] sealed trait ElemOp[T <: HList, U, Op] {
+private[formless] sealed trait ElemOp[T <: HList, U, Op <: ElemOp.Op] {
   type A
   type B
   val index: Int
 }
 
 object ElemOp {
+  sealed trait Op
   /** `A` is `T` without the element, keeping each arm of a union of lists separate; `B` is unused */
-  sealed trait Remove
+  sealed trait Remove extends Op
   /** `A` is the elements before the first match; `B` is the match and the elements after it */
-  sealed trait SplitLeft
+  sealed trait SplitLeft extends Op
   /** `A` is the elements before the first match, reversed; `B` is the match and the elements after it */
-  sealed trait ReverseSplitLeft
+  sealed trait ReverseSplitLeft extends Op
   /** `A` is the elements before the last match followed by `U`; `B` is the elements after it */
-  sealed trait SplitRight
+  sealed trait SplitRight extends Op
   /** `A` is `U` followed by the elements before the last match, reversed; `B` is the elements after it */
-  sealed trait ReverseSplitRight
+  sealed trait ReverseSplitRight extends Op
 
-  final class Inst[T <: HList, U, Op, A0, B0](val index: Int) extends ElemOp[T, U, Op] {
+  final class Inst[T <: HList, U, Op <: ElemOp.Op, A0, B0](val index: Int) extends ElemOp[T, U, Op] {
     final type A = A0
     final type B = B0
   }
 
-  private def elemOpImpl[T <: HList: Type, U: Type, Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] =
+  private def elemOpImpl[T <: HList: Type, U: Type, Op <: ElemOp.Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] =
     formless.record.Lookup.guarded("look up an HList element")(elemOpImpl0[T, U, Op])
 
-  private def elemOpImpl0[T <: HList: Type, U: Type, Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] = {
+  // `Op`'s bound limits it to the operations below; the last case is an abstract `Op`, which can't be expanded
+  private def elemOpImpl0[T <: HList: Type, U: Type, Op <: ElemOp.Op: Type](
+    using Quotes,
+  ): Either[formless.record.Lookup.LookupError, Expr[ElemOp[T, U, Op]]] = {
     val lookup = formless.record.Lookup.Walk[T, U, =:=]
     import lookup.q.reflect.*
 
@@ -48,28 +52,18 @@ object ElemOp {
 
     Type.of[Op] match {
       case '[Remove] =>
-        val f = lookup.foundOrAbort
-        // `reinsert` puts the element back and calls the result a `T`
-        lookup.notReinsertable(f.index, u).foreach(why =>
-          report.errorAndAbort(s"Cannot remove ${lookup.display(u)} from ${lookup.display(TypeRepr.of[T])}: $why")
-        )
-        inst(lookup.removedByArm(f.index), hnil, f.index)
-      case '[SplitLeft] =>
-        val f = lookup.foundOrAbort
-        inst(list(f.revInit.reverse), lookup.restAt(f.index), f.index)
-      case '[ReverseSplitLeft] =>
-        val f = lookup.foundOrAbort
-        inst(list(f.revInit), lookup.restAt(f.index), f.index)
-      case '[SplitRight] =>
-        val f = lookup.lastFoundOrAbort
-        inst(list((u :: f.revInit).reverse), f.tail, f.index)
-      case '[ReverseSplitRight] =>
-        val f = lookup.lastFoundOrAbort
-        inst(lookup.cons(u, list(f.revInit)), f.tail, f.index)
-      case _ =>
-        report.errorAndAbort("Unexpected HList operation: expected Remove or one of the splits")
+        // `reinsert` puts the element back and calls the result a `T`, so the removed type is built only where it can
+        for {
+          f <- lookup.found
+          removed <- lookup.removedReinsertably(f.index, u)
+        } yield inst(removed, hnil, f.index)
+      case '[SplitLeft] => lookup.found.map(f => inst(list(f.revInit.reverse), f.rest, f.index))
+      case '[ReverseSplitLeft] => lookup.found.map(f => inst(list(f.revInit), f.rest, f.index))
+      case '[SplitRight] => lookup.lastFound.map(f => inst(list((u :: f.revInit).reverse), f.tail, f.index))
+      case '[ReverseSplitRight] => lookup.lastFound.map(f => inst(lookup.cons(u, list(f.revInit)), f.tail, f.index))
+      case _ => Left(formless.record.Lookup.LookupError.AbstractOperation(Type.show[Op]))
     }
   }
 
-  transparent inline given elemOpInst[T <: HList, U, Op]: ElemOp[T, U, Op] = ${ elemOpImpl[T, U, Op] }
+  transparent inline given elemOpInst[T <: HList, U, Op <: ElemOp.Op]: ElemOp[T, U, Op] = ${ elemOpImpl[T, U, Op] }
 }

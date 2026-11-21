@@ -404,7 +404,7 @@ class LookupTests extends FunSuite {
     abortsWith("""def f[H] = FieldOp.fieldOpInst[H :: HNil, "e" ->> Any, FieldOp.Select]""", "Failed to find field")
     abortsWith("""def f[H] = FieldOp.fieldOpInst[H :: HNil, "e" ->> Any, FieldOp.Select]""", "\"e\"")
     abortsWith("""def f[K] = FieldOp.fieldOpInst[("a" ->> Int) :: HNil, K ->> Any, FieldOp.Select]""", "Failed to find field")
-    abortsWith("""def f[A] = ReplaceAt.replaceAtInst[List[A] :: HNil, List[A], ReplaceAt.Field]""", "Unexpected type")
+    abortsWith("""def f[A] = ReplaceAt.replaceAtInst[List[A] :: HNil, List[A], ReplaceAt.Field]""", "isn't a field")
   }
 
   test("absence is proven for a record that lacks the key, and refused when it has it") {
@@ -701,9 +701,9 @@ class LookupTests extends FunSuite {
   }
 
   test("Updater says why it neither replaces nor appends") {
-    abortsWith("""def f[V] = FieldOp.fieldOpInst[("a" ->> V) :: HNil, "a" ->> Int, FieldOp.Update]""", "might match")
-    abortsWith("""def f[L <: HList] = FieldOp.fieldOpInst[("b" ->> Int) :: L, "a" ->> Int, FieldOp.Update]""", "is not statically known")
-    abortsWith("""FieldOp.fieldOpInst[Int :: String :: HNil, Int, FieldOp.Update]""", "isn't a field")
+    abortsWith("""def f[V] = FieldUpdate.fieldUpdateInst[("a" ->> V) :: HNil, "a" ->> Int]""", "might match")
+    abortsWith("""def f[L <: HList] = FieldUpdate.fieldUpdateInst[("b" ->> Int) :: L, "a" ->> Int]""", "is not statically known")
+    abortsWith("""FieldUpdate.fieldUpdateInst[Int :: String :: HNil, Int]""", "isn't a field")
     // A field found in only one arm of a union of records is neither replaced nor proven absent
     refused("""Updater[HNil | (("a" ->> Int) :: HNil), "a" ->> Int]""")
     val u = Updater[HNil | (("a" ->> Int) :: HNil), "b" ->> Int]

@@ -88,37 +88,11 @@ object HList {
   def fromArray[A](a: Array[A]): HList = a.foldRight(HNil: HList)(_ :: _)
 
   /**
-   * Replaces the list from index `idx` on with `f` of it, rebuilding only the elements before `idx`. The rest of the
-   * list is shared rather than copied, so a singleton tail type like `t.type` still describes it.
+   * The elements of `l` before index `idx`, and the rest of `l` from `idx` on, which is shared rather than copied so a
+   * singleton tail type like `t.type` still describes it. An array and a loop rather than immutable lists, since this
+   * runs on every record and HList update. `idx` comes from a lookup macro that has checked it against `l`'s type.
    */
-  private def rebuildAt(l: HList, idx: Int)(f: ::[Any, HList] => HList): HList = {
-    val prefix = new Array[Any](idx)
-
-    @annotation.tailrec def loop(h: HList, i: Int): HList =
-      h match {
-        case c: ::[Any, HList] @unchecked =>
-          if (i == idx) f(c)
-          else {
-            prefix(i) = c.head
-            loop(c.tail, i + 1)
-          }
-        case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength - 1})")
-      }
-
-    var acc = loop(l, 0)
-    var i = idx - 1
-    while (i >= 0) {
-      acc = prefix(i) :: acc
-      i -= 1
-    }
-    acc
-  }
-
-  private[formless] def updatedAt(l: HList, idx: Int, f: Any => Any): HList =
-    rebuildAt(l, idx)(c => f(c.head) :: c.tail)
-
-  /** `l` with `x` inserted at index `idx`, which may be `l`'s length; the elements from `idx` on are shared */
-  private[formless] def insertedAt(l: HList, idx: Int, x: Any): HList = {
+  private def splitAt(l: HList, idx: Int): (Array[Any], HList) = {
     val prefix = new Array[Any](idx)
 
     @annotation.tailrec def loop(h: HList, i: Int): HList =
@@ -130,22 +104,34 @@ object HList {
         case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength})")
       }
 
-    var acc: HList = x :: loop(l, 0)
-    var i = idx - 1
-    while (i >= 0) {
-      acc = prefix(i) :: acc
-      i -= 1
-    }
-    acc
+    (prefix, loop(l, 0))
   }
 
-  private[formless] def removedAt(l: HList, idx: Int): (Any, HList) = {
-    var removed: Any = null
-    val rest = rebuildAt(l, idx) { c =>
-      removed = c.head
-      c.tail
+  private def prependAll(prefix: Array[Any], rest: HList): HList = prefix.foldRight(rest)(_ :: _)
+
+  /** The element at `idx` and the elements before it, with the rest of `l` after it */
+  private def cellAt(l: HList, idx: Int): (Array[Any], ::[Any, HList]) =
+    splitAt(l, idx) match {
+      case (prefix, c: ::[Any, HList] @unchecked) => (prefix, c)
+      case _ => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength - 1})")
     }
-    (removed, rest)
+
+  /** `l` with `f` applied to its element at `idx`; the elements after it are shared */
+  private[formless] def updatedAt(l: HList, idx: Int, f: Any => Any): HList = {
+    val (prefix, c) = cellAt(l, idx)
+    prependAll(prefix, f(c.head) :: c.tail)
+  }
+
+  /** `l` with `x` inserted at index `idx`, which may be `l`'s length; the elements from `idx` on are shared */
+  private[formless] def insertedAt(l: HList, idx: Int, x: Any): HList = {
+    val (prefix, rest) = splitAt(l, idx)
+    prependAll(prefix, x :: rest)
+  }
+
+  /** The element at `idx` and `l` without it; the elements after it are shared */
+  private[formless] def removedAt(l: HList, idx: Int): (Any, HList) = {
+    val (prefix, c) = cellAt(l, idx)
+    (c.head, prependAll(prefix, c.tail))
   }
 
   type Head[H <: HList] = H match { case h :: _ => h }
