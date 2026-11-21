@@ -206,7 +206,15 @@ private[formless] object Lookup {
 
     // Whether `Cmp[head, F]` could hold once the abstract types in `head` or `F` are known. A `bounded` head was read
     // off the upper bound of an abstract record, so the element it stands for may be any subtype of it.
-    private def mightMatch(head: TypeRepr, bounded: Boolean): Boolean = {
+    private def mightMatch(head: TypeRepr, bounded: Boolean): Boolean =
+      head.dealias match {
+        // A union, e.g. the heads of `(A :: HNil) | (B :: HNil)` or a field typed `A | B`, may be any of its arms, so it
+        // might match if any of them does
+        case OrType(a, b) => List(a, b).exists(arm => cmpHolds(arm) || mightMatch(arm, bounded))
+        case _ => mightMatchOne(head, bounded)
+      }
+
+    private def mightMatchOne(head: TypeRepr, bounded: Boolean): Boolean = {
       val headKey =
         if (cmpIsEq) labelledKey(head)
         else if (bounded) None
@@ -291,10 +299,8 @@ private[formless] object Lookup {
       val t = normalize(rest)
       // A tail that had to be reduced, e.g. an alias or a match type, may grow as it is reduced again, so these have a
       // smaller budget, stopping before the compiler's own recursion limit
-      val reduced = rest match {
-        case AppliedType(tycon, _) => tycon.typeSymbol != consSym
-        case _ => true
-      }
+      // A union of `H :: T`s doesn't grow as it's walked, so only other tails count
+      val reduced = !isDirectCons(rest)
       if (reduced) {
         expansions += 1
         if (expansions > Lookup.MaxExpansions)
@@ -433,15 +439,42 @@ private[formless] object Lookup {
     def removed(found: Found): TypeRepr =
       found.revInit.foldLeft(found.tail)((acc, h) => cons(h, acc))
 
-    /** `t` with `f` appended, when `t` is spelled out as `H1 :: ... :: HNil` */
-    def appended(t: TypeRepr, f: TypeRepr): Option[TypeRepr] = {
-      @annotation.tailrec def loop(rest: TypeRepr, revInit: List[TypeRepr]): Option[TypeRepr] =
-        rest.dealias match {
-          case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym => loop(tail, head :: revInit)
-          case end if end =:= hnilTpe => Some(revInit.foldLeft(consSym.typeRef.appliedTo(List(f, end)))((acc, h) => consSym.typeRef.appliedTo(List(h, acc))))
-          case _ => None
+    /**
+     * `t` with `f` appended, when `t` is spelled out as `H1 :: ... :: HNil`, or is a union of such records, which each
+     * get `f` appended
+     */
+    def appended(t: TypeRepr, f: TypeRepr): Option[TypeRepr] =
+      t.dealias match {
+        case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym => appended(tail, f).map(cons(head, _))
+        case OrType(a, b) =>
+          for {
+            x <- appended(a, f)
+            y <- appended(b, f)
+          } yield union(x, y)
+        case end if end =:= hnilTpe => Some(cons(f, end))
+        case _ => None
+      }
+
+    /**
+     * Why `Remove.reinsert` couldn't give back a `T` after the element at `idx` is taken out, if it couldn't. It rebuilds
+     * the list up to `idx`, so every part of `T` up to there must be spelled out as `H :: T` (or be a union of such
+     * lists), not a singleton, intersection or abstract list that it would claim to rebuild, and every arm of a union
+     * must have a `u` there, so an element taken from one arm can't be put back into another.
+     */
+    def notReinsertable(idx: Int, u: TypeRepr): Option[String] = {
+      def loop(t: TypeRepr, i: Int): Option[String] =
+        normalize(t) match {
+          case OrType(a, b) => loop(a, i).orElse(loop(b, i))
+          case n if !isDirectCons(n) => Some(s"`${display(t)}` isn't spelled out as `H :: T`, so reinsert couldn't give one back")
+          case n =>
+            consParts(n) match {
+              case Some((head, tail)) =>
+                if (i > 0) loop(tail, i - 1)
+                else Option.unless(head =:= u)(s"one of its arms has `${display(head)}` at index $idx, not `${display(u)}`")
+              case None => Some(s"`${display(t)}` ends before index $idx")
+            }
         }
-      loop(t, Nil)
+      loop(TypeRepr.of[T], idx)
     }
 
     /** Like `outcome`, but `Undecided` at the first element that doesn't match yet might once its types are known */

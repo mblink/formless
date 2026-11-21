@@ -51,10 +51,9 @@ object ElemOp {
     Type.of[Op] match {
       case '[Remove] =>
         val f = lookup.foundOrAbort
-        // `reinsert` puts the element back and calls the result a `T`, which only holds when the removed type describes
-        // `T`'s own elements, not those of an abstract `T`'s upper bound, which `T` may narrow
-        if (f.bounded) report.errorAndAbort(
-          s"Cannot remove ${lookup.display(u)} from ${lookup.display(TypeRepr.of[T])}: it was found in the upper bound of an abstract list, so it couldn't be reinserted"
+        // `reinsert` puts the element back and calls the result a `T`
+        lookup.notReinsertable(f.index, u).foreach(why =>
+          report.errorAndAbort(s"Cannot remove ${lookup.display(u)} from ${lookup.display(TypeRepr.of[T])}: $why")
         )
         inst(lookup.removedByArm(f.index), hnil, f.index)
       case '[Replace[v]] =>
