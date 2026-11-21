@@ -57,6 +57,7 @@ Follow `.claude/skills/scala-code-style/SKILL.md`. In short:
 
 - Work compiler-first: change the types, read every error, and fix each one completely, never by silencing it.
 - Model alternatives as ADTs, never as strings, sentinels or `null` (use `Option`), and match exhaustively.
+- No casts unless absolutely necessary, e.g. where a runtime `HList` meets the result type a macro computed; never to share an instance, restate a known type or silence an error.
 - Prefer immutable values. Mutation is allowed only locally, with a comment, where performance needs it.
 - Validate input once at a boundary, such as a macro's entry point, and trust the types past it.
 - Return failures as values (`Either` with a sealed error ADT) instead of throwing or aborting from deep inside. Capture exceptions with `Try` or `scala.util.control.Exception`, not a literal `try`/`catch`.
