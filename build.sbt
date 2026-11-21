@@ -32,7 +32,41 @@ ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Run(List("sbt coverage core3/test core3/coverageReport"), name = Some("Check test coverage"), cond = Some(isJava25)),
 )
 
-ThisBuild / githubWorkflowPublishTargetBranches := Seq()
+// Pushing a tag `vX.Y.Z` matching `version` publishes to Maven Central; see "Publishing" in AGENTS.md
+ThisBuild / githubWorkflowTargetTags := Seq("v*")
+ThisBuild / githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v")))
+ThisBuild / githubWorkflowPublish := Seq(
+  WorkflowStep.Run(
+    List(
+      """test "${GITHUB_REF_NAME}" = "v$(sbt -batch -error 'print core3/version' | tail -n 1)" || { echo "tag ${GITHUB_REF_NAME} doesn't match the build's version"; exit 1; }""",
+      "echo \"$PGP_SECRET\" | base64 --decode | gpg --batch --import",
+      "sbt publishCentral",
+    ),
+    name = Some("Publish to Maven Central"),
+    env = Map(
+      "PGP_SECRET" -> "${{ secrets.PGP_SECRET }}",
+      "PGP_PASSPHRASE" -> "${{ secrets.PGP_PASSPHRASE }}",
+      "SONATYPE_USERNAME" -> "${{ secrets.SONATYPE_USERNAME }}",
+      "SONATYPE_PASSWORD" -> "${{ secrets.SONATYPE_PASSWORD }}",
+    ),
+  ),
+)
+
+// Signs and stages every published artifact, then uploads the bundle to the Central Portal and releases it
+addCommandAlias("publishCentral", "; set every publishTo := localStaging.value ; publishSigned ; sonaRelease")
+
+ThisBuild / organizationName := "BondLink"
+ThisBuild / organizationHomepage := Some(url("https://bondlink.com"))
+ThisBuild / homepage := Some(url("https://github.com/mblink/formless"))
+ThisBuild / scmInfo := Some(ScmInfo(url("https://github.com/mblink/formless"), "scm:git:git@github.com:mblink/formless.git"))
+ThisBuild / developers := List(Developer("mblink", "BondLink", "", url("https://github.com/mblink")))
+ThisBuild / description := "HLists, extensible records and type-level generic programming for Scala 3 and Scala 2.13"
+ThisBuild / versionScheme := Some("early-semver")
+ThisBuild / pomIncludeRepository := (_ => false)
+ThisBuild / credentials ++= (for {
+  user <- sys.env.get("SONATYPE_USERNAME")
+  pass <- sys.env.get("SONATYPE_PASSWORD")
+} yield Credentials("Sonatype Nexus Repository Manager", "central.sonatype.com", user, pass)).toList
 
 def foldScalaV[A](scalaVersion: String)(_213: => A, _3: => A): A =
   CrossVersion.partialVersion(scalaVersion) match {
@@ -155,7 +189,6 @@ lazy val docs = projectMatrix.in(file("formless-docs"))
     mdocOut := file("."),
     mdocVariables ++= Map(
       "VERSION" -> version.value,
-      "BL_MAVEN_REPO_URL" -> mavenRepoUrl,
       "SHAPELESS_NAT_PREFIX" -> foldScalaV(scalaVersion.value)("shapeless.nat._", ""),
     ),
     scalacOptions -= "-Werror",

@@ -63,3 +63,8 @@ Follow `.claude/skills/scala-code-style/SKILL.md`. In short:
 - Remove duplicated knowledge, not merely similar code.
 - Pin every compile-time guard with a `typeCheckErrors` test.
 - Claim nothing is done without fresh test output.
+
+## Publishing
+
+Releases go to Maven Central under `com.bondlink`. Set `ThisBuild / version` in `build.sbt`, merge to `main`, and push a tag `v<version>`. CI builds and tests the tag, checks that the tag matches the build's version, then runs `sbt publishCentral`, which signs every artifact, stages it, and uploads and releases the bundle on the Central Portal. It needs the repository secrets `PGP_SECRET` (a base64-encoded, ASCII-armored private key), `PGP_PASSPHRASE`, and `SONATYPE_USERNAME` and `SONATYPE_PASSWORD` (a Central Portal user token). After the first release, set `mimaPreviousArtifacts` in `build.sbt` to it.
+

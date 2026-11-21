@@ -1,6 +1,8 @@
 # formless: HLists, extensible records and generic programming for Scala 3 and Scala 2.13
 
 [![CI](https://github.com/mblink/formless/actions/workflows/ci.yml/badge.svg)](https://github.com/mblink/formless/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/com.bondlink/formless_3.svg)](https://central.sonatype.com/artifact/com.bondlink/formless_3)
+[![Scaladoc](https://javadoc.io/badge2/com.bondlink/formless_3/scaladoc.svg)](https://javadoc.io/doc/com.bondlink/formless_3)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 ![Scala 3](https://img.shields.io/badge/Scala-3.3%20LTS%20%7C%203.8-red.svg)
 ![Scala 2.13](https://img.shields.io/badge/Scala-2.13-red.svg)
@@ -36,24 +38,27 @@ Each figure is the median of six runs compiling one generated file on a warm sbt
 
 ## Installation
 
-Add the following to your `build.sbt`:
+formless is published to Maven Central for Scala 2.13 and Scala 3, on the JVM, Scala.js and Scala Native. With sbt:
 
 ```scala
-resolvers += "bondlink-maven-repo" at "https://maven.bondlink-cdn.com"
 libraryDependencies += "com.bondlink" %% "formless" % "0.9.0"
+// or, for Scala.js and Scala Native
+libraryDependencies += "com.bondlink" %%% "formless" % "0.9.0"
 ```
 
-For Scala.js or Scala Native use `%%%`. If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the following:
+With [Mill](https://mill-build.org):
 
 ```scala
-import coursier.maven.MavenRepository
-
-def repositoriesTask = T.task {
-  super.repositoriesTask() ++ Seq(MavenRepository("https://maven.bondlink-cdn.com"))
-}
-
 def ivyDeps = Agg(ivy"com.bondlink::formless:0.9.0")
 ```
+
+With [scala-cli](https://scala-cli.virtuslab.org):
+
+```scala
+//> using dep com.bondlink::formless:0.9.0
+```
+
+API documentation is on [javadoc.io](https://javadoc.io/doc/com.bondlink/formless_3).
 
 ## Usage
 
@@ -339,7 +344,7 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x00007ffc05b0c800@ce09c39 :: repl.MdocSession$MdocApp$$Lambda/0x00007ffc05b0c400@2d897837 :: repl.MdocSession$MdocApp$$Lambda/0x00007ffc05b0c000@7231d51c :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x000007fc03083800@10480a34 :: repl.MdocSession$MdocApp$$Lambda/0x000007fc03083400@406c16c :: repl.MdocSession$MdocApp$$Lambda/0x000007fc03083000@1656a005 :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil
