@@ -1,10 +1,8 @@
 package formless.hlist
 
-import compiletime.ops.int.>=
-
 /**
- * Type class supporting splitting this `HList` at the `N`th element returning the prefix and suffix as a pair.
- * Available only if this `HList` has at least `N` elements.
+ * Type class supporting splitting this `HList` into a prefix of length `N` and the remaining suffix.
+ * The count must be between zero and the length of the list, inclusive.
  */
 trait Split[L, N] extends DepFn1[L], Serializable {
   type Prefix
@@ -23,7 +21,7 @@ object Split {
   inline def apply[T, N](using s: Split[T, N]): Split.Aux[T, N, s.Prefix, s.Suffix] = s
 
   given splitHList[L <: HList, N <: Int](
-    using ev: (HList.Size[L] >= N) =:= true,
+    using ev: HList.CountInBounds[L, N],
     nv: ValueOf[N],
   ): Split.Aux[L, N, HList.Take[L, N], HList.Drop[L, N]] =
     new Split[L, N] {

@@ -121,6 +121,21 @@ class HListHelperTests extends FunSuite {
     rejects("""values.reverse_split[4]""", "No given instance of type formless.hlist.ReverseSplit")
   }
 
+  test("take and drop reject a negative count") {
+    rejects("""values.take[-1]""", "No given instance of type formless.hlist.Take")
+    rejects("""values.drop[-1]""", "No given instance of type formless.hlist.Drop")
+  }
+
+  test("split and reverse_split reject a negative count") {
+    rejects("""values.split[-1]""", "No given instance of type formless.hlist.Split")
+    rejects("""values.reverse_split[-1]""", "No given instance of type formless.hlist.ReverseSplit")
+  }
+
+  test("the HList take and drop helpers reject a negative count") {
+    rejects("""HList.take[Int :: String :: Boolean :: HNil, -1](values, -1)""", "Cannot prove that")
+    rejects("""HList.drop[Int :: String :: Boolean :: HNil, -1](values, -1)""", "Cannot prove that")
+  }
+
   test("selectMany rejects an index outside the HList") {
     rejects("""values.selectMany(constValueHList[2 :: 3 :: HNil])""", "No given instance of type formless.hlist.SelectMany")
   }

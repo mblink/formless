@@ -1,5 +1,6 @@
 package formless.hlist
 
+import compiletime.ops.boolean.&&
 import compiletime.ops.int.{-, >=, S}
 import scala.language.implicitConversions
 
@@ -274,7 +275,7 @@ object HList {
     }
   }
 
-  private[formless] def drop0[H <: HList, N <: Int](h: H, n: N): Drop[H, N] =
+  private def drop0[H <: HList, N <: Int](h: H, n: N): Drop[H, N] =
     (n match {
       case 0 => h
       case _ => h match {
@@ -283,7 +284,7 @@ object HList {
       }
     }).asInstanceOf[Drop[H, N]]
 
-  def drop[H <: HList, N <: Int](h: H, n: N)(using ev: (Size[H] >= N) =:= true): Drop[H, N] = drop0(h, n)
+  def drop[H <: HList, N <: Int](h: H, n: N)(using CountInBounds[H, N]): Drop[H, N] = drop0(h, n)
 
   type Elem[H <: HList, N <: Int] = H match {
     case h :: t =>
@@ -334,6 +335,8 @@ object HList {
     case _ :: t => S[Size[t]]
   }
 
+  private[formless] type CountInBounds[H <: HList, N <: Int] = ((N >= 0) && (Size[H] >= N)) =:= true
+
   def size[H <: HList](h: H): Size[H] = h match {
     case _: HNil => 0
     case x: (_ :: t) => (size(x.tail) + 1).asInstanceOf[S[Size[t]]]
@@ -347,7 +350,7 @@ object HList {
     }
   }
 
-  private[formless] def take0[H <: HList, N <: Int](h: H, n: N): Take[H, N] =
+  private def take0[H <: HList, N <: Int](h: H, n: N): Take[H, N] =
     (n match {
       case 0 => HNil
       case _ => h match {
@@ -356,5 +359,5 @@ object HList {
       }
     }).asInstanceOf[Take[H, N]]
 
-  def take[H <: HList, N <: Int](h: H, n: N)(using ev: (Size[H] >= N) =:= true): Take[H, N] = take0(h, n)
+  def take[H <: HList, N <: Int](h: H, n: N)(using CountInBounds[H, N]): Take[H, N] = take0(h, n)
 }

@@ -1,10 +1,8 @@
 package formless.hlist
 
-import compiletime.ops.int.>=
-
 /**
- * Type class supporting retrieval of the first `N` elements of this `HList`. Available only if this `HList` has at
- * least `N` elements.
+ * Type class supporting retrieval of the first `N` elements of this `HList`. The count must be between zero and
+ * the length of the list, inclusive.
  */
 trait Take[T, N] extends DepFn1[T], Serializable
 
@@ -14,7 +12,7 @@ object Take {
   inline def apply[T, N](using t: Take[T, N]): Take.Aux[T, N, t.Out] = t
 
   given takeHList[T <: HList, N <: Int](
-    using ev: (HList.Size[T] >= N) =:= true,
+    using ev: HList.CountInBounds[T, N],
     n: ValueOf[N],
   ): Take.Aux[T, N, HList.Take[T, N]] =
     new Take[T, N] {
