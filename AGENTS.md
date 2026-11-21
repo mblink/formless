@@ -48,3 +48,16 @@ Record ops (`Selector`, `Updater`, `Modifier`, `Remover`, `LacksKey`) and HList 
 ## Generated tests
 
 `project/SourceGenerator.scala` generates scalacheck suites at test-compile time (selector/updater/modifier/renamer/remover over records of up to 12 fields, written to `target/.../src_managed/test/generated`). Edit the generator, not the generated output.
+
+## Code style
+
+Follow `.claude/skills/scala-code-style/SKILL.md`. In short:
+
+- Work compiler-first: change the types, read every error, and fix each one completely, never by silencing it.
+- Model alternatives as ADTs, never as strings, sentinels or `null` (use `Option`), and match exhaustively.
+- Prefer immutable values. Mutation is allowed only locally, with a comment, where performance needs it.
+- Validate input once at a boundary, such as a macro's entry point, and trust the types past it.
+- Return failures as values (`Either` with a sealed error ADT) instead of throwing or aborting from deep inside. Capture exceptions with `Try` or `scala.util.control.Exception`, not a literal `try`/`catch`.
+- Remove duplicated knowledge, not merely similar code.
+- Pin every compile-time guard with a `typeCheckErrors` test.
+- Claim nothing is done without fresh test output.
