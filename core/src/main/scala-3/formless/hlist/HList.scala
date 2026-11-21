@@ -1,7 +1,7 @@
 package formless.hlist
 
 import compiletime.ops.boolean.&&
-import compiletime.ops.int.{-, >=, S}
+import compiletime.ops.int.{-, <, >=, S}
 import scala.language.implicitConversions
 
 /**
@@ -292,6 +292,16 @@ object HList {
         case 0 => h
         case S[n] => Elem[t, n]
       }
+  }
+
+  @scala.annotation.implicitNotFound("Cannot access index ${N} of ${H}. Supply a singleton Int index between zero and the HList length minus one.")
+  private[formless] final class Index[H <: HList, N <: Int & Singleton] private (val value: Int) extends AnyVal
+
+  private[formless] object Index {
+    given inBounds[H <: HList, N <: Int & Singleton](
+      using n: ValueOf[N],
+      ev: ((N >= 0) && (N < Size[H])) =:= true,
+    ): Index[H, N] = new Index[H, N](n.value)
   }
 
   type Init[H <: NonEmptyHList] <: HList = H match {

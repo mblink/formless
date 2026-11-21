@@ -52,30 +52,19 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    */
   final def reverse_:::[P <: HList](prefix: P)(using p: ReversePrepend[P, L]): p.Out = p(prefix, l)
 
-  /**
-   * Returns the `N`th element of this `HList`. An explicit type argument must be provided. Available only if there is
-   * evidence that this `HList` has at least `N` elements.
-   */
-  // TODO - this doesn't work b/c `HList#apply` already exists in scala 3
-  final def apply[N <: Int](using n: ValueOf[N]): HList.Elem[L, N] = l.unsafeApply(n.value).asInstanceOf[HList.Elem[L, N]]
+  /** Returns the element at the in-bounds zero-based index supplied as a singleton type. */
+  final def apply[N <: Int & Singleton](using HList.Index[L, N]): HList.Elem[L, N] = at[N]
 
-  /**
-   * Returns the `N`th element of this `HList`. Available only if there is evidence that this `HList` has at least `N`
-   * elements.
-   */
-  final def apply(n: Int): HList.Elem[L, n.type] = l.unsafeApply(n).asInstanceOf[HList.Elem[L, n.type]]
+  /** Returns the element at the in-bounds zero-based singleton index `n`. */
+  final def apply(n: Int)(using HList.Index[L, n.type]): HList.Elem[L, n.type] = at[n.type]
 
-  /**
-   * Returns the `N`th element of this `HList`. An explicit type argument must be provided. Available only if there is
-   * evidence that this `HList` has at least `N` elements.
-   */
-  final def at[N <: Int](using n: ValueOf[N]): HList.Elem[L, N] = l.unsafeApply(n.value).asInstanceOf[HList.Elem[L, N]]
+  /** Returns the element at the in-bounds zero-based index supplied as a singleton type. */
+  final def at[N <: Int & Singleton](using index: HList.Index[L, N]): HList.Elem[L, N] =
+    // The index proof warrants the result type, which the erased traversal can't express.
+    l.unsafeApply(index.value).asInstanceOf[HList.Elem[L, N]]
 
-  /**
-   * Returns the `N`th element of this `HList`. Available only if there is evidence that this `HList` has at least `N`
-   * elements.
-   */
-  final def at(n: Int): HList.Elem[L, n.type] = l.unsafeApply(n).asInstanceOf[HList.Elem[L, n.type]]
+  /** Returns the element at the in-bounds zero-based singleton index `n`. */
+  final def at(n: Int)(using HList.Index[L, n.type]): HList.Elem[L, n.type] = at[n.type]
 
   /**
    * Returns the last element of this `HList`. Available only if there is evidence that this `HList` is composite.

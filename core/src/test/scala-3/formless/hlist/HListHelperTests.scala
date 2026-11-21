@@ -6,6 +6,7 @@ import scala.compiletime.testing.typeCheckErrors
 
 class HListHelperTests extends FunSuite {
   private val values = 1 :: "a" :: true :: HNil
+  private val invalidIndexMessage = "Cannot access index"
 
   test("HListOps.apply accepts an explicit index type") {
     assertEquals(HList.toHListOps(values).apply[1], "a")
@@ -13,6 +14,32 @@ class HListHelperTests extends FunSuite {
 
   test("At evidence requires an in-bounds index") {
     rejects("""At[Int :: HNil, 1]""", "No given instance of type formless.hlist.At")
+  }
+
+  test("at and apply accept singleton indices at both ends of the list") {
+    val first: 0 = 0
+    assertEquals(values.at(first), 1)
+    assertEquals(values(first), 1)
+    assertEquals(values.at[2], true)
+  }
+
+  test("at and apply reject an Int whose value is unknown at compile time") {
+    rejects("""def access(i: Int): Any = values.at(i)""", invalidIndexMessage)
+    rejects("""def access(i: Int): Any = values.apply(i)""", invalidIndexMessage)
+  }
+
+  test("at and apply reject literal indices past the end") {
+    rejects("""values.at(3)""", invalidIndexMessage)
+    rejects("""values.apply(3)""", invalidIndexMessage)
+    rejects("""values.at[3]""", invalidIndexMessage)
+    rejects("""values.apply[3]""", invalidIndexMessage)
+  }
+
+  test("at and apply reject negative literal indices") {
+    rejects("""values.at(-1)""", invalidIndexMessage)
+    rejects("""values.apply(-1)""", invalidIndexMessage)
+    rejects("""values.at[-1]""", invalidIndexMessage)
+    rejects("""values.apply[-1]""", invalidIndexMessage)
   }
 
   test("At exposes the selected element through its companion") {
