@@ -15,15 +15,16 @@ ThisBuild / scalaVersion := scala3
 ThisBuild / version := "0.9.0"
 
 // GitHub Actions config
-// formless builds and is tested on Java 17 and newer
-val javaVersions = Seq(17, 21, 25).map(v => JavaSpec.temurin(v.toString))
+// formless builds and is tested on Java 17 and newer; the checks that need only one Java version run on the newest
+val java25 = JavaSpec.temurin("25")
+val javaVersions = Seq(JavaSpec.temurin("17"), JavaSpec.temurin("21"), java25)
 
 ThisBuild / githubWorkflowJavaVersions := javaVersions
 ThisBuild / githubWorkflowArtifactUpload := false
 ThisBuild / githubWorkflowBuildMatrixFailFast := Some(false)
 ThisBuild / githubWorkflowTargetBranches := Seq("main")
 
-val isJava25 = s"matrix.java == '${javaVersions.find(_.version == "25").get.render}'"
+val isJava25 = s"matrix.java == '${java25.render}'"
 
 ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Run(List("sbt test"), name = Some("Build project")),
@@ -53,7 +54,8 @@ ThisBuild / githubWorkflowPublish := Seq(
   ),
 )
 
-// Signs and stages every published artifact, then uploads the bundle to the Central Portal and releases it
+// Signs and stages every published artifact, then uploads the bundle to the Central Portal and releases it. sbt reads the
+// Central Portal credentials from SONATYPE_USERNAME and SONATYPE_PASSWORD itself.
 addCommandAlias("publishCentral", "; set every publishTo := localStaging.value ; publishSigned ; sonaRelease")
 
 ThisBuild / organizationName := "BondLink"
@@ -64,10 +66,6 @@ ThisBuild / developers := List(Developer("mblink", "BondLink", "", url("https://
 ThisBuild / description := "HLists, extensible records and type-level generic programming for Scala 3 and Scala 2.13"
 ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / pomIncludeRepository := (_ => false)
-ThisBuild / credentials ++= (for {
-  user <- sys.env.get("SONATYPE_USERNAME")
-  pass <- sys.env.get("SONATYPE_PASSWORD")
-} yield Credentials("Sonatype Nexus Repository Manager", "central.sonatype.com", user, pass)).toList
 
 def foldScalaV[A](scalaVersion: String)(_213: => A, _3: => A): A =
   CrossVersion.partialVersion(scalaVersion) match {

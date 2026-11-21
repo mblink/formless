@@ -4,7 +4,7 @@ package formless.hlist
  * Type class supporting splitting this `HList` at the last occurrence of an element of type `U` returning the reverse
  * prefix and suffix as a pair. Available only if this `HList` contains an element of type `U`.
  */
-@scala.annotation.implicitNotFound("Cannot split ${L} at its last element of type ${U}: no element has that type, or a later one could be in an abstract part of the type (a type parameter or abstract type member)")
+@scala.annotation.implicitNotFound("Cannot split ${L} at its last element of type ${U}: no element has that type, a later one could be in an abstract part of the type (a type parameter or abstract type member), or it is at different indexes in the arms of a union")
 trait ReverseSplitRight[L, U] extends DepFn1[L], Serializable {
   type Prefix
   type Suffix
@@ -25,10 +25,6 @@ object ReverseSplitRight {
     new ReverseSplitRight[L, U] {
       type Prefix = f.A
       type Suffix = f.B
-      def apply(l: L): Out = {
-        val upTo = HList.take0(l, f.index + 1).toArray
-        val prefix = upTo.last :: upTo.init.foldLeft(HNil: HList)((acc, x) => x :: acc)
-        (prefix, HList.drop0(l, f.index + 1)).asInstanceOf[Out]
-      }
+      def apply(l: L): Out = HList.reverseSplitAfter(l, f.index).asInstanceOf[Out]
     }
 }

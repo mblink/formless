@@ -1,20 +1,10 @@
 package formless
 package hlist
 
-import munit.{FunSuite, Location}
+import munit.FunSuite
 import scala.compiletime.testing.typeCheckErrors
 
-class ElemOpTests extends FunSuite {
-  // A crash during macro expansion also fails to compile, so only a clean refusal passes
-  inline def refused(inline code: String)(using loc: Location): Unit = {
-    val errs = typeCheckErrors(code).map(_.message)
-    assert(errs.nonEmpty, s"expected a compile error: $code")
-    assert(!errs.exists(_.contains("Exception occurred while executing macro expansion")), errs.mkString("\n"))
-  }
-
-  inline def compiles(inline code: String)(using loc: Location): Unit =
-    assertEquals(typeCheckErrors(code).map(_.message), Nil)
-
+class ElemOpTests extends FunSuite with LookupAssertions {
   type L = Int :: String :: Boolean :: String :: Double :: HNil
   val l: L = 1 :: "a" :: true :: "b" :: 2.0 :: HNil
 
@@ -194,4 +184,42 @@ class ElemOpTests extends FunSuite {
     assert(msgs(4).startsWith("Cannot split String :: T at its last element of type String"), msgs(4))
     assert(msgs(5).startsWith("Cannot prove that"), msgs(5))
   }
+
+  test("an element of a union of lists at different indexes in its arms is refused for first-match operations") {
+    abortsWith("""ElemOp.elemOpInst[(String :: Int :: HNil) | (Int :: Int :: HNil), Int, ElemOp.SplitLeft]""", "might match")
+    abortsWith("""ElemOp.elemOpInst[(String :: Int :: HNil) | (Int :: Int :: HNil), Int, ElemOp.Remove]""", "might match")
+    refused("""SplitLeft[(String :: Int :: HNil) | (Int :: Int :: HNil), Int]""")
+    refused("""Remove[(String :: Int :: HNil) | (Int :: Int :: HNil), Int]""")
+  }
+
+  test("an element of a union of lists at the same index in every arm is found there") {
+    type U = (String :: Int :: HNil) | (Boolean :: Int :: HNil)
+    val u: U = true :: 2 :: HNil
+    val s = SplitLeft[U, Int]
+    summon[s.Prefix =:= ((String | Boolean) :: HNil)]
+    assertEquals(s(u), (true :: HNil, 2 :: HNil))
+  }
+
+  object OpaqueTail {
+    opaque type O <: Any :: HNil = Int :: HNil
+    val o: O = 2 :: HNil
+  }
+
+  test("an opaque list's elements might be narrower than its bound") {
+    abortsWith("""ElemOp.elemOpInst[Int :: OpaqueTail.O, Int, ElemOp.SplitRight]""", "might match")
+    refused("""SplitRight[Int :: OpaqueTail.O, Int]""")
+    refused("""NotContains[OpaqueTail.O, Int]""")
+  }
+
+  type KA = formless.record.->>["a", Int]
+  type KB = formless.record.->>["b", Int]
+
+  test("absence isn't proven from the keys of two upper bounds, which a common subtype has both of") {
+    abortsWith("""def absent[H <: KA, F <: KB] = formless.record.FieldAbsent.fieldAbsentInst[H :: HNil, F, =:=]""", "might match")
+    refused("""def absent[H <: KA, F <: KB] = NotContains[H :: HNil, F]""")
+    // A field's own key does rule out a bound with another key
+    compiles("""def absent[H <: KA] = NotContains[H :: HNil, KB]""")
+    compiles("""def absent[F <: KB] = NotContains[KA :: HNil, F]""")
+  }
+
 }

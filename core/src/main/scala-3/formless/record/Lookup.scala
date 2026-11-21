@@ -44,7 +44,6 @@ private[formless] object Lookup {
     case TooManyReductions(max: Int)
     case NotSpelledOut(part: String)
     case ArmDiffers(element: String, index: Int, expected: String)
-    case EndsBefore(part: String, index: Int)
     case TooDeep
     case Failed(exception: String)
 
@@ -57,7 +56,6 @@ private[formless] object Lookup {
       case TooManyReductions(max) => s"more than $max of its tails are aliases or match types to reduce, so it may never end"
       case NotSpelledOut(part) => s"`$part` isn't spelled out as `H :: T`, so reinsert couldn't give one back"
       case ArmDiffers(element, index, expected) => s"one of its arms has `$element` at index $index, not `$expected`"
-      case EndsBefore(part, index) => s"`$part` ends before index $index"
       case TooDeep => "the types are too deeply nested to look through"
       case Failed(exception) => s"looking through the types failed with $exception"
     }
@@ -84,8 +82,8 @@ private[formless] object Lookup {
   // own class loader, only once something has been thrown; a compiler without it has no suspensions to let through.
   private def isCompilerControl(e: Throwable)(using q: Quotes): Boolean =
     e.isInstanceOf[scala.quoted.runtime.StopMacroExpansion] ||
-      scala.util.Try(Class.forName("dotty.tools.dotc.CompilationUnit$SuspendException", false, q.getClass.getClassLoader))
-        .toOption
+      scala.util.control.Exception.catching(classOf[ClassNotFoundException])
+        .opt(Class.forName("dotty.tools.dotc.CompilationUnit$SuspendException", false, q.getClass.getClassLoader))
         .exists(_.isInstance(e))
 
   /** A literal singleton key, tagged with its type so that e.g. `1` and `1L` are different keys */
@@ -110,24 +108,33 @@ private[formless] object Lookup {
   private[formless] final class Walk[T <: HList: Type, F: Type, Cmp[_, _]: Type](using val q: Quotes) {
     import q.reflect.*
 
-    private enum Mode { case Find, Prove, Update }
+    private enum Mode {
+      case Find, Prove
+      /** `pending` is the first element walked past that might have matched */
+      case Update(pending: Option[Undecided])
+    }
 
     sealed trait Outcome
     /**
      * `rest` is the record from the match on, as spelled in `T`, e.g. `tail.type` rather than its elements. `bounded`
      * when `head` was read off an abstract record's upper bound, so the element may be narrower.
      */
-    final case class Found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr, index: Int)(val rest: TypeRepr, val bounded: Boolean)
-      extends Outcome
+    final case class Found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr)(val rest: TypeRepr, val bounded: Boolean)
+      extends Outcome {
+      def index: Int = revInit.length
+    }
     case object Absent extends Outcome
     final case class Unknown(rest: TypeRepr) extends Outcome
-    final case class Undecided(head: TypeRepr, index: Int) extends Outcome
+    /** `head` is the first element that might match once its types are known, after the elements `revInit` */
+    final case class Undecided(revInit: List[TypeRepr], head: TypeRepr) extends Outcome {
+      def index: Int = revInit.length
+    }
 
     private val labelled = TypeRepr.of[->>]
     private val labelledSym = labelled.typeSymbol
     private val concreteLabelled = TypeRepr.of[ConcreteLabelled]
     private val concreteLabelledSym = concreteLabelled.typeSymbol
-    val consSym: Symbol = TypeRepr.of[Any :: HNil].typeSymbol
+    private val consSym: Symbol = TypeRepr.of[Any :: HNil].typeSymbol
     private val hnilTpe = TypeRepr.of[HNil]
     private val fTpe = TypeRepr.of[F]
     private val cmpTpe = TypeRepr.of[Cmp]
@@ -165,7 +172,7 @@ private[formless] object Lookup {
     private def record: String = display(TypeRepr.of[T])
     private def field: String = display(fTpe)
 
-    def keyValueOpt(head: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+    private def keyValueOpt(head: TypeRepr): Option[(TypeRepr, TypeRepr)] =
       upperBound(head) match {
         case Some(bound) => keyValueOpt(bound)
         case None =>
@@ -194,11 +201,14 @@ private[formless] object Lookup {
         case other => other
       }
 
+    // The match infers a key and value even for a type that isn't a subtype of any one field, e.g. `Nothing` as the
+    // value of `(K ->> String) & ("b" ->> String)`, so only a key and value the head is proven a field of are kept
     private def matchedKeyValue(head: TypeRepr): Option[(TypeRepr, TypeRepr)] = {
       val concreteHead = deepDealias(head).substituteTypes(List(labelledSym), List(concreteLabelled))
       def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
       concreteHead.asType match {
-        case '[ConcreteLabelled[k, v]] => Some((unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v])))
+        case '[ConcreteLabelled[k, v]] if concreteHead <:< TypeRepr.of[ConcreteLabelled[k, v]] =>
+          Some((unConcrete(TypeRepr.of[k]), unConcrete(TypeRepr.of[v])))
         case _ => None
       }
     }
@@ -211,11 +221,11 @@ private[formless] object Lookup {
         case other => List(other)
       }
 
-    // `F`'s key, when `F` is a field whose key is statically known
-    private lazy val fFieldKey: Option[TypeRepr] = fLabelledKey.filter(isGround)
-
+    // The conjuncts keyed exactly like `F`, abstract keys included, e.g. `K ->> String` in `(K ->> String) & ("b" ->> String)`
+    // looked up by `K`. Each is a supertype of the field, so the value is the intersection of theirs, or a supertype of
+    // it when a conjunct whose key only might equal `F`'s is left out.
     private def intersectionKeyValue(t: AndType): Option[(TypeRepr, TypeRepr)] =
-      fFieldKey.flatMap { fk =>
+      fLabelledKey.flatMap { fk =>
         conjuncts(t)
           .flatMap(c => labelledArgs(c).orElse(upperBound(c).flatMap(labelledArgs)))
           .filter(_._1 =:= fk)
@@ -269,11 +279,19 @@ private[formless] object Lookup {
         case _: RecursiveThis => true
         // A singleton of an abstract type, e.g. `x.type` for `x: T`, could become a subtype of anything `T` could be, and
         // so could `b.x.type` for `b: B` once `B` is known. A method parameter's singleton, e.g. `x.type` for
-        // `x: String`, could become the same path as another one once the method is applied.
-        case tr: TermRef => !tr.termSymbol.flags.is(Flags.Param) && ground(tr.qualifier) && ground(tr.widen)
+        // `x: String`, could become the same path as another one once the method is applied, and so could a member a
+        // subclass can override, e.g. `val y: String` in a trait, which an implementation may define as `val y: x.type`.
+        case tr: TermRef =>
+          !tr.termSymbol.flags.is(Flags.Param) && !overridable(tr.termSymbol) && ground(tr.qualifier) && ground(tr.widen)
         case _: ConstantType | _: ThisType | _: NoPrefix => true
         case _ => false
       }
+    }
+
+    // A member of a class or trait that isn't final, nor in a final class or an object
+    private def overridable(sym: Symbol): Boolean = {
+      val owner = sym.owner
+      owner.isClassDef && !sym.flags.is(Flags.Final) && !owner.flags.is(Flags.Final) && !owner.flags.is(Flags.Module)
     }
 
     // A bound that can't be read, e.g. one still being inferred, might be abstract, so it isn't ground
@@ -288,7 +306,8 @@ private[formless] object Lookup {
 
     // An abstract element bounded by `"a" ->> V` may still be `("a" ->> V) & ("b" ->> W)`, a subtype of `"b" ->> Any`, so
     // its bound's key rules out other keys only under `=:=`. Bounding `F` instead is fine: `head <: F <: ("b" ->> W)`
-    // and `head =:= F` both need `head`'s key to be `"b"`.
+    // and `head =:= F` both need `head`'s key to be `"b"`. Bounding both isn't: `H <: "a" ->> V` and `F <: "b" ->> W`
+    // can both be `("a" ->> V) & ("b" ->> W)`.
     private val cmpIsEq = cmpTpe.typeSymbol == TypeRepr.of[=:=].typeSymbol
 
     private lazy val fLabelledKey = labelledKey(fTpe)
@@ -308,8 +327,10 @@ private[formless] object Lookup {
         if (cmpIsEq) labelledKey(head)
         else if (bounded) None
         else labelledArgs(head).map(_._1)
+      // A key is exact when its type is itself a field, rather than bounded by one or read off an abstract record's bound
+      def exactKeys = (labelledArgs(head).nonEmpty && !bounded) || labelledArgs(fTpe).nonEmpty
       (headKey, fLabelledKey) match {
-        case (Some(hk), Some(fk)) if isGround(hk) && isGround(fk) && !(hk =:= fk) => false
+        case (Some(hk), Some(fk)) if isGround(hk) && isGround(fk) && !(hk =:= fk) && (!cmpIsEq || exactKeys) => false
         // `head =:= F` needs `F` within `head`'s upper bound, e.g. never for `H <: String` and `Int`
         case _ if cmpIsEq && upperBound(head).exists(hi => isGround(hi) && isGround(fTpe) && !(fTpe <:< hi)) => false
         case _ => bounded || !(isGround(head) && isGround(fTpe))
@@ -350,6 +371,12 @@ private[formless] object Lookup {
           }
       }
 
+    private def isUnion(t: TypeRepr): Boolean =
+      t match {
+        case _: OrType => true
+        case _ => false
+      }
+
     private def isDirectCons(t: TypeRepr): Boolean =
       t match {
         case AppliedType(tycon, _) => tycon.typeSymbol == consSym
@@ -364,11 +391,12 @@ private[formless] object Lookup {
     private var expansions = 0
 
     /**
-     * @param mode `Find` looks for the first match; `Prove` also stops, `Undecided`, at the first element that might
-     *             match once its types are known, and splits a union of records into arms that end at different points;
+     * @param mode `Find` looks for the first match, stopping `Undecided` at an element of a union of lists that matches in
+     *             only some arms, or might once its types are known, as every mode does; `Prove` also stops `Undecided`
+     *             at any other element that might match once its types are known, and splits a union of records into
+     *             arms that end at different points;
      *             `Update` looks for the first match like `Find`, but ends `Undecided` rather than `Absent` when an
      *             element it walked past might have matched
-     * @param pending in `Update` mode, the first element walked past that might have matched
      * @param bounded whether the elements so far were read off an abstract record's upper bound, so each stands for
      *                some subtype of itself
      * @param expanded the abstract records already walked through their bound, so `type L <: Int :: L` doesn't loop
@@ -377,9 +405,7 @@ private[formless] object Lookup {
     private def go(
       rest: TypeRepr,
       revInit: List[TypeRepr],
-      idx: Int,
       mode: Mode,
-      pending: Option[Undecided],
       bounded: Boolean,
       expanded: List[TypeRepr],
     ): Either[LookupError, Outcome] = {
@@ -397,20 +423,30 @@ private[formless] object Lookup {
       else if (!direct && expandedBefore(t, expanded)) Right(Unknown(t))
       else consParts(t) match {
         case Some((head, tail)) =>
-          val nowBounded = bounded || !(direct || isGround(t))
+          // An opaque record's elements are read off its bound, e.g. `Any` for `opaque type O <: Any :: HNil = Int :: HNil`
+          val nowBounded = bounded || !(direct || isGround(t)) || t.typeSymbol.flags.is(Flags.Opaque)
           lazy val undecided = mightMatch(head, nowBounded)
-          if (cmpHolds(head)) Right(Found(revInit, head, tail, idx)(rest, nowBounded))
-          else if (mode == Mode.Prove && undecided) Right(Undecided(head, idx))
+          if (cmpHolds(head)) Right(Found(revInit, head, tail)(rest, nowBounded))
+          // An element of a union of lists that matches in only some arms, e.g. `String | Int` in
+          // `(String :: Int :: HNil) | (Int :: Int :: HNil)` looked up by `Int`, is the first match in those arms, so no
+          // later element is the first match in all of them
+          else if ((mode == Mode.Prove || isUnion(t)) && undecided) Right(Undecided(revInit, head))
           else {
-            val nowPending = if (mode == Mode.Update && pending.isEmpty && undecided) Some(Undecided(head, idx)) else pending
-            go(tail, head :: revInit, idx + 1, mode, nowPending, nowBounded, if (direct) expanded else t :: expanded)
+            val nowMode = mode match {
+              case Mode.Update(None) if undecided => Mode.Update(Some(Undecided(revInit, head)))
+              case same @ (Mode.Find | Mode.Prove | Mode.Update(_)) => same
+            }
+            go(tail, head :: revInit, nowMode, nowBounded, if (direct) expanded else t :: expanded)
           }
         case None =>
-          if (t <:< hnilTpe) Right(pending.getOrElse(Absent))
+          if (t <:< hnilTpe) Right(mode match {
+            case Mode.Update(Some(pending)) => pending
+            case Mode.Find | Mode.Prove | Mode.Update(None) => Absent
+          })
           else t match {
             // A union of records that don't all have another element, e.g. `HNil | (A :: HNil)`: absent only when it's
             // absent from every arm
-            case OrType(a, b) if mode == Mode.Prove => absenceInArms(a, b, revInit, idx, bounded, expanded)
+            case OrType(a, b) if mode == Mode.Prove => absenceInArms(a, b, revInit, bounded, expanded)
             case _ => Right(Unknown(t))
           }
       }
@@ -420,17 +456,16 @@ private[formless] object Lookup {
       a: TypeRepr,
       b: TypeRepr,
       revInit: List[TypeRepr],
-      idx: Int,
       bounded: Boolean,
       expanded: List[TypeRepr],
     ): Either[LookupError, Outcome] =
-      go(a, revInit, idx, Mode.Prove, None, bounded, expanded).flatMap {
-        case Absent => go(b, revInit, idx, Mode.Prove, None, bounded, expanded)
+      go(a, revInit, Mode.Prove, bounded, expanded).flatMap {
+        case Absent => go(b, revInit, Mode.Prove, bounded, expanded)
         case decided @ (_: Found | _: Unknown | _: Undecided) => Right(decided)
       }
 
     private def start(mode: Mode): Either[LookupError, Outcome] =
-      go(TypeRepr.of[T], Nil, 0, mode, None, bounded = false, expanded = Nil)
+      go(TypeRepr.of[T], Nil, mode, bounded = false, expanded = Nil)
 
     /** The first field `Cmp[head, F]` holds for, or why there's none */
     def found: Either[LookupError, Found] = {
@@ -439,7 +474,7 @@ private[formless] object Lookup {
         case f: Found => Right(f)
         case Absent => Left(LookupError.NotFound(field, record))
         case Unknown(rest) => refuse(Reason.TailUnknown(display(rest)))
-        case Undecided(head, idx) => refuse(Reason.MightMatch(display(head), idx))
+        case u: Undecided => refuse(Reason.MightMatch(display(u.head), u.index))
       }
     }
 
@@ -475,11 +510,11 @@ private[formless] object Lookup {
         val rest = normalize(f.tail)
         val direct = isDirectCons(rest)
         if (!direct && expandedBefore(rest, seen)) refuse(Reason.TailRefersToItself(display(rest)))
-        else go(f.tail, f.head :: f.revInit, f.index + 1, Mode.Update, None, f.bounded, expanded = Nil) match {
+        else go(f.tail, f.head :: f.revInit, Mode.Update(None), f.bounded, expanded = Nil) match {
           case Right(g: Found) => loop(g, if (direct) seen else rest :: seen)
           case Right(Absent) => Right(f)
           case Right(Unknown(tail)) => refuse(Reason.TailUnknown(display(tail)))
-          case Right(Undecided(head, idx)) => refuse(Reason.MightMatch(display(head), idx))
+          case Right(u: Undecided) => refuse(Reason.MightMatch(display(u.head), u.index))
           case Left(e) => Left(e)
         }
       }
@@ -513,29 +548,28 @@ private[formless] object Lookup {
       }
 
     /**
-     * `T` without its element at `idx`, for `Remove`, taken from each arm of a union of lists separately so the arms'
+     * `T` without the element `found`, for `Remove`, taken from each arm of a union of lists separately so the arms'
      * other elements stay together, e.g. `(String :: String :: HNil) | (Boolean :: Boolean :: HNil)` from removing the
      * `Int` in `(String :: Int :: String :: HNil) | (Boolean :: Int :: Boolean :: HNil)`. Refused when `reinsert` couldn't
-     * give back a `T`: it rebuilds the list up to `idx`, so every part of `T` up to there must be spelled out as `H :: T`
+     * give back a `T`: it rebuilds the list up to `found`, so every part of `T` up to there must be spelled out as `H :: T`
      * (or be a union of such lists), not a singleton, intersection or abstract list that it would claim to rebuild, and
-     * every arm of a union must have `u` there, so an element taken from one arm can't be put back into another.
+     * every arm of a union must have `F` there, so an element taken from one arm can't be put back into another.
      */
-    def removedReinsertably(idx: Int, u: TypeRepr): Either[LookupError, TypeRepr] = {
-      def refuse(reason: Reason): Left[LookupError, Nothing] = Left(LookupError.Refused(s"remove ${display(u)} from $record", reason))
-      def loop(t: TypeRepr, i: Int): Either[LookupError, TypeRepr] =
+    def removedReinsertably(found: Found): Either[LookupError, TypeRepr] = {
+      def refuse(reason: Reason): Left[LookupError, Nothing] = Left(LookupError.Refused(s"remove $field from $record", reason))
+      // `before` is the elements of `found`'s prefix still to pass in this arm; the walk found an element after them in
+      // every arm, so every arm spelled out as `H :: T` this far has one
+      def loop(t: TypeRepr, before: List[TypeRepr]): Either[LookupError, TypeRepr] =
         normalize(t) match {
-          case OrType(a, b) => loop(a, i).flatMap(x => loop(b, i).map(union(x, _)))
-          case n if !isDirectCons(n) => refuse(Reason.NotSpelledOut(display(t)))
-          case n =>
-            consParts(n) match {
-              case Some((head, tail)) =>
-                if (i > 0) loop(tail, i - 1).map(cons(head, _))
-                else if (head =:= u) Right(tail)
-                else refuse(Reason.ArmDiffers(display(head), idx, display(u)))
-              case None => refuse(Reason.EndsBefore(display(t), idx))
+          case OrType(a, b) => loop(a, before).flatMap(x => loop(b, before).map(union(x, _)))
+          case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym =>
+            before match {
+              case scala.collection.immutable.::(_, more) => loop(tail, more).map(cons(head, _))
+              case Nil => if (head =:= fTpe) Right(tail) else refuse(Reason.ArmDiffers(display(head), found.index, field))
             }
+          case _ => refuse(Reason.NotSpelledOut(display(t)))
         }
-      loop(TypeRepr.of[T], idx)
+      loop(TypeRepr.of[T], found.revInit)
     }
 
     /**
@@ -543,16 +577,21 @@ private[formless] object Lookup {
      * once its types are known, might be one
      */
     def isPlainList: Boolean = {
-      @annotation.tailrec def loop(t: TypeRepr, steps: Int): Boolean = {
-        val n = normalize(t)
-        if (steps > Lookup.MaxSteps) false
-        else if (!isDirectCons(n)) n <:< hnilTpe && isGround(n)
-        else consParts(n) match {
-          case Some((head, tail)) => keyValueOpt(head).isEmpty && isGround(head) && loop(tail, steps + 1)
-          case None => false
+      // `todo` holds the lists still to check, so each arm of a union, e.g. `HNil | (Int :: HNil)`, is checked on its own
+      @annotation.tailrec def loop(todo: List[TypeRepr], steps: Int): Boolean =
+        todo match {
+          case Nil => true
+          case scala.collection.immutable.::(t, more) =>
+            val n = normalize(t)
+            if (steps > Lookup.MaxSteps) false
+            else n match {
+              case OrType(a, b) => loop(a :: b :: more, steps + 1)
+              case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym =>
+                keyValueOpt(head).isEmpty && isGround(head) && loop(tail :: more, steps + 1)
+              case _ => n <:< hnilTpe && isGround(n) && loop(more, steps + 1)
+            }
         }
-      }
-      loop(TypeRepr.of[T], 0)
+      loop(List(TypeRepr.of[T]), 0)
     }
 
     /** Like `found`, but `Undecided` at the first element that doesn't match yet might once its types are known */
@@ -563,11 +602,11 @@ private[formless] object Lookup {
      * only when no element might match. A union of records whose arms end at different points falls back to `absence`.
      */
     def replaceOrAppend: Either[LookupError, Outcome] =
-      start(Mode.Update).flatMap {
+      start(Mode.Update(None)).flatMap {
         case _: Unknown =>
           absence.map {
             // Found in only some arms of a union of records, so neither replaced nor absent
-            case Found(_, head, _, idx) => Undecided(head, idx)
+            case f: Found => Undecided(f.revInit, f.head)
             case proven @ (Absent | _: Unknown | _: Undecided) => proven
           }
         case decided @ (_: Found | Absent | _: Undecided) => Right(decided)
@@ -582,6 +621,7 @@ private[formless] object Lookup {
  * that might match once its type parameters are known, or with a field that satisfies `Cmp[head, F]` but that `FieldOp`
  * can't use.
  */
+@scala.annotation.implicitNotFound("Cannot prove that no element of ${T} matches ${F}")
 private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Unit
 
 object FieldAbsent {
@@ -598,9 +638,9 @@ object FieldAbsent {
 
     lookup.absence.flatMap {
       case lookup.Absent => Right('{ ().asInstanceOf[FieldAbsent[T, F, Cmp]] })
-      case lookup.Found(_, head, _, idx) => Left(LookupError.Present(record, lookup.display(head), idx, field))
+      case f: lookup.Found => Left(LookupError.Present(record, lookup.display(f.head), f.index, field))
       case lookup.Unknown(rest) => refuse(Reason.TailUnknown(lookup.display(rest)))
-      case lookup.Undecided(head, idx) => refuse(Reason.MightMatch(lookup.display(head), idx))
+      case u: lookup.Undecided => refuse(Reason.MightMatch(lookup.display(u.head), u.index))
     }
   }
 
@@ -611,7 +651,8 @@ object FieldAbsent {
  * The result of a record operation `Op` on the field `F` of `T`, with the index it acts on. It carries only the result type
  * its operation needs, so the macro builds only that one.
  */
-private[formless] sealed trait FieldOp[T <: HList, F, Op <: FieldOp.Op] {
+@scala.annotation.implicitNotFound("Cannot find a field of ${T} matching ${F}")
+private[formless] sealed trait FieldOp[T <: HList, F, Op <: FieldOp.Op] extends Serializable {
   type Out
   val index: Int
 }
@@ -623,7 +664,8 @@ object FieldOp {
   /** Removes the first field `<:` `F`; `Out` is its value and the rest of the record */
   sealed trait Remove extends Op
 
-  final class Inst[T <: HList, F, Op <: FieldOp.Op, O](val index: Int) extends FieldOp[T, F, Op] {
+  // Built only by the macro below, which proves `index` is `O`'s field of `T`
+  private[formless] final class Inst[T <: HList, F, Op <: FieldOp.Op, O](val index: Int) extends FieldOp[T, F, Op] {
     final type Out = O
   }
 
@@ -633,7 +675,7 @@ object FieldOp {
   // `Op`'s bound limits it to the operations below; the last case is an abstract `Op`, which can't be expanded
   private def fieldOpImpl0[T <: HList: Type, F: Type, Op <: FieldOp.Op: Type](using Quotes): Either[Lookup.LookupError, Expr[FieldOp[T, F, Op]]] = {
     val lookup = Lookup.Walk[T, F, <:<]
-    def inst[O: Type](idx: Int): Expr[FieldOp[T, F, Op]] = '{ new Inst[T, F, Op, O](${ Expr(idx) }) }
+    def inst[O: Type](f: lookup.Found): Expr[FieldOp[T, F, Op]] = '{ new Inst[T, F, Op, O](${ Expr(f.index) }) }
 
     Type.of[Op] match {
       case '[Select] =>
@@ -641,14 +683,14 @@ object FieldOp {
           f <- lookup.found
           kv <- lookup.fieldKeyValue(f)
         } yield (kv._2.asType: @unchecked) match {
-          case '[v] => inst[v](f.index)
+          case '[v] => inst[v](f)
         }
       case '[Remove] =>
         for {
           f <- lookup.found
           kv <- lookup.fieldKeyValue(f)
         } yield ((kv._2.asType, lookup.removed(f).asType): @unchecked) match {
-          case ('[v], '[rem]) => inst[(v, rem)](f.index)
+          case ('[v], '[rem]) => inst[(v, rem)](f)
         }
       case _ => Left(Lookup.LookupError.AbstractOperation(Type.show[Op]))
     }
@@ -661,18 +703,19 @@ object FieldOp {
  * How `Updater` puts the field `F` into the record `T`: it replaces the first field `=:=` `F`, or appends `F` when no
  * field could be, deciding which in one walk of the record. `Out` is the new record.
  */
-private[formless] sealed trait FieldUpdate[T <: HList, F] {
+@scala.annotation.implicitNotFound("Cannot update ${T} with ${F}")
+private[formless] sealed trait FieldUpdate[T <: HList, F] extends Serializable {
   type Out
   def apply(t: T, f: F): Out
 }
 
 object FieldUpdate {
-  final class Replace[T <: HList, F, O](index: Int) extends FieldUpdate[T, F] {
+  private[formless] final class Replace[T <: HList, F, O](index: Int) extends FieldUpdate[T, F] {
     final type Out = O
     def apply(t: T, f: F): O = HList.updatedAt(t, index, _ => f).asInstanceOf[O]
   }
 
-  final class Append[T <: HList, F, O] extends FieldUpdate[T, F] {
+  private[formless] final class Append[T <: HList, F, O] extends FieldUpdate[T, F] {
     final type Out = O
     def apply(t: T, f: F): O = HList.append(t, f).asInstanceOf[O]
   }
@@ -688,11 +731,11 @@ object FieldUpdate {
       Left(LookupError.Refused(s"update ${lookup.display(TypeRepr.of[T])} with ${lookup.display(TypeRepr.of[F])}", reason))
 
     lookup.replaceOrAppend.flatMap {
-      case f @ lookup.Found(_, head, _, idx) =>
+      case f: lookup.Found =>
         // A field matched up to `=:=` is only replaced when its key and value can be read
         lookup.fieldKeyValue(f).map(_ =>
           (lookup.replaced(f, TypeRepr.of[F]).asType: @unchecked) match {
-            case '[o] => '{ new Replace[T, F, o](${ Expr(idx) }) }
+            case '[o] => '{ new Replace[T, F, o](${ Expr(f.index) }) }
           }
         )
       case lookup.Absent =>
@@ -701,7 +744,7 @@ object FieldUpdate {
           case '[o] => '{ new Append[T, F, o] }
         })
       case lookup.Unknown(rest) => refuse(Reason.TailUnknown(lookup.display(rest)))
-      case lookup.Undecided(head, idx) => refuse(Reason.MightMatch(lookup.display(head), idx))
+      case u: lookup.Undecided => refuse(Reason.MightMatch(lookup.display(u.head), u.index))
     }
   }
 
@@ -709,11 +752,13 @@ object FieldUpdate {
 }
 
 /**
- * The first element of `T` that is `=:=` to `F`, with `T` as a type lambda `Replaced` of what replaces it. Unlike
+ * The first element of `T` that is `=:=` to `F`, or for `Keyed` the first field `<:` `F`, with `T` as a type lambda
+ * `Replaced` of what replaces it. Unlike
  * `FieldOp`, the replacement isn't one of its type arguments, so `Modifier` and `Replacer` can leave the new value's
  * type to be inferred, e.g. from the expected result type, after the element is found.
  */
-private[formless] sealed trait ReplaceAt[T <: HList, F, Kind <: ReplaceAt.Kind] {
+@scala.annotation.implicitNotFound("Cannot find an element of ${T} matching ${F} to replace")
+private[formless] sealed trait ReplaceAt[T <: HList, F, Kind <: ReplaceAt.Kind] extends Serializable {
   type Replaced[A] <: HList
   val index: Int
 }
@@ -722,33 +767,47 @@ object ReplaceAt {
   sealed trait Kind
   /** `F` is a record field `K ->> A`, whose key and value must be readable */
   sealed trait Field extends Kind
+  /** `F` is `K ->> Any`, standing for the first field keyed `K`, the one `Selector` reads */
+  sealed trait Keyed extends Kind
   /** `F` is an HList element type */
   sealed trait Elem extends Kind
 
-  final class Inst[T <: HList, F, Kind <: ReplaceAt.Kind, R[_] <: HList](val index: Int) extends ReplaceAt[T, F, Kind] {
+  private[formless] final class Inst[T <: HList, F, Kind <: ReplaceAt.Kind, R[_] <: HList](val index: Int) extends ReplaceAt[T, F, Kind] {
     final type Replaced[A] = R[A]
   }
 
   private def replaceAtImpl[T <: HList: Type, F: Type, Kind <: ReplaceAt.Kind: Type](using Quotes): Expr[ReplaceAt[T, F, Kind]] =
     Lookup.guarded("find an element to replace")(replaceAtImpl0[T, F, Kind])
 
-  private def replaceAtImpl0[T <: HList: Type, F: Type, Kind <: ReplaceAt.Kind: Type](using Quotes): Either[Lookup.LookupError, Expr[ReplaceAt[T, F, Kind]]] = {
-    val walk = Lookup.Walk[T, F, =:=]
+  // A `Keyed` field is found up to `<:<`, as `Selector` finds one; a `Field` or an element up to `=:=`. `Kind`'s bound
+  // limits it to these; the last case is an abstract `Kind`, which can't be expanded.
+  private def replaceAtImpl0[T <: HList: Type, F: Type, Kind <: ReplaceAt.Kind: Type](using Quotes): Either[Lookup.LookupError, Expr[ReplaceAt[T, F, Kind]]] =
+    Type.of[Kind] match {
+      case '[Keyed] => replaceAtWith[T, F, Kind, <:<](readField = true)
+      case '[Field] => replaceAtWith[T, F, Kind, =:=](readField = true)
+      case '[Elem] => replaceAtWith[T, F, Kind, =:=](readField = false)
+      case _ => Left(Lookup.LookupError.AbstractOperation(Type.show[Kind]))
+    }
+
+  /** @param readField whether the element must be a field whose key and value can be read */
+  private def replaceAtWith[T <: HList: Type, F: Type, Kind <: ReplaceAt.Kind: Type, Cmp[_, _]: Type](readField: Boolean)(
+    using Quotes,
+  ): Either[Lookup.LookupError, Expr[ReplaceAt[T, F, Kind]]] = {
+    val walk = Lookup.Walk[T, F, Cmp]
     import walk.q.reflect.*
 
     for {
       f <- walk.found
-      // A field must have a key and value that can be read
-      _ <- if (TypeRepr.of[Kind] =:= TypeRepr.of[Field]) walk.fieldKeyValue(f).map(_ => ()) else Right(())
+      _ <- if (readField) walk.fieldKeyValue(f).map(_ => ()) else Right(())
     } yield {
-    val replaced = TypeLambda(List("a"), _ => List(TypeBounds.empty), tl => walk.replaced(f, tl.param(0)))
-    val instSym = TypeRepr.of[Inst[HNil, Any, Elem, [a] =>> HNil]].typeSymbol
-    val targs = List(TypeRepr.of[T], TypeRepr.of[F], TypeRepr.of[Kind], replaced)
-    New(Inferred(instSym.typeRef.appliedTo(targs)))
-      .select(instSym.primaryConstructor)
-      .appliedToTypes(targs)
-      .appliedTo(Literal(IntConstant(f.index)))
-      .asExprOf[ReplaceAt[T, F, Kind]]
+      val replaced = TypeLambda(List("a"), _ => List(TypeBounds.empty), tl => walk.replaced(f, tl.param(0)))
+      val instSym = TypeRepr.of[Inst[HNil, Any, Elem, [a] =>> HNil]].typeSymbol
+      val targs = List(TypeRepr.of[T], TypeRepr.of[F], TypeRepr.of[Kind], replaced)
+      New(Inferred(instSym.typeRef.appliedTo(targs)))
+        .select(instSym.primaryConstructor)
+        .appliedToTypes(targs)
+        .appliedTo(Literal(IntConstant(f.index)))
+        .asExprOf[ReplaceAt[T, F, Kind]]
     }
   }
 
@@ -764,7 +823,7 @@ object ReplaceAt {
 private[formless] sealed trait MaybeRecord[T <: HList]
 
 object MaybeRecord {
-  final class Proof[T <: HList] extends MaybeRecord[T]
+  private[formless] final class Proof[T <: HList] extends MaybeRecord[T]
 
   private def maybeRecordImpl[T <: HList: Type](using Quotes): Expr[MaybeRecord[T]] =
     Lookup.guarded("check for record fields")(maybeRecordImpl0[T])

@@ -27,6 +27,9 @@ class RecordSyntaxErrorTests extends FunSuite {
     explains("""plain.updateWith((s: String) => s.length)""")
     explains("""plain.replace("z")""")
     explains("""HNil.updateWith((s: String) => s.length)""")
+    // A union of plain lists, checked arm by arm, including arms that end at different points
+    explains("""def f(l: HNil | (Int :: HNil)) = l.replace(1)""")
+    explains("""def f(l: (Int :: HNil) | (String :: Boolean :: HNil)) = l(0)""")
     val errs = typeCheckErrors("""rec.replace(2)""").map(_.message)
     assert(errs.exists(_.contains("A record's replace takes a key and a value")), errs.mkString("\n"))
   }
@@ -41,6 +44,9 @@ class RecordSyntaxErrorTests extends FunSuite {
     assertEquals(rec.updateWith("a")(_ + 1), ("a" ->> 2) :: ("b" ->> "x") :: HNil)
     assertEquals(rec.replace("b", "y"), ("a" ->> 1) :: ("b" ->> "y") :: HNil)
     assertEquals(mixed("a"), 2)
+    // A union with a record arm keeps the record syntax
+    val errsU = typeCheckErrors("""def f(l: HNil | (("a" ->> Int) :: HNil)) = l.replace(1)""").map(_.message)
+    assert(errsU.exists(_.contains("A record's replace takes a key and a value")), errsU.mkString("\n"))
     def get[R <: HList](r: R)(using s: Selector[R, "a"]): s.Out = r("a")
     assertEquals(get(rec), 1)
     // A missing key in a record is still reported as a missing key

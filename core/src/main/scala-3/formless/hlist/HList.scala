@@ -122,6 +122,41 @@ object HList {
     prependAll(prefix, f(c.head) :: c.tail)
   }
 
+  private def reversed(prefix: Array[Any]): HList = prefix.foldLeft(HNil: HList)((acc, x) => x :: acc)
+
+  /** The elements of `l` before index `idx`, and the rest of `l` from `idx` on, which is shared */
+  private[formless] def splitBefore(l: HList, idx: Int): (HList, HList) = {
+    val (prefix, rest) = splitAt(l, idx)
+    (prependAll(prefix, HNil), rest)
+  }
+
+  /** The elements of `l` before index `idx` in reverse, and the rest of `l` from `idx` on, which is shared */
+  private[formless] def reverseSplitBefore(l: HList, idx: Int): (HList, HList) = {
+    val (prefix, rest) = splitAt(l, idx)
+    (reversed(prefix), rest)
+  }
+
+  /** The elements of `l` up to and including index `idx`, and the rest of `l` after it, which is shared */
+  private[formless] def splitAfter(l: HList, idx: Int): (HList, HList) = {
+    val (prefix, c) = cellAt(l, idx)
+    (prependAll(prefix, c.head :: HNil), c.tail)
+  }
+
+  /**
+   * The element at index `idx` followed by the elements before it in reverse, and the rest of `l` after it, which is
+   * shared
+   */
+  private[formless] def reverseSplitAfter(l: HList, idx: Int): (HList, HList) = {
+    val (prefix, c) = cellAt(l, idx)
+    (c.head :: reversed(prefix), c.tail)
+  }
+
+  /** The element at `idx`, and `l` with `f` of it in its place; the elements after it are shared */
+  private[formless] def replacedAt(l: HList, idx: Int, f: Any => Any): (Any, HList) = {
+    val (prefix, c) = cellAt(l, idx)
+    (c.head, prependAll(prefix, f(c.head) :: c.tail))
+  }
+
   /** `l` with `x` inserted at index `idx`, which may be `l`'s length; the elements from `idx` on are shared */
   private[formless] def insertedAt(l: HList, idx: Int, x: Any): HList = {
     val (prefix, rest) = splitAt(l, idx)

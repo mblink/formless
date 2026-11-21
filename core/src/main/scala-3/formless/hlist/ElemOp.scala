@@ -8,7 +8,8 @@ import scala.quoted.*
  * such element, or for `SplitRight` and `ReverseSplitRight` the last. `A` and `B` are built directly by a macro, rather
  * than as `HList.Take`, `HList.Drop`, `HList.Reverse` or nested `HList.Append` match types for the compiler to reduce.
  */
-private[formless] sealed trait ElemOp[T <: HList, U, Op <: ElemOp.Op] {
+@scala.annotation.implicitNotFound("Cannot find an element of ${T} of type ${U}")
+private[formless] sealed trait ElemOp[T <: HList, U, Op <: ElemOp.Op] extends Serializable {
   type A
   type B
   val index: Int
@@ -27,7 +28,8 @@ object ElemOp {
   /** `A` is `U` followed by the elements before the last match, reversed; `B` is the elements after it */
   sealed trait ReverseSplitRight extends Op
 
-  final class Inst[T <: HList, U, Op <: ElemOp.Op, A0, B0](val index: Int) extends ElemOp[T, U, Op] {
+  // Built only by the macro below, which proves `index` is the element of `T` that `A0` and `B0` were built around
+  private[formless] final class Inst[T <: HList, U, Op <: ElemOp.Op, A0, B0](val index: Int) extends ElemOp[T, U, Op] {
     final type A = A0
     final type B = B0
   }
@@ -45,9 +47,9 @@ object ElemOp {
     val hnil = TypeRepr.of[HNil]
     val u = TypeRepr.of[U]
     def list(elems: List[TypeRepr]): TypeRepr = elems.foldRight(hnil)(lookup.cons)
-    def inst(a: TypeRepr, b: TypeRepr, idx: Int): Expr[ElemOp[T, U, Op]] =
+    def inst(f: lookup.Found, a: TypeRepr, b: TypeRepr): Expr[ElemOp[T, U, Op]] =
       ((a.asType, b.asType): @unchecked) match {
-        case ('[a], '[b]) => '{ new Inst[T, U, Op, a, b](${ Expr(idx) }) }
+        case ('[a], '[b]) => '{ new Inst[T, U, Op, a, b](${ Expr(f.index) }) }
       }
 
     Type.of[Op] match {
@@ -55,12 +57,12 @@ object ElemOp {
         // `reinsert` puts the element back and calls the result a `T`, so the removed type is built only where it can
         for {
           f <- lookup.found
-          removed <- lookup.removedReinsertably(f.index, u)
-        } yield inst(removed, hnil, f.index)
-      case '[SplitLeft] => lookup.found.map(f => inst(list(f.revInit.reverse), f.rest, f.index))
-      case '[ReverseSplitLeft] => lookup.found.map(f => inst(list(f.revInit), f.rest, f.index))
-      case '[SplitRight] => lookup.lastFound.map(f => inst(list((u :: f.revInit).reverse), f.tail, f.index))
-      case '[ReverseSplitRight] => lookup.lastFound.map(f => inst(lookup.cons(u, list(f.revInit)), f.tail, f.index))
+          removed <- lookup.removedReinsertably(f)
+        } yield inst(f, removed, hnil)
+      case '[SplitLeft] => lookup.found.map(f => inst(f, list(f.revInit.reverse), f.rest))
+      case '[ReverseSplitLeft] => lookup.found.map(f => inst(f, list(f.revInit), f.rest))
+      case '[SplitRight] => lookup.lastFound.map(f => inst(f, list((u :: f.revInit).reverse), f.tail))
+      case '[ReverseSplitRight] => lookup.lastFound.map(f => inst(f, lookup.cons(u, list(f.revInit)), f.tail))
       case _ => Left(formless.record.Lookup.LookupError.AbstractOperation(Type.show[Op]))
     }
   }

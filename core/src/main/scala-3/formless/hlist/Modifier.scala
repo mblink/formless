@@ -5,7 +5,7 @@ package formless.hlist
  * its transformation via a given function into a new element of type `V`.
  * Available only if this `HList` contains an element of type `U`.
  */
-@scala.annotation.implicitNotFound("Cannot modify an element of type ${U} in ${L}: no element has that type, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time")
+@scala.annotation.implicitNotFound("Cannot modify an element of type ${U} in ${L}: no element has that type, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time, or it is at different indexes in the arms of a union")
 trait Modifier[L, U, V] extends DepFn2[L, U => V], Serializable
 
 object Modifier {
@@ -16,10 +16,6 @@ object Modifier {
   given modifierAt[T <: HList, U, V](using op: formless.record.ReplaceAt[T, U, formless.record.ReplaceAt.Elem]): Modifier.Aux[T, U, V, (U, op.Replaced[V])] =
     new Modifier[T, U, V] {
       type Out = (U, op.Replaced[V])
-      def apply(t: T, f: U => V): Out = {
-        var u: Any = null
-        val replaced = HList.updatedAt(t, op.index, x => { u = x; f(x.asInstanceOf[U]) })
-        (u, replaced).asInstanceOf[Out]
-      }
+      def apply(t: T, f: U => V): Out = HList.replacedAt(t, op.index, x => f(x.asInstanceOf[U])).asInstanceOf[Out]
     }
 }

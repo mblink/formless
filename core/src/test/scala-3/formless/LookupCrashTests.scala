@@ -2,7 +2,7 @@ package formless
 
 import formless.hlist.*
 import formless.record.{->>, FieldOp, LacksKey, Remover, Selector, Updater}
-import munit.{FunSuite, Location}
+import munit.FunSuite
 import scala.compiletime.testing.typeCheckErrors
 
 object LookupCrashTests {
@@ -11,19 +11,8 @@ object LookupCrashTests {
 }
 
 /** Lookups that once crashed the compiler, or never finished, are refused with a compile error instead */
-class LookupCrashTests extends FunSuite {
+class LookupCrashTests extends FunSuite with LookupAssertions {
   import LookupCrashTests.*
-
-  inline def refused(inline code: String)(using loc: Location): Unit = {
-    val errs = typeCheckErrors(code).map(_.message)
-    assert(errs.nonEmpty, s"expected a compile error: $code")
-    assert(!errs.exists(_.contains("Exception occurred while executing macro expansion")), errs.mkString("\n"))
-  }
-
-  inline def abortsWith(inline code: String, expected: String)(using loc: Location): Unit = {
-    val errs = typeCheckErrors(code).map(_.message)
-    assert(errs.exists(_.contains(expected)), errs.mkString("\n"))
-  }
 
   test("list types whose bounds refer to themselves are refused") {
     refused("""def f(c: Cyclic) = Selector[c.L, "a"]""")
@@ -61,7 +50,9 @@ class LookupCrashTests extends FunSuite {
     val r = Remove[L, Int]
     summon[r.Out =:= (Int, (String :: String :: HNil) | (Boolean :: Boolean :: HNil))]
     assertEquals(r.reinsert((42, "x" :: "y" :: HNil)), "x" :: 42 :: "y" :: HNil)
-    refused("""val r = Remove[(String :: Int :: String :: HNil) | (Boolean :: Int :: Boolean :: HNil), Int]; r.reinsert((42, "x" :: true :: HNil))""")
+    // `reinsert` only takes a list from one arm, so mixing arms is a type error
+    val errs = typeCheckErrors("""val r = Remove[(String :: Int :: String :: HNil) | (Boolean :: Int :: Boolean :: HNil), Int]; r.reinsert((42, "x" :: true :: HNil))""").map(_.message)
+    assert(errs.exists(_.contains("Required: Boolean")), errs.mkString("\n"))
   }
 
   test("Remove is refused for an element of an abstract list's upper bound, which reinsert couldn't rebuild") {

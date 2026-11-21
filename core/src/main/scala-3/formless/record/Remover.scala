@@ -6,7 +6,7 @@ import formless.hlist.{DepFn1, HList}
 /**
  * Type class supporting record field removal.
  */
-@scala.annotation.implicitNotFound("Cannot remove field ${K} from record ${T}: no field has that key, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time")
+@scala.annotation.implicitNotFound("Cannot remove field ${K} from record ${T}: no field has that key, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time, or it is at different indexes in the arms of a union")
 trait Remover[T, K] extends DepFn1[T], Serializable
 
 object Remover {

@@ -13,7 +13,7 @@ final class ReplaceTypeAux[L, U](private val l: L) extends AnyVal {
 }
 
 final class UpdatedTypeAux[L, U](private val l: L) extends AnyVal {
-  final def apply[V, Out <: HList](v: V)(using r: Replacer.Aux[L, U, V, (U, Out)]): Out = r(l, v)._2
+  final def apply[V, R <: HList](v: V)(using r: Replacer[L, U, V] { type Out = (U, R) }): R = r(l, v)._2
 }
 
 final class HListOps[L <: HList](private val l: L) extends AnyVal {

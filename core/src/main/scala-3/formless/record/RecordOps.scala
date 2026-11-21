@@ -33,9 +33,9 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * keyType equal to the singleton type K and valueType equal to V.
    */
   final def replace[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(using MaybeRecord[T])(
-    using s: Selector[T, K] { type Out = V },
-    u: Updater[T, K ->> V],
-  ): u.Out = u(t, label[K](v))
+    using @annotation.nowarn("msg=unused") s: Selector[T, K] { type Out = V },
+    op: ReplaceAt[T, K ->> Any, ReplaceAt.Keyed],
+  ): op.Replaced[K ->> V] = HList.updatedAt(t, op.index, _ => label[K](v)).asInstanceOf[op.Replaced[K ->> V]]
 
   /**
    * Not record syntax: `replace` on a record takes a key and a value. It's here so that `replace(value)` on a plain
@@ -46,7 +46,9 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   /**
    * Updates a field having a value with type A by given function.
    */
-  final def updateWith[K, B](k: K)(using MaybeRecord[T])(using s: Selector[T, k.type])(f: s.Out => B)(using m: Modifier[T, k.type, s.Out, B]): m.Out = m(t, f)
+  final def updateWith[K, B](k: K)(using MaybeRecord[T])(using s: Selector[T, k.type], op: ReplaceAt[T, k.type ->> Any, ReplaceAt.Keyed])(
+    f: s.Out => B,
+  ): op.Replaced[k.type ->> B] = HList.updatedAt(t, op.index, a => f(a.asInstanceOf[s.Out])).asInstanceOf[op.Replaced[k.type ->> B]]
 
   /**
    * Remove the field associated with the singleton typed key k, returning both the corresponding value and the updated
@@ -110,7 +112,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Returns a `Map` whose keys and values are typed as the Lub of the keys
    * and values of this record.
    */
-  final def toMap[K, V](using tm: ToMap.Aux[T, K, V]): Map[K, V] = tm(t)
+  final def toMap[K, V](using tm: ToMap[T] { type Key = K; type Value = V }): Map[K, V] = tm(t)
 
   /**
    * Maps a higher rank function across the values of this record.

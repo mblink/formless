@@ -4,11 +4,11 @@ Guidance for AI coding agents (Claude Code, Codex, Cursor and others) working in
 
 ## What this is
 
-formless is a generic programming library (HLists, records, tagged types) for Scala 2.13 and Scala 3, published as `com.bondlink::formless` to BondLink's S3 Maven repo. On Scala 2.13 it is mostly a thin layer over shapeless 2; on Scala 3 it reimplements `HList` and the type classes natively using match types, `compiletime` ops and a few quoted macros.
+formless is a generic programming library (HLists, records, tagged types) for Scala 2.13 and Scala 3, published as `com.bondlink::formless` to Maven Central (and, by `sbt publish`, to BondLink's S3 Maven repo). On Scala 2.13 it is mostly a thin layer over shapeless 2; on Scala 3 it reimplements `HList` and the type classes natively using match types, `compiletime` ops and a few quoted macros.
 
 ## Build & test
 
-sbt with `sbt-projectmatrix`. There is no root aggregate worth targeting directly — pick the matrix project:
+sbt with `sbt-projectmatrix`. The root project aggregates every `core` and `docs` project, so `sbt test` runs them all; for a faster loop, pick one matrix project:
 
 | Project | Platform / Scala |
 |---|---|

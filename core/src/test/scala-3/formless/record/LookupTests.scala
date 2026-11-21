@@ -2,10 +2,10 @@ package formless
 package record
 
 import formless.hlist.{::, HList, HNil}
-import munit.{FunSuite, Location}
+import munit.FunSuite
 import scala.compiletime.testing.typeCheckErrors
 
-class LookupTests extends FunSuite {
+class LookupTests extends FunSuite with LookupAssertions {
   object intKey extends FieldOf[Int]
 
   object Opaque {
@@ -16,18 +16,6 @@ class LookupTests extends FunSuite {
 
   type ABCD = ("a" ->> Int) :: ("b" ->> String) :: ("c" ->> Int) :: ("d" ->> Boolean) :: HNil
   val abcd: ABCD = ("a" ->> 1) :: ("b" ->> "two") :: ("c" ->> 3) :: ("d" ->> true) :: HNil
-
-  // A crash during macro expansion also fails to compile, so only a clean refusal passes
-  inline def refused(inline code: String)(using loc: Location): Unit = {
-    val errs = typeCheckErrors(code).map(_.message)
-    assert(errs.nonEmpty, s"expected a compile error: $code")
-    assert(!errs.exists(_.contains("Exception occurred while executing macro expansion")), errs.mkString("\n"))
-  }
-
-  inline def abortsWith(inline code: String, expected: String)(using loc: Location): Unit = {
-    val errs = typeCheckErrors(code).map(_.message)
-    assert(errs.exists(_.contains(expected)), errs.mkString("\n"))
-  }
 
   test("updating a field keeps the order and types of the others") {
     val first = Updater[ABCD, "a" ->> Int]
@@ -711,7 +699,7 @@ class LookupTests extends FunSuite {
   }
 
   test("absence is not proven for keys that are method parameters' singletons, which may be the same path") {
-    refused("""def lacks(x: String, y: String): LacksKey[(x.type ->> Int) :: HNil, y.type] = summon""")
+    refused("""def lacks(x: String, y: String) = LacksKey[(x.type ->> Int) :: HNil, y.type]""")
     summon[LacksKey[(intKey.type ->> Int) :: HNil, "b"]]
   }
 
@@ -752,13 +740,14 @@ class LookupTests extends FunSuite {
 
   test("unions of long records are walked within the budget") {
     // Split across aliases: one infix type of 250 elements can overflow the compiler's stack while it is typed
-    type R200 = ("k200" ->> Int) :: ("k201" ->> Int) :: ("k202" ->> Int) :: ("k203" ->> Int) :: ("k204" ->> Int) :: ("k205" ->> Int) :: ("k206" ->> Int) :: ("k207" ->> Int) :: ("k208" ->> Int) :: ("k209" ->> Int) :: ("k210" ->> Int) :: ("k211" ->> Int) :: ("k212" ->> Int) :: ("k213" ->> Int) :: ("k214" ->> Int) :: ("k215" ->> Int) :: ("k216" ->> Int) :: ("k217" ->> Int) :: ("k218" ->> Int) :: ("k219" ->> Int) :: ("k220" ->> Int) :: ("k221" ->> Int) :: ("k222" ->> Int) :: ("k223" ->> Int) :: ("k224" ->> Int) :: ("k225" ->> Int) :: ("k226" ->> Int) :: ("k227" ->> Int) :: ("k228" ->> Int) :: ("k229" ->> Int) :: ("k230" ->> Int) :: ("k231" ->> Int) :: ("k232" ->> Int) :: ("k233" ->> Int) :: ("k234" ->> Int) :: ("k235" ->> Int) :: ("k236" ->> Int) :: ("k237" ->> Int) :: ("k238" ->> Int) :: ("k239" ->> Int) :: ("k240" ->> Int) :: ("k241" ->> Int) :: ("k242" ->> Int) :: ("k243" ->> Int) :: ("k244" ->> Int) :: ("k245" ->> Int) :: ("k246" ->> Int) :: ("k247" ->> Int) :: ("k248" ->> Int) :: ("k249" ->> Int) :: HNil
-    type R150 = ("k150" ->> Int) :: ("k151" ->> Int) :: ("k152" ->> Int) :: ("k153" ->> Int) :: ("k154" ->> Int) :: ("k155" ->> Int) :: ("k156" ->> Int) :: ("k157" ->> Int) :: ("k158" ->> Int) :: ("k159" ->> Int) :: ("k160" ->> Int) :: ("k161" ->> Int) :: ("k162" ->> Int) :: ("k163" ->> Int) :: ("k164" ->> Int) :: ("k165" ->> Int) :: ("k166" ->> Int) :: ("k167" ->> Int) :: ("k168" ->> Int) :: ("k169" ->> Int) :: ("k170" ->> Int) :: ("k171" ->> Int) :: ("k172" ->> Int) :: ("k173" ->> Int) :: ("k174" ->> Int) :: ("k175" ->> Int) :: ("k176" ->> Int) :: ("k177" ->> Int) :: ("k178" ->> Int) :: ("k179" ->> Int) :: ("k180" ->> Int) :: ("k181" ->> Int) :: ("k182" ->> Int) :: ("k183" ->> Int) :: ("k184" ->> Int) :: ("k185" ->> Int) :: ("k186" ->> Int) :: ("k187" ->> Int) :: ("k188" ->> Int) :: ("k189" ->> Int) :: ("k190" ->> Int) :: ("k191" ->> Int) :: ("k192" ->> Int) :: ("k193" ->> Int) :: ("k194" ->> Int) :: ("k195" ->> Int) :: ("k196" ->> Int) :: ("k197" ->> Int) :: ("k198" ->> Int) :: ("k199" ->> Int) :: R200
-    type R100 = ("k100" ->> Int) :: ("k101" ->> Int) :: ("k102" ->> Int) :: ("k103" ->> Int) :: ("k104" ->> Int) :: ("k105" ->> Int) :: ("k106" ->> Int) :: ("k107" ->> Int) :: ("k108" ->> Int) :: ("k109" ->> Int) :: ("k110" ->> Int) :: ("k111" ->> Int) :: ("k112" ->> Int) :: ("k113" ->> Int) :: ("k114" ->> Int) :: ("k115" ->> Int) :: ("k116" ->> Int) :: ("k117" ->> Int) :: ("k118" ->> Int) :: ("k119" ->> Int) :: ("k120" ->> Int) :: ("k121" ->> Int) :: ("k122" ->> Int) :: ("k123" ->> Int) :: ("k124" ->> Int) :: ("k125" ->> Int) :: ("k126" ->> Int) :: ("k127" ->> Int) :: ("k128" ->> Int) :: ("k129" ->> Int) :: ("k130" ->> Int) :: ("k131" ->> Int) :: ("k132" ->> Int) :: ("k133" ->> Int) :: ("k134" ->> Int) :: ("k135" ->> Int) :: ("k136" ->> Int) :: ("k137" ->> Int) :: ("k138" ->> Int) :: ("k139" ->> Int) :: ("k140" ->> Int) :: ("k141" ->> Int) :: ("k142" ->> Int) :: ("k143" ->> Int) :: ("k144" ->> Int) :: ("k145" ->> Int) :: ("k146" ->> Int) :: ("k147" ->> Int) :: ("k148" ->> Int) :: ("k149" ->> Int) :: R150
-    type R50 = ("k50" ->> Int) :: ("k51" ->> Int) :: ("k52" ->> Int) :: ("k53" ->> Int) :: ("k54" ->> Int) :: ("k55" ->> Int) :: ("k56" ->> Int) :: ("k57" ->> Int) :: ("k58" ->> Int) :: ("k59" ->> Int) :: ("k60" ->> Int) :: ("k61" ->> Int) :: ("k62" ->> Int) :: ("k63" ->> Int) :: ("k64" ->> Int) :: ("k65" ->> Int) :: ("k66" ->> Int) :: ("k67" ->> Int) :: ("k68" ->> Int) :: ("k69" ->> Int) :: ("k70" ->> Int) :: ("k71" ->> Int) :: ("k72" ->> Int) :: ("k73" ->> Int) :: ("k74" ->> Int) :: ("k75" ->> Int) :: ("k76" ->> Int) :: ("k77" ->> Int) :: ("k78" ->> Int) :: ("k79" ->> Int) :: ("k80" ->> Int) :: ("k81" ->> Int) :: ("k82" ->> Int) :: ("k83" ->> Int) :: ("k84" ->> Int) :: ("k85" ->> Int) :: ("k86" ->> Int) :: ("k87" ->> Int) :: ("k88" ->> Int) :: ("k89" ->> Int) :: ("k90" ->> Int) :: ("k91" ->> Int) :: ("k92" ->> Int) :: ("k93" ->> Int) :: ("k94" ->> Int) :: ("k95" ->> Int) :: ("k96" ->> Int) :: ("k97" ->> Int) :: ("k98" ->> Int) :: ("k99" ->> Int) :: R100
-    type R = ("k0" ->> Int) :: ("k1" ->> Int) :: ("k2" ->> Int) :: ("k3" ->> Int) :: ("k4" ->> Int) :: ("k5" ->> Int) :: ("k6" ->> Int) :: ("k7" ->> Int) :: ("k8" ->> Int) :: ("k9" ->> Int) :: ("k10" ->> Int) :: ("k11" ->> Int) :: ("k12" ->> Int) :: ("k13" ->> Int) :: ("k14" ->> Int) :: ("k15" ->> Int) :: ("k16" ->> Int) :: ("k17" ->> Int) :: ("k18" ->> Int) :: ("k19" ->> Int) :: ("k20" ->> Int) :: ("k21" ->> Int) :: ("k22" ->> Int) :: ("k23" ->> Int) :: ("k24" ->> Int) :: ("k25" ->> Int) :: ("k26" ->> Int) :: ("k27" ->> Int) :: ("k28" ->> Int) :: ("k29" ->> Int) :: ("k30" ->> Int) :: ("k31" ->> Int) :: ("k32" ->> Int) :: ("k33" ->> Int) :: ("k34" ->> Int) :: ("k35" ->> Int) :: ("k36" ->> Int) :: ("k37" ->> Int) :: ("k38" ->> Int) :: ("k39" ->> Int) :: ("k40" ->> Int) :: ("k41" ->> Int) :: ("k42" ->> Int) :: ("k43" ->> Int) :: ("k44" ->> Int) :: ("k45" ->> Int) :: ("k46" ->> Int) :: ("k47" ->> Int) :: ("k48" ->> Int) :: ("k49" ->> Int) :: R50
-    val s = Selector[R | R, "k249"]
-    summon[s.Out =:= Int]
+    type R200[V] = ("k200" ->> Int) :: ("k201" ->> Int) :: ("k202" ->> Int) :: ("k203" ->> Int) :: ("k204" ->> Int) :: ("k205" ->> Int) :: ("k206" ->> Int) :: ("k207" ->> Int) :: ("k208" ->> Int) :: ("k209" ->> Int) :: ("k210" ->> Int) :: ("k211" ->> Int) :: ("k212" ->> Int) :: ("k213" ->> Int) :: ("k214" ->> Int) :: ("k215" ->> Int) :: ("k216" ->> Int) :: ("k217" ->> Int) :: ("k218" ->> Int) :: ("k219" ->> Int) :: ("k220" ->> Int) :: ("k221" ->> Int) :: ("k222" ->> Int) :: ("k223" ->> Int) :: ("k224" ->> Int) :: ("k225" ->> Int) :: ("k226" ->> Int) :: ("k227" ->> Int) :: ("k228" ->> Int) :: ("k229" ->> Int) :: ("k230" ->> Int) :: ("k231" ->> Int) :: ("k232" ->> Int) :: ("k233" ->> Int) :: ("k234" ->> Int) :: ("k235" ->> Int) :: ("k236" ->> Int) :: ("k237" ->> Int) :: ("k238" ->> Int) :: ("k239" ->> Int) :: ("k240" ->> Int) :: ("k241" ->> Int) :: ("k242" ->> Int) :: ("k243" ->> Int) :: ("k244" ->> Int) :: ("k245" ->> Int) :: ("k246" ->> Int) :: ("k247" ->> Int) :: ("k248" ->> Int) :: ("k249" ->> V) :: HNil
+    type R150[V] = ("k150" ->> Int) :: ("k151" ->> Int) :: ("k152" ->> Int) :: ("k153" ->> Int) :: ("k154" ->> Int) :: ("k155" ->> Int) :: ("k156" ->> Int) :: ("k157" ->> Int) :: ("k158" ->> Int) :: ("k159" ->> Int) :: ("k160" ->> Int) :: ("k161" ->> Int) :: ("k162" ->> Int) :: ("k163" ->> Int) :: ("k164" ->> Int) :: ("k165" ->> Int) :: ("k166" ->> Int) :: ("k167" ->> Int) :: ("k168" ->> Int) :: ("k169" ->> Int) :: ("k170" ->> Int) :: ("k171" ->> Int) :: ("k172" ->> Int) :: ("k173" ->> Int) :: ("k174" ->> Int) :: ("k175" ->> Int) :: ("k176" ->> Int) :: ("k177" ->> Int) :: ("k178" ->> Int) :: ("k179" ->> Int) :: ("k180" ->> Int) :: ("k181" ->> Int) :: ("k182" ->> Int) :: ("k183" ->> Int) :: ("k184" ->> Int) :: ("k185" ->> Int) :: ("k186" ->> Int) :: ("k187" ->> Int) :: ("k188" ->> Int) :: ("k189" ->> Int) :: ("k190" ->> Int) :: ("k191" ->> Int) :: ("k192" ->> Int) :: ("k193" ->> Int) :: ("k194" ->> Int) :: ("k195" ->> Int) :: ("k196" ->> Int) :: ("k197" ->> Int) :: ("k198" ->> Int) :: ("k199" ->> Int) :: R200[V]
+    type R100[V] = ("k100" ->> Int) :: ("k101" ->> Int) :: ("k102" ->> Int) :: ("k103" ->> Int) :: ("k104" ->> Int) :: ("k105" ->> Int) :: ("k106" ->> Int) :: ("k107" ->> Int) :: ("k108" ->> Int) :: ("k109" ->> Int) :: ("k110" ->> Int) :: ("k111" ->> Int) :: ("k112" ->> Int) :: ("k113" ->> Int) :: ("k114" ->> Int) :: ("k115" ->> Int) :: ("k116" ->> Int) :: ("k117" ->> Int) :: ("k118" ->> Int) :: ("k119" ->> Int) :: ("k120" ->> Int) :: ("k121" ->> Int) :: ("k122" ->> Int) :: ("k123" ->> Int) :: ("k124" ->> Int) :: ("k125" ->> Int) :: ("k126" ->> Int) :: ("k127" ->> Int) :: ("k128" ->> Int) :: ("k129" ->> Int) :: ("k130" ->> Int) :: ("k131" ->> Int) :: ("k132" ->> Int) :: ("k133" ->> Int) :: ("k134" ->> Int) :: ("k135" ->> Int) :: ("k136" ->> Int) :: ("k137" ->> Int) :: ("k138" ->> Int) :: ("k139" ->> Int) :: ("k140" ->> Int) :: ("k141" ->> Int) :: ("k142" ->> Int) :: ("k143" ->> Int) :: ("k144" ->> Int) :: ("k145" ->> Int) :: ("k146" ->> Int) :: ("k147" ->> Int) :: ("k148" ->> Int) :: ("k149" ->> Int) :: R150[V]
+    type R50[V] = ("k50" ->> Int) :: ("k51" ->> Int) :: ("k52" ->> Int) :: ("k53" ->> Int) :: ("k54" ->> Int) :: ("k55" ->> Int) :: ("k56" ->> Int) :: ("k57" ->> Int) :: ("k58" ->> Int) :: ("k59" ->> Int) :: ("k60" ->> Int) :: ("k61" ->> Int) :: ("k62" ->> Int) :: ("k63" ->> Int) :: ("k64" ->> Int) :: ("k65" ->> Int) :: ("k66" ->> Int) :: ("k67" ->> Int) :: ("k68" ->> Int) :: ("k69" ->> Int) :: ("k70" ->> Int) :: ("k71" ->> Int) :: ("k72" ->> Int) :: ("k73" ->> Int) :: ("k74" ->> Int) :: ("k75" ->> Int) :: ("k76" ->> Int) :: ("k77" ->> Int) :: ("k78" ->> Int) :: ("k79" ->> Int) :: ("k80" ->> Int) :: ("k81" ->> Int) :: ("k82" ->> Int) :: ("k83" ->> Int) :: ("k84" ->> Int) :: ("k85" ->> Int) :: ("k86" ->> Int) :: ("k87" ->> Int) :: ("k88" ->> Int) :: ("k89" ->> Int) :: ("k90" ->> Int) :: ("k91" ->> Int) :: ("k92" ->> Int) :: ("k93" ->> Int) :: ("k94" ->> Int) :: ("k95" ->> Int) :: ("k96" ->> Int) :: ("k97" ->> Int) :: ("k98" ->> Int) :: ("k99" ->> Int) :: R100[V]
+    type R[V] = ("k0" ->> Int) :: ("k1" ->> Int) :: ("k2" ->> Int) :: ("k3" ->> Int) :: ("k4" ->> Int) :: ("k5" ->> Int) :: ("k6" ->> Int) :: ("k7" ->> Int) :: ("k8" ->> Int) :: ("k9" ->> Int) :: ("k10" ->> Int) :: ("k11" ->> Int) :: ("k12" ->> Int) :: ("k13" ->> Int) :: ("k14" ->> Int) :: ("k15" ->> Int) :: ("k16" ->> Int) :: ("k17" ->> Int) :: ("k18" ->> Int) :: ("k19" ->> Int) :: ("k20" ->> Int) :: ("k21" ->> Int) :: ("k22" ->> Int) :: ("k23" ->> Int) :: ("k24" ->> Int) :: ("k25" ->> Int) :: ("k26" ->> Int) :: ("k27" ->> Int) :: ("k28" ->> Int) :: ("k29" ->> Int) :: ("k30" ->> Int) :: ("k31" ->> Int) :: ("k32" ->> Int) :: ("k33" ->> Int) :: ("k34" ->> Int) :: ("k35" ->> Int) :: ("k36" ->> Int) :: ("k37" ->> Int) :: ("k38" ->> Int) :: ("k39" ->> Int) :: ("k40" ->> Int) :: ("k41" ->> Int) :: ("k42" ->> Int) :: ("k43" ->> Int) :: ("k44" ->> Int) :: ("k45" ->> Int) :: ("k46" ->> Int) :: ("k47" ->> Int) :: ("k48" ->> Int) :: ("k49" ->> Int) :: R50[V]
+    // Arms that differ only in the last field's value, so both are walked to the end
+    val s = Selector[R[Int] | R[String], "k249"]
+    summon[s.Out =:= (Int | String)]
   }
 
   type MsgR = ("a" ->> Int) :: ("b" ->> String) :: HNil
@@ -790,6 +779,78 @@ class LookupTests extends FunSuite {
     val replaced: (ModTab[Unit], L) = formless.hlist.HList.toHListOps(l).replaceType[ModTab[Unit]](ModTab(None, 3))
     assertEquals(replaced._2, 1 :: ModTab[Unit](None, 3) :: HNil)
   }
+
+  test("a field of an intersection looked up by an abstract key gets its value from the conjuncts with that key") {
+    def get[K](r: ((K ->> String) & ("b" ->> String)) :: HNil) = {
+      val s = Selector[((K ->> String) & ("b" ->> String)) :: HNil, K]
+      summon[s.Out =:= String]
+      s(r)
+    }
+    assertEquals(get["b"](("b" ->> "text") :: HNil), "text")
+  }
+
+  test("an intersection of fields with different keys isn't read as one field") {
+    abortsWith(
+      """ReplaceAt.replaceAtInst[(("a" ->> Int) & ("b" ->> String)) :: HNil, ("a" ->> Int) & ("b" ->> String), ReplaceAt.Field]""",
+      "isn't a field",
+    )
+  }
+
+  test("a key that is a member a subclass can override might be any other path") {
+    abortsWith(
+      """trait P { val x: String; val y: String; def ev = FieldAbsent.fieldAbsentInst[(x.type ->> Int) :: HNil, y.type ->> Any, <:<] }""",
+      "might match",
+    )
+    abortsWith(
+      """trait P { val x: String; val y: String; def u = FieldUpdate.fieldUpdateInst[(x.type ->> Int) :: HNil, y.type ->> Int] }""",
+      "might match",
+    )
+    refused("""trait P { val x: String; val y: String; def ev = LacksKey[(x.type ->> Int) :: HNil, y.type] }""")
+  }
+
+  test("a key that is a member of an object or a final member is a fixed path") {
+    assertEquals(
+      typeCheckErrors("""object O { val x: String = "x"; val y: String = "y"; def ev = LacksKey[(O.x.type ->> Int) :: HNil, O.y.type] }""").map(_.message),
+      Nil,
+    )
+    assertEquals(
+      typeCheckErrors("""class C { final val x: String = "x"; final val y: String = "y"; def ev = LacksKey[(x.type ->> Int) :: HNil, y.type] }""").map(_.message),
+      Nil,
+    )
+    assertEquals(
+      typeCheckErrors("""final class C { val x: String = "x"; val y: String = "y"; def ev = LacksKey[(x.type ->> Int) :: HNil, y.type] }""").map(_.message),
+      Nil,
+    )
+  }
+
+  type Dup = ASAlias.AS :: ("a" ->> Int) :: HNil
+  val dup: Dup = ("a" ->> 1).asInstanceOf[ASAlias.AS] :: ("a" ->> 2) :: HNil
+
+  test("replace and updateWith change the field the selector reads, even when a later field matches the type exactly") {
+    assertEquals(dup("a"), 1)
+    val replaced: ("a" ->> Int) :: ("a" ->> Int) :: HNil = dup.replace("a", 10)
+    assertEquals(replaced, ("a" ->> 10) :: ("a" ->> 2) :: HNil)
+    val modified: ("a" ->> Int) :: ("a" ->> Int) :: HNil = dup.updateWith("a")(_ + 100)
+    assertEquals(modified, ("a" ->> 101) :: ("a" ->> 2) :: HNil)
+  }
+
+  test("replace on a field that is an intersection replaces it rather than appending another") {
+    val replaced: ("a" ->> Int) :: ("b" ->> String) :: HNil = ASAlias.inter.replace("a", 2)
+    assertEquals(replaced, ("a" ->> 2) :: ("b" ->> "x") :: HNil)
+  }
+
+  test("a lookup to replace an element of an abstract kind is refused") {
+    abortsWith("""def f[K <: ReplaceAt.Kind]: ReplaceAt[Int :: HNil, Int, K] = ReplaceAt.replaceAtInst[Int :: HNil, Int, K]""", "abstract operation")
+  }
+
+  type UnionAB = (("a" ->> Int) :: ("b" ->> String) :: HNil) | (("b" ->> String) :: ("a" ->> Int) :: HNil)
+
+  test("a field in a union of records at different indexes in its arms is refused") {
+    abortsWith("""FieldOp.fieldOpInst[UnionAB, "b" ->> Any, FieldOp.Select]""", "might match")
+    abortsWith("""FieldUpdate.fieldUpdateInst[UnionAB, "a" ->> Int]""", "might match")
+    refused("""Selector[UnionAB, "b"]""")
+    refused("""Updater[UnionAB, "a" ->> Int]""")
+  }
 }
 
 final case class ModTab[A](a: Option[A], n: Int)
@@ -799,4 +860,5 @@ object ASAlias {
   type AS = A & Serializable
   type Inter = AS :: ("b" ->> String) :: HNil
   val inter: Inter = ("a" ->> 1).asInstanceOf[AS] :: ("b" ->> "x") :: HNil
+
 }

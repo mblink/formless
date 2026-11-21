@@ -2,8 +2,10 @@ package formless.perf
 
 import dotty.tools.dotc.Driver
 import java.lang.management.ManagementFactory
-import java.nio.file.Files
+import java.nio.file.{Files, Path}
+import java.util.Comparator
 import munit.FunSuite
+import scala.util.Using
 
 /**
  * Compile-time regression tests for the record and HList lookups. Each workload is a generated source file that the
@@ -15,81 +17,109 @@ import munit.FunSuite
  * scaling test catches a lookup whose cost grows faster than linearly with the list's length, as 0.8's did.
  */
 class CompilePerfTest extends FunSuite {
+  import CompilePerfTest.*
+
   override val munitTimeout = scala.concurrent.duration.Duration(10, "min")
 
-  private val threads = ManagementFactory.getThreadMXBean match {
-    case t: com.sun.management.ThreadMXBean => t
-    case other => throw new IllegalStateException(s"The JVM doesn't report thread allocation: ${other.getClass}")
+  // Checked once here, so a JVM that can't count a thread's allocations fails the suite rather than reporting 0 bytes
+  private lazy val threads: com.sun.management.ThreadMXBean = ManagementFactory.getThreadMXBean match {
+    case t: com.sun.management.ThreadMXBean if t.isThreadAllocatedMemorySupported && t.isThreadCpuTimeSupported =>
+      t.setThreadAllocatedMemoryEnabled(true)
+      t.setThreadCpuTimeEnabled(true)
+      t
+    case other => fail(s"The JVM doesn't report a thread's allocation and CPU time: ${other.getClass}")
   }
 
-  /** Allocated bytes and CPU nanoseconds to compile `source` on this thread, with JIT warm-up runs first */
-  private def compileCost(source: String): (Long, Long) = {
-    val dir = Files.createTempDirectory("formless-perf")
-    val file = dir.resolve("Bench.scala")
-    Files.writeString(file, source)
-    def once(): (Long, Long) = {
-      val out = Files.createTempDirectory(dir, "out")
-      val (a0, c0) = (threads.getCurrentThreadAllocatedBytes, threads.getCurrentThreadCpuTime)
-      val reporter = new Driver().process(Array("-usejavacp", "-d", out.toString, file.toString))
-      val (a1, c1) = (threads.getCurrentThreadAllocatedBytes, threads.getCurrentThreadCpuTime)
-      assert(!reporter.hasErrors, s"the workload didn't compile:\n$source")
-      (a1 - a0, c1 - c0)
+  private given Using.Releasable[Path] = dir =>
+    Using.resource(Files.walk(dir))(_.sorted(Comparator.reverseOrder[Path]).forEach(p => Files.delete(p)))
+
+  /** The median of `Samples` measurements to compile `source` on this thread, after `WarmUps` JIT warm-up runs */
+  private def compileCost(source: String): Cost =
+    Using.resource(Files.createTempDirectory("formless-perf")) { dir =>
+      val file = dir.resolve("Bench.scala")
+      Files.writeString(file, source)
+      def once(): Cost = {
+        val out = Files.createTempDirectory(dir, "out")
+        val before = Cost(threads.getCurrentThreadAllocatedBytes, threads.getCurrentThreadCpuTime)
+        val reporter = new Driver().process(Array("-usejavacp", "-d", out.toString, file.toString))
+        val after = Cost(threads.getCurrentThreadAllocatedBytes, threads.getCurrentThreadCpuTime)
+        assert(!reporter.hasErrors, s"the workload didn't compile:\n$source")
+        after - before
+      }
+      (1 to WarmUps).foreach(_ => once())
+      (1 to Samples).map(_ => once()).sortBy(_.bytes).apply(Samples / 2)
     }
-    (1 to 2).foreach(_ => once())
-    val runs = (1 to 3).map(_ => once()).sortBy(_._1)
-    runs(1)
-  }
 
   private lazy val emptyCost = compileCost("package formless.bench\nobject Bench\n")
 
   /** Allocation in MB attributable to the workload, logging it with its CPU time */
-  private def workloadMB(name: String, source: String): Double = {
-    val (alloc, cpu) = compileCost(source)
-    val mb = (alloc - emptyCost._1).toDouble / (1 << 20)
-    println(f"$name%-40s ${mb}%8.0f MB allocated, ${(cpu - emptyCost._2) / 1e9}%6.2f s CPU")
+  private def workloadMB(w: Workload): Double = {
+    val cost = compileCost(w.source) - emptyCost
+    val mb = cost.bytes.toDouble / (1 << 20)
+    println(f"${w.name}%-45s ${mb}%8.0f MB allocated, ${cost.cpuNanos / 1e9}%6.2f s CPU")
     mb
   }
 
-  private def header(imports: String): String = s"package formless.bench\n$imports\nobject Bench {\n"
-
-  private def record(n: Int): String = (0 until n).map(i => s"""("f$i" ->> Int)""").mkString(" :: ") + " :: HNil"
-
-  private def recordLookups(n: Int): String =
-    header("import formless.hlist.{::, HNil}\nimport formless.record.*") + s"  type R = ${record(n)}\n" +
-      (0 until n).map(i => s"""  val s$i = Selector[R, "f$i"]\n  val u$i = Updater[R, "f$i" ->> Int]\n  val m$i = Modifier[R, "f$i", Int, Long]\n  val r$i = Remover[R, "f$i"]\n""").mkString + "}\n"
-
-  private def recordAppends(n: Int): String =
-    header("import formless.hlist.{::, HNil}\nimport formless.record.*") + s"  type R = ${record(n)}\n" +
-      (0 until n).map(i => s"""  val a$i = Updater[R, "new$i" ->> Int]\n  val l$i = summon[LacksKey[R, "new$i"]]\n""").mkString + "}\n"
-
-  private def hlistLookups(n: Int): String =
-    header("import formless.hlist.{::, HNil, Remove, Replacer, SplitLeft, SplitRight}") +
-      s"  type L = ${(0 until n).mkString(" :: ")} :: HNil\n" +
-      (0 until n).map(i => s"  val r$i = Remove[L, $i]\n  val p$i = Replacer[L, $i, String]\n  val l$i = SplitLeft[L, $i]\n  val s$i = SplitRight[L, $i]\n").mkString + "}\n"
-
-  private def withinBudget(name: String, source: String, budgetMB: Double): Unit = {
-    val mb = workloadMB(name, source)
-    assert(mb <= budgetMB, f"$name allocated $mb%.0f MB, over its budget of $budgetMB%.0f MB")
+  private def withinBudget(w: Workload, budgetMB: Double): Unit = {
+    val mb = workloadMB(w)
+    assert(mb <= budgetMB, f"${w.name} allocated $mb%.0f MB, over its budget of $budgetMB%.0f MB")
   }
 
   test("record lookups on an 80-field record stay within budget") {
-    withinBudget("320 record lookups, 80 fields", recordLookups(80), budgetMB = 1150)
+    withinBudget(Workload(Kind.RecordLookups, 80), budgetMB = 1150)
   }
 
   test("appends and absence proofs on an 80-field record stay within budget") {
-    withinBudget("160 appends and absence proofs, 80 fields", recordAppends(80), budgetMB = 700)
+    withinBudget(Workload(Kind.RecordAppends, 80), budgetMB = 700)
   }
 
   test("HList element lookups on a 60-element list stay within budget") {
-    withinBudget("240 HList element lookups, 60 elements", hlistLookups(60), budgetMB = 550)
+    withinBudget(Workload(Kind.HListLookups, 60), budgetMB = 550)
   }
 
-  test("the cost of HList element lookups grows about linearly with the list's length") {
-    val small = workloadMB("120 HList element lookups, 30 elements", hlistLookups(30))
-    val large = workloadMB("240 HList element lookups, 60 elements", hlistLookups(60))
-    // Twice as many lookups on a list twice as long cost at most 4 times as much in total if each lookup is linear in the
-    // list's length, and 8 if quadratic, as in 0.8. 0.9 measures about 2.7.
-    val ratio = large / small
-    assert(ratio <= 5.0, f"doubling the list made its lookups cost $ratio%.1f times as much; linear growth is at most 4")
+  test("the memory HList element lookups allocate grows about linearly with the list's length") {
+    val small = Workload(Kind.HListLookups, 30)
+    val ratio = workloadMB(small.doubled) / workloadMB(small)
+    // Twice as many lookups on a list twice as long allocate at most 4 times as much in total if each lookup is linear
+    // in the list's length, and 8 if quadratic, as in 0.8. 0.9 measures about 2.7.
+    assert(ratio <= 5.0, f"doubling the list made its lookups allocate $ratio%.1f times as much; linear growth is at most 4")
+  }
+}
+
+object CompilePerfTest {
+  private val WarmUps = 2
+  private val Samples = 3
+
+  final case class Cost(bytes: Long, cpuNanos: Long) {
+    def -(other: Cost): Cost = Cost(bytes - other.bytes, cpuNanos - other.cpuNanos)
+  }
+
+  /** A kind of generated workload, with how many lookups it makes per element */
+  enum Kind(val lookupsPerElement: Int, val lookups: String, val elements: String) {
+    case RecordLookups extends Kind(4, "record lookups", "fields")
+    case RecordAppends extends Kind(2, "appends and absence proofs", "fields")
+    case HListLookups extends Kind(4, "HList element lookups", "elements")
+  }
+
+  /** A generated source file making `kind`'s lookups on a record or list of `size` elements */
+  final case class Workload(kind: Kind, size: Int) {
+    def name: String = s"${kind.lookupsPerElement * size} ${kind.lookups}, $size ${kind.elements}"
+    def doubled: Workload = copy(size = size * 2)
+
+    def source: String = kind match {
+      case Kind.RecordLookups =>
+        header("import formless.hlist.{::, HNil}\nimport formless.record.*") + s"  type R = $record\n" +
+          (0 until size).map(i => s"""  val s$i = Selector[R, "f$i"]\n  val u$i = Updater[R, "f$i" ->> Int]\n  val m$i = Modifier[R, "f$i", Int, Long]\n  val r$i = Remover[R, "f$i"]\n""").mkString + "}\n"
+      case Kind.RecordAppends =>
+        header("import formless.hlist.{::, HNil}\nimport formless.record.*") + s"  type R = $record\n" +
+          (0 until size).map(i => s"""  val a$i = Updater[R, "new$i" ->> Int]\n  val l$i = summon[LacksKey[R, "new$i"]]\n""").mkString + "}\n"
+      case Kind.HListLookups =>
+        header("import formless.hlist.{::, HNil, Remove, Replacer, SplitLeft, SplitRight}") +
+          s"  type L = ${(0 until size).mkString(" :: ")} :: HNil\n" +
+          (0 until size).map(i => s"  val r$i = Remove[L, $i]\n  val p$i = Replacer[L, $i, String]\n  val l$i = SplitLeft[L, $i]\n  val s$i = SplitRight[L, $i]\n").mkString + "}\n"
+    }
+
+    private def header(imports: String): String = s"package formless.bench\n$imports\nobject Bench {\n"
+    private def record: String = (0 until size).map(i => s"""("f$i" ->> Int)""").mkString(" :: ") + " :: HNil"
   }
 }
