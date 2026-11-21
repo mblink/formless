@@ -1,7 +1,5 @@
 package formless.hlist
 
-import compiletime.ops.int.>=
-
 /**
  * Type class supporting splitting this `HList` at the first occurrence of an element of type `U` returning the prefix
  * and suffix as a pair. Available only if this `HList` contains an element of type `U`.
@@ -27,16 +25,5 @@ object SplitLeft {
       type Prefix = f.A
       type Suffix = f.B
       def apply(l: L): Out = (HList.take0(l, f.index), HList.drop0(l, f.index)).asInstanceOf[Out]
-    }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def splitLeftHList[L <: HList, U](
-    using f: FindField[L, U],
-    ev: (HList.Size[L] >= f.Index) =:= true,
-  ): SplitLeft.Aux[L, U, HList.Take[L, f.Index], HList.Drop[L, f.Index]] =
-    new SplitLeft[L, U] {
-      type Prefix = HList.Take[L, f.Index]
-      type Suffix = HList.Drop[L, f.Index]
-      def apply(l: L): Out = (HList.take(l, f.index), HList.drop(l, f.index))
     }
 }

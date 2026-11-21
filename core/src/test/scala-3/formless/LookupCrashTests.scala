@@ -54,18 +54,6 @@ class LookupCrashTests extends FunSuite {
     refused("""FieldOp.fieldOpInst[("a" ->> Int) :: HNil, "a" ->> Any, String]""")
   }
 
-  test("the deprecated methods taking hlist.FindField refuse as ElemOp does") {
-    refused("""Remove.removeHList[Int :: Nothing, String]""")
-    refused("""def f[T <: HList] = Remove.removeHList[Int :: T, String]""")
-    refused("""SplitRight.splitRightHList[Int :: Nothing, String]""")
-    refused("""def f[L <: Int :: String :: HNil] = Remove.removeHList[L, String]""")
-    @annotation.nowarn("cat=deprecation")
-    val r = Remove.removeHList[Int :: String :: HNil, String]
-    summon[r.Out =:= (String, Int :: HNil)]
-    assertEquals(r(1 :: "a" :: HNil), ("a", 1 :: HNil))
-    assertEquals(r.reinsert(("a", 1 :: HNil)), 1 :: "a" :: HNil)
-  }
-
   test("Remove keeps the arms of a union of lists apart, so reinsert only takes what it can rebuild") {
     type L = (String :: Int :: String :: HNil) | (Boolean :: Int :: Boolean :: HNil)
     val r = Remove[L, Int]

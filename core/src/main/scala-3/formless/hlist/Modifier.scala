@@ -21,16 +21,4 @@ object Modifier {
         (u, replaced).asInstanceOf[Out]
       }
     }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def modifierHList[T <: HList, U, V](using ff: FindField[T, U]): Modifier.Aux[T, U, V, (U, ff.Replaced[V])] =
-    new Modifier[T, U, V] {
-      type Out = (U, ff.Replaced[V])
-      def apply(t: T, f: U => V): Out = {
-        val a = t.toArray
-        val u = a(ff.index).asInstanceOf[U]
-        a.update(ff.index, f(u))
-        (u, HList.fromArray(a)).asInstanceOf[Out]
-      }
-    }
 }

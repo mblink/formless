@@ -30,20 +30,4 @@ object ReverseSplitRight {
         (prefix, HList.drop0(l, f.index + 1)).asInstanceOf[Out]
       }
     }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def reverseSplitRightHList[L <: HList, U](
-    using f: FindField[HList.Reverse[L], U],
-  ): ReverseSplitRight.Aux[L, U, U :: f.Tail, HList.Reverse[f.Head]] =
-    new ReverseSplitRight[L, U] {
-      type Prefix = U :: f.Tail
-      type Suffix = HList.Reverse[f.Head]
-      def apply(l: L): Out = {
-        val a = l.toArray.reverse
-        (
-          HList.fromArray(a(f.index) +: a.drop(f.index + 1)).asInstanceOf[Prefix],
-          HList.fromArray(a.take(f.index).reverse).asInstanceOf[Suffix]
-        )
-      }
-    }
 }

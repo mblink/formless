@@ -26,20 +26,4 @@ object SplitRight {
       type Suffix = f.B
       def apply(l: L): Out = (HList.take0(l, f.index + 1), HList.drop0(l, f.index + 1)).asInstanceOf[Out]
     }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def splitRightHList[L <: HList, U](
-    using f: FindField[HList.Reverse[L], U],
-  ): SplitRight.Aux[L, U, HList.Append[HList.Reverse[f.Tail], U], HList.Reverse[f.Head]] =
-    new SplitRight[L, U] {
-      type Prefix = HList.Append[HList.Reverse[f.Tail], U]
-      type Suffix = HList.Reverse[f.Head]
-      def apply(l: L): Out = {
-        val a = l.toArray.reverse
-        (
-          HList.fromArray(a.drop(f.index + 1).reverse :+ a(f.index)).asInstanceOf[Prefix],
-          HList.fromArray(a.take(f.index).reverse).asInstanceOf[Suffix],
-        )
-      }
-    }
 }

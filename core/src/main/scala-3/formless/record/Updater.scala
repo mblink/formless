@@ -7,18 +7,7 @@ import formless.hlist.{DepFn2, HList}
  */
 trait Updater[T, F] extends DepFn2[T, F], Serializable
 
-sealed trait UpdaterLP {
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  final def updaterNotFound[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] = appendField[T, F]
-
-  private def appendField[T <: HList, F]: Updater.Aux[T, F, HList.Append[T, F]] =
-    new Updater[T, F] {
-      type Out = HList.Append[T, F]
-      def apply(t: T, f: F): Out = HList.append(t, f)
-    }
-}
-
-object Updater extends UpdaterLP {
+object Updater {
   type Aux[T, F, O] = Updater[T, F] { type Out = O }
 
   inline def apply[T, F](using u: Updater[T, F]): Updater.Aux[T, F, u.Out] = u
@@ -30,12 +19,5 @@ object Updater extends UpdaterLP {
       type Out = op.Out
       def apply(t: T, f: F): Out =
         (if (op.index < 0) HList.append(t, f) else HList.updatedAt(t, op.index, _ => f)).asInstanceOf[Out]
-    }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def updaterFound[T <: HList, F](using ff: FindField[T, F, =:=]): Updater.Aux[T, F, ff.Replaced[F]] =
-    new Updater[T, F] {
-      type Out = ff.Replaced[F]
-      def apply(t: T, f: F): Out = HList.updatedAt(t, ff.index, _ => f).asInstanceOf[Out]
     }
 }
