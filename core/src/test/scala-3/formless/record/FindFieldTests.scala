@@ -264,7 +264,7 @@ class FindFieldTests extends FunSuite {
   test("a lookup that matches no field of a record ending in `Nothing` or an abstract tail is refused cleanly") {
     refused("""Modifier[("a" ->> Int) :: Nothing, "b", Int, Int]""")
     refused("""def f[L <: HList]: Any = Modifier[("b" ->> Int) :: L, "a", Int, Int]""")
-    refused("""def f[L <: HList]: Any = FieldOp.fieldOpInst[("b" ->> Int) :: L, "a" ->> Int, FieldOp.Modify["a", Int]]""")
+    refused("""def f[L <: HList]: Any = ReplaceAt.replaceAtInst[("b" ->> Int) :: L, "a" ->> Int, ReplaceAt.Field]""")
   }
 
   test("Modifier refuses a field whose value type doesn't match") {
@@ -404,7 +404,7 @@ class FindFieldTests extends FunSuite {
     abortsWith("""def f[H] = FieldOp.fieldOpInst[H :: HNil, "e" ->> Any, FieldOp.Select]""", "Failed to find field")
     abortsWith("""def f[H] = FieldOp.fieldOpInst[H :: HNil, "e" ->> Any, FieldOp.Select]""", "\"e\"")
     abortsWith("""def f[K] = FieldOp.fieldOpInst[("a" ->> Int) :: HNil, K ->> Any, FieldOp.Select]""", "Failed to find field")
-    abortsWith("""def f[A] = FieldOp.fieldOpInst[List[A] :: HNil, List[A], FieldOp.Modify[Any, Int]]""", "Unexpected type")
+    abortsWith("""def f[A] = ReplaceAt.replaceAtInst[List[A] :: HNil, List[A], ReplaceAt.Field]""", "Unexpected type")
   }
 
   test("absence is proven for a record that lacks the key, and refused when it has it") {
@@ -580,7 +580,7 @@ class FindFieldTests extends FunSuite {
   }
 
   test("an element typed as a type parameter without a field bound is not a field") {
-    refused("""def f[A] = FieldOp.fieldOpInst[A :: HNil, A, FieldOp.Modify[Any, Int]]""")
+    refused("""def f[A] = ReplaceAt.replaceAtInst[A :: HNil, A, ReplaceAt.Field]""")
     refused("""def f[A] = Updater[A :: HNil, A]""")
   }
 
@@ -760,7 +760,24 @@ class FindFieldTests extends FunSuite {
     val s = Selector[R | R, "k249"]
     summon[s.Out =:= Int]
   }
+
+  test("Modifier and Replacer leave the new value's type to be inferred from the expected result type") {
+    // `Tab(None, 1)` alone would infer `Tab[Nothing]`; the expected record type makes it `Tab[Unit]`, as in 0.8.x
+    type R = ("all" ->> ModTab[Unit]) :: ("n" ->> Int) :: HNil
+    val r: R = ("all" ->> ModTab[Unit](Some(()), 0)) :: ("n" ->> 1) :: HNil
+    val updated: R = r.updateWith("all")(_ => ModTab(None, 1))
+    assertEquals(updated, ("all" ->> ModTab[Unit](None, 1)) :: ("n" ->> 1) :: HNil)
+
+    type L = Int :: ModTab[Unit] :: HNil
+    val l: L = 1 :: ModTab[Unit](Some(()), 0) :: HNil
+    val modified: L = formless.hlist.HList.toHListOps(l).updateWith((_: ModTab[Unit]) => ModTab(None, 2))
+    assertEquals(modified, 1 :: ModTab[Unit](None, 2) :: HNil)
+    val replaced: (ModTab[Unit], L) = formless.hlist.HList.toHListOps(l).replaceType[ModTab[Unit]](ModTab(None, 3))
+    assertEquals(replaced._2, 1 :: ModTab[Unit](None, 3) :: HNil)
+  }
 }
+
+final case class ModTab[A](a: Option[A], n: Int)
 
 object ASAlias {
   type A = "a" ->> Int
