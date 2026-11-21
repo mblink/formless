@@ -28,6 +28,7 @@ ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Run(List("sbt test"), name = Some("Build project")),
   WorkflowStep.Run(List("sbt mimaReportBinaryIssues"), name = Some("Check binary compatibility"), cond = Some(isJava25)),
   WorkflowStep.Run(List("sbt mdoc"), name = Some("Build docs"), cond = Some(isJava25)),
+  WorkflowStep.Run(List("sbt perf3/test"), name = Some("Check compile-time performance"), cond = Some(isJava25)),
 )
 
 ThisBuild / githubWorkflowPublishTargetBranches := Seq()
@@ -62,7 +63,9 @@ lazy val baseSettings = Seq(
   mimaFailOnNoPrevious := false,
 )
 
-baseSettings
+lazy val root = project.in(file("."))
+  .settings(baseSettings)
+  .aggregate((core.projectRefs ++ docs.projectRefs): _*)
 
 lazy val publishSettings = Seq(
   publish / skip := false,
@@ -126,6 +129,18 @@ lazy val core = maybeAddScala3Next(projectMatrix.in(file("core")))
       )
     },
   )
+
+// Compile-time regression tests: compiles generated workloads and checks the memory the compiler allocates. Not part of
+// `sbt test`; CI runs `sbt perf3/test` on one Java version.
+lazy val perf = projectMatrix.in(file("perf"))
+  .jvmPlatform(scalaVersions = Seq(scala3))
+  .settings(baseSettings)
+  .settings(
+    libraryDependencies ++= Seq(munit.value, scalaOrganization.value %% "scala3-compiler" % scalaVersion.value % Test),
+    Test / fork := true,
+    Test / javaOptions ++= Seq("-Xmx2G", "-Xss8m"),
+  )
+  .dependsOn(core)
 
 lazy val docs = projectMatrix.in(file("formless-docs"))
   .jvmPlatform(scalaVersions = Seq(scala3))

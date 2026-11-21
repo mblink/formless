@@ -23,6 +23,7 @@ Common commands:
 
 - `sbt core3/test` / `sbt core/test` — test one Scala version on the JVM (fastest loop). Changes usually need checking on **both** 2.13 and 3.
 - `sbt 'core3/testOnly formless.record.LookupTests'` — single suite (munit); scalacheck `Properties` suites (e.g. `formless.hlist.SelectorTest`) run the same way.
+- `sbt perf3/test` — compile-time regression tests: compiles generated record and HList lookup workloads and checks the memory the compiler allocates against budgets, and that lookup cost grows linearly. Not part of `sbt test`; CI runs it on Java 25. Run it after changing `Lookup.scala`, `ElemOp.scala` or a lookup type class.
 - `sbt test` — everything, all platforms (what CI runs on Java 8/11/17/21/25).
 - `sbt mimaReportBinaryIssues` — binary-compat check (CI, Java 25 only); disabled until 0.9.0, which breaks binary compatibility, is published.
 - `sbt mdoc` — regenerates the root `README.md` from `docs/README.md`. **Edit `docs/README.md`, never the root README** — it's overwritten. Variables like `@VERSION@` are substituted from `build.sbt`.

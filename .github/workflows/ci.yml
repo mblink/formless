@@ -93,3 +93,7 @@ jobs:
       - name: Build docs
         if: matrix.java == 'temurin@25'
         run: sbt mdoc
+
+      - name: Check compile-time performance
+        if: matrix.java == 'temurin@25'
+        run: sbt perf3/test
