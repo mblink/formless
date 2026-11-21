@@ -516,7 +516,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
   final def mkString(start: String, sep: String, end: String): String = {
     @annotation.tailrec
     def go(acc: String, sub: HList): String = sub match {
-      case HNil => ""
+      case HNil => acc
       case h :: HNil => acc ++ h.toString
       case h :: t => go(acc ++ h.toString + sep, t)
     }

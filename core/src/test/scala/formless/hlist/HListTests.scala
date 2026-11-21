@@ -136,8 +136,10 @@ class HListTests extends FunSuite with HListTestsCompat {
     assertEquals(((1 :: HNil) :: "a" :: HNil).toString, "(1 :: HNil) :: a :: HNil")
   }
 
-  test("mkString uses no separator for an empty HList") {
-    assertEquals(HNil.mkString("", ", ", "]"), "]")
+  test("mkString preserves both delimiters for an empty HList") {
+    assertEquals(HNil.mkString("[", ", ", "]"), "[]")
+    val list: HList = HNil
+    assertEquals(list.mkString("[", ", ", "]"), "[]")
   }
 
   type OI = Option[Int] :: HNil
