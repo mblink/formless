@@ -67,4 +67,18 @@ class LookupCrashTests extends FunSuite {
     // An element before an abstract tail is the list's own, so it can be put back
     assertEquals(typeCheckErrors("""def f[T <: HList] = Remove[Int :: String :: T, String]""").map(_.message), Nil)
   }
+
+  test("Remove is refused when reinsert couldn't give back the list it was given") {
+    // The arms have different types at the index, so an element from one could be put back into the other
+    refused("""Remove[(Int :: String :: HNil) | (String :: Int :: HNil), Int | String]""")
+    // The element is inside a singleton tail, which reinsert would rebuild rather than give back
+    refused("""val t = true :: 2.0 :: HNil; Remove[Int :: t.type, Boolean]""")
+    refused("""val t = "s" :: HNil; Remove[Int :: ((String :: HNil) & t.type), String]""")
+    // An element before a singleton tail can be put back, sharing the tail
+    val tail = true :: 2.0 :: HNil
+    val r = Remove[Int :: tail.type, Int]
+    val back = r.reinsert(r(::[Int, tail.type](1, tail)))
+    val sameTail: tail.type = back.tail
+    assert(sameTail eq tail)
+  }
 }
