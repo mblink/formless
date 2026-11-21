@@ -35,6 +35,33 @@ class RecordTests extends FunSuite with RecordTestsCompat {
 
   case class Bar(a: Int, b: String)
 
+  test("SelectAll returns values in the order of the requested keys") {
+    type Fields = ("a" ->> Int) :: ("b" ->> String) :: HNil
+    val select = record.SelectAll[Fields, "b" :: "a" :: "b" :: HNil]
+    assertEquals(select(("a" ->> 1) :: ("b" ->> "x") :: HNil), "x" :: 1 :: "x" :: HNil)
+  }
+
+  test("merging into an empty record preserves the right record") {
+    val merged = HNil.merge(("a" ->> 1) :: ("b" ->> "x") :: HNil)
+    assertEquals(merged, ("a" ->> 1) :: ("b" ->> "x") :: HNil)
+  }
+
+  test("LabelledGeneric.toRecord uses product field names") {
+    val record: ("a" ->> Int) :: ("b" ->> String) :: HNil = LabelledGeneric.toRecord(Bar(1, "x"))
+    assertEquals(record, ("a" ->> 1) :: ("b" ->> "x") :: HNil)
+  }
+
+  test("LabelledGeneric.from constructs a product from a labelled record") {
+    val generic = LabelledGeneric[Bar]
+    assertEquals(generic.from(("a" ->> 1) :: ("b" ->> "x") :: HNil), Bar(1, "x"))
+  }
+
+  test("extract preserves a record with the requested type") {
+    type Fields = ("a" ->> Int) :: ("b" ->> String) :: HNil
+    val record = ("a" ->> 1) :: ("b" ->> "x") :: HNil
+    assertEquals(record.extract[Fields], ("a" ->> 1) :: ("b" ->> "x") :: HNil)
+  }
+
   test("Get") {
     val r1 =
       (intField1    ->>    23) ::

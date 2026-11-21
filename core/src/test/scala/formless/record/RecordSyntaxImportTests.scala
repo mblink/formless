@@ -18,4 +18,9 @@ class RecordSyntaxImportTests extends FunSuite {
     val l = 1 :: "a" :: HNil
     assertEquals(Selector[Int :: String :: HNil, String].apply(l), "a")
   }
+
+  test("the syntax import converts a Map to a record") {
+    type Fields = ("a" ->> Int) :: HNil
+    assertEquals(Map("a" -> 1).toRecord[Fields], Some(("a" ->> 1) :: HNil))
+  }
 }
