@@ -17,8 +17,6 @@ private[formless] sealed trait ElemOp[T <: HList, U, Op] {
 object ElemOp {
   /** `A` is `T` without the element, keeping each arm of a union of lists separate; `B` is unused */
   sealed trait Remove
-  /** `A` is `T` with `V` in place of the element; `B` is unused */
-  sealed trait Replace[V]
   /** `A` is the elements before the first match; `B` is the match and the elements after it */
   sealed trait SplitLeft
   /** `A` is the elements before the first match, reversed; `B` is the match and the elements after it */
@@ -56,9 +54,6 @@ object ElemOp {
           report.errorAndAbort(s"Cannot remove ${lookup.display(u)} from ${lookup.display(TypeRepr.of[T])}: $why")
         )
         inst(lookup.removedByArm(f.index), hnil, f.index)
-      case '[Replace[v]] =>
-        val f = lookup.foundOrAbort
-        inst(lookup.replaced(f, TypeRepr.of[v]), hnil, f.index)
       case '[SplitLeft] =>
         val f = lookup.foundOrAbort
         inst(list(f.revInit.reverse), lookup.restAt(f.index), f.index)
@@ -72,7 +67,7 @@ object ElemOp {
         val f = lookup.lastFoundOrAbort
         inst(lookup.cons(u, list(f.revInit)), f.tail, f.index)
       case _ =>
-        report.errorAndAbort("Unexpected HList operation: expected Remove, Replace, or one of the splits")
+        report.errorAndAbort("Unexpected HList operation: expected Remove or one of the splits")
     }
   }
 

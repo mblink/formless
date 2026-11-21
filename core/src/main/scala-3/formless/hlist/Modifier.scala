@@ -12,9 +12,9 @@ object Modifier {
 
   inline def apply[L, U, V](using r: Modifier[L, U, V]): Modifier.Aux[L, U, V, r.Out] = r
 
-  given modifierAt[T <: HList, U, V](using op: ElemOp[T, U, ElemOp.Replace[V]]): Modifier.Aux[T, U, V, (U, op.A)] =
+  given modifierAt[T <: HList, U, V](using op: formless.record.ReplaceAt[T, U, formless.record.ReplaceAt.Elem]): Modifier.Aux[T, U, V, (U, op.Replaced[V])] =
     new Modifier[T, U, V] {
-      type Out = (U, op.A)
+      type Out = (U, op.Replaced[V])
       def apply(t: T, f: U => V): Out = {
         var u: Any = null
         val replaced = HList.updatedAt(t, op.index, x => { u = x; f(x.asInstanceOf[U]) })

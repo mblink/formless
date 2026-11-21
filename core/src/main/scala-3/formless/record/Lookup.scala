@@ -549,8 +549,6 @@ object FieldOp {
   sealed trait Select
   /** Removes the first field `<:` `F`; `Out` is its value and the rest of the record */
   sealed trait Remove
-  /** Replaces the first field `=:=` `F` with `K ->> B`; `Out` is the new record */
-  sealed trait Modify[K, B]
   /** Replaces the first field `=:=` `F` with `F`, or appends `F` (`index` -1) when no field could be; `Out` is the new record */
   sealed trait Update
 
@@ -565,9 +563,8 @@ object FieldOp {
     Type.of[Op] match {
       case '[Select] => selectImpl[T, F, Op]
       case '[Remove] => removeImpl[T, F, Op]
-      case '[Modify[k, b]] => modifyImpl[T, F, Op, k, b]
       case '[Update] => updateImpl[T, F, Op]
-      case _ => quotes.reflect.report.errorAndAbort("Unexpected record operation: expected Select, Remove, Modify or Update")
+      case _ => quotes.reflect.report.errorAndAbort("Unexpected record operation: expected Select, Remove or Update")
     }
 
   private def inst[T <: HList: Type, F: Type, Op: Type, O: Type](idx: Int)(using Quotes): Expr[FieldOp[T, F, Op]] =
@@ -586,17 +583,6 @@ object FieldOp {
     val f = lookup.foundOrAbort
     ((lookup.keyValue(f.head)._2.asType, lookup.removed(f).asType): @unchecked) match {
       case ('[v], '[rem]) => inst[T, F, Op, (v, rem)](f.index)
-    }
-  }
-
-  private def modifyImpl[T <: HList: Type, F: Type, Op: Type, K: Type, B: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
-    val lookup = Lookup.Walk[T, F, =:=]
-    import lookup.q.reflect.*
-    val f = lookup.foundOrAbort
-    // The field must have a key and value that can be read
-    val _ = lookup.keyValue(f.head)
-    (lookup.replaced(f, TypeRepr.of[K ->> B]).asType: @unchecked) match {
-      case '[o] => inst[T, F, Op, o](f.index)
     }
   }
 
@@ -627,5 +613,50 @@ object FieldOp {
   }
 
   transparent inline given fieldOpInst[T <: HList, F, Op]: FieldOp[T, F, Op] = ${ fieldOpImpl[T, F, Op] }
+}
+
+/**
+ * The first element of `T` that is `=:=` to `F`, with `T` as a type lambda `Replaced` of what replaces it. Unlike
+ * `FieldOp`, the replacement isn't one of its type arguments, so `Modifier` and `Replacer` can leave the new value's
+ * type to be inferred, e.g. from the expected result type, after the element is found.
+ */
+private[formless] sealed trait ReplaceAt[T <: HList, F, Kind] {
+  type Replaced[A] <: HList
+  val index: Int
+}
+
+object ReplaceAt {
+  /** `F` is a record field `K ->> A`, whose key and value must be readable */
+  sealed trait Field
+  /** `F` is an HList element type */
+  sealed trait Elem
+
+  final class Inst[T <: HList, F, Kind, R[_] <: HList](val index: Int) extends ReplaceAt[T, F, Kind] {
+    final type Replaced[A] = R[A]
+  }
+
+  private def replaceAtImpl[T <: HList: Type, F: Type, Kind: Type](using Quotes): Expr[ReplaceAt[T, F, Kind]] =
+    Lookup.guarded("find an element to replace")(replaceAtImpl0[T, F, Kind])
+
+  private def replaceAtImpl0[T <: HList: Type, F: Type, Kind: Type](using Quotes): Expr[ReplaceAt[T, F, Kind]] = {
+    val walk = Lookup.Walk[T, F, =:=]
+    import walk.q.reflect.*
+
+    val f = walk.foundOrAbort
+    if (TypeRepr.of[Kind] =:= TypeRepr.of[Field]) {
+      // The field must have a key and value that can be read
+      val _ = walk.keyValue(f.head)
+    }
+    val replaced = TypeLambda(List("a"), _ => List(TypeBounds.empty), tl => walk.replaced(f, tl.param(0)))
+    val instSym = TypeRepr.of[Inst[HNil, Any, Any, [a] =>> HNil]].typeSymbol
+    val targs = List(TypeRepr.of[T], TypeRepr.of[F], TypeRepr.of[Kind], replaced)
+    New(Inferred(instSym.typeRef.appliedTo(targs)))
+      .select(instSym.primaryConstructor)
+      .appliedToTypes(targs)
+      .appliedTo(Literal(IntConstant(f.index)))
+      .asExprOf[ReplaceAt[T, F, Kind]]
+  }
+
+  transparent inline given replaceAtInst[T <: HList, F, Kind]: ReplaceAt[T, F, Kind] = ${ replaceAtImpl[T, F, Kind] }
 }
 
