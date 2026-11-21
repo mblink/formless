@@ -1,11 +1,38 @@
-# formless
+# formless: HLists, extensible records and generic programming for Scala 3 and Scala 2.13
 
-**formless** is a generic programming library for Scala 2 and 3. It takes heavy inspiration from
-[shapeless](https://github.com/milessabin/shapeless) in Scala 3 and actually aliases almost everything to shapeless in
-Scala 2.
+[![CI](https://github.com/mblink/formless/actions/workflows/ci.yml/badge.svg)](https://github.com/mblink/formless/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+![Scala 3](https://img.shields.io/badge/Scala-3.3%20LTS%20%7C%203.8-red.svg)
+![Scala 2.13](https://img.shields.io/badge/Scala-2.13-red.svg)
+![Platforms](https://img.shields.io/badge/platforms-JVM%20%7C%20Scala.js%20%7C%20Scala%20Native-informational.svg)
 
-In Scala 3, the `HList` type is redefined, while Scala 2 uses `shapeless.HList` directly. The library defines type
-classes and syntax that simplify generic programming.
+**formless** is a type-level generic programming library for Scala: heterogeneous lists (`HList`), extensible records with singleton-typed keys, `Generic` and `LabelledGeneric` conversions between case classes and records, polymorphic functions (`Poly`) and tagged types. It is a [shapeless](https://github.com/milessabin/shapeless) 2 style API that works the same on Scala 2.13 and Scala 3, so code written against shapeless 2 can move to Scala 3 without being rewritten.
+
+On Scala 3 formless is implemented natively, with match types, `scala.compiletime` and a few quoted macros, and has no dependency on shapeless. On Scala 2.13 it is a thin layer over shapeless 2. The public API is the same on both, and every module is built for the JVM, Scala.js and Scala Native.
+
+## Why formless
+
+- **One API for Scala 2.13 and Scala 3.** Cross-build generic code without `scala-2` and `scala-3` source splits, or migrate a shapeless 2 codebase to Scala 3 one module at a time.
+- **Fast to compile.** Record field and `HList` element lookups on Scala 3 are a single macro walk that builds each result type directly, instead of chains of implicit searches and match types: 3 to 20 times faster to compile than 0.8, allocating 3 to 35 times less memory. See [Compile-time performance](#compile-time-performance).
+- **Sound lookups.** A field is found only when the record's type proves it is there, and proven absent only when no field could possibly have the key. Abstract tails, abstract fields, unions and intersections are handled rather than guessed at, so `updated` never appends a duplicate key and `LacksKey` never lies.
+- **Never crashes the compiler.** Every lookup macro turns an unexpected input into an ordinary compile error, and long or self-referential types are refused instead of looping.
+- **Production tested.** formless is used across the BondLink codebase, a large Scala 3 application with heavy use of records.
+
+## Compile-time performance
+
+formless 0.9 rebuilt how records and `HList`s find a field or an element by type. Compiling code that uses those lookups is several times faster and allocates a fraction of the memory it did in 0.8:
+
+| Workload | Wall time, 0.8 → 0.9 | CPU time, 0.8 → 0.9 | Memory allocated, 0.8 → 0.9 |
+|---|---|---|---|
+| 320 record lookups (`Selector`, `Updater`, `Modifier`, `Remover`) on an 80-field record with string keys | 15.5 s → 1.8 s (**8.6×**) | 18.6 s → 2.9 s (**6.4×**) | 4.95 GB → 0.60 GB (**8.2×**) |
+| The same with integer keys | 15.3 s → 1.7 s (**8.8×**) | 18.1 s → 2.6 s (**7.0×**) | 4.95 GB → 0.60 GB (**8.2×**) |
+| 160 appends and absence proofs (`Updater`, `LacksKey`) on an 80-field record | 3.3 s → 0.9 s (**3.6×**) | 4.4 s → 1.4 s (**3.0×**) | 1.13 GB → 0.39 GB (**2.9×**) |
+| 120 `HList` element lookups (`Remove`, `Replacer`, `SplitLeft`, `SplitRight`) on a 30-element list | 2.2 s → 0.5 s (**4.8×**) | 3.2 s → 1.1 s (**3.0×**) | 1.28 GB → 0.14 GB (**9.1×**) |
+| The same on a 60-element list | 20.3 s → 1.0 s (**20×**) | 24.4 s → 1.6 s (**15×**) | 10.9 GB → 0.31 GB (**35×**) |
+
+In 0.8, doubling the `HList` from 30 to 60 elements made its lookups about eight times as costly; in 0.9 it costs about 1.5 times as much, so the gap widens as lists get longer. Peak memory of the compiler process fell from about 1.25 GB to 1.04 GB.
+
+Each figure is the median of six runs compiling one generated file on a warm sbt server (Scala 3.3.8, JDK 25, Apple Silicon), with 0.8 and 0.9 runs interleaved so that load from other work on the machine affects both alike. Allocation was read from the JVM over JMX and varied by under 1% between runs.
 
 ## Installation
 
@@ -13,10 +40,10 @@ Add the following to your `build.sbt`:
 
 ```scala
 resolvers += "bondlink-maven-repo" at "https://maven.bondlink-cdn.com"
-libraryDependencies += "com.bondlink" %% "formless" % "0.8.0"
+libraryDependencies += "com.bondlink" %% "formless" % "0.9.0"
 ```
 
-If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the following:
+For Scala.js or Scala Native use `%%%`. If you use [`mill`](https://github.com/com-lihaoyi/mill), you can add the following:
 
 ```scala
 import coursier.maven.MavenRepository
@@ -25,7 +52,7 @@ def repositoriesTask = T.task {
   super.repositoriesTask() ++ Seq(MavenRepository("https://maven.bondlink-cdn.com"))
 }
 
-def ivyDeps = Agg(ivy"com.bondlink::formless:0.8.0")
+def ivyDeps = Agg(ivy"com.bondlink::formless:0.9.0")
 ```
 
 ## Usage
@@ -312,8 +339,168 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x0000038006216748@1d8cd64c :: repl.MdocSession$MdocApp$$Lambda/0x0000038006216370@93197a7 :: repl.MdocSession$MdocApp$$Lambda/0x0000038006215f98@641810ce :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x0000100002e03800@50023127 :: repl.MdocSession$MdocApp$$Lambda/0x0000100002e03400@75325229 :: repl.MdocSession$MdocApp$$Lambda/0x0000100002e03000@a993da3 :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil
 ```
+
+### Records
+
+A record is an `HList` of fields, each a value tagged with a singleton-typed key. Import `formless.record._` to build and use them. It defines a `Selector` and a `Modifier` of its own, so importing both `formless.hlist._` and `formless.record._` makes those two names ambiguous; refer to them through their package, or import only what you need.
+
+```scala
+import formless.hlist.{::, HNil}
+import formless.record._
+
+val book = ("title" ->> "Dune") :: ("year" ->> 1965) :: ("inPrint" ->> true) :: HNil
+// book: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], HNil]]] = "Dune" :: 1965 :: true :: HNil
+```
+
+Fields are looked up by key at compile time:
+
+```scala
+// Get a field's value
+book.get("title")
+// res47: String = "Dune"
+book("year")
+// res48: Int = 1965
+
+// Replace a field's value with one of the same type
+book.replace("year", 1966)
+// res49: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], HNil]]] = "Dune" :: 1966 :: true :: HNil
+
+// Update a field with a function, possibly changing its type
+book.updateWith("year")(_.toString)
+// res50: ::[->>["title", String], ::[->>["year", String], ::[->>["inPrint", Boolean], HNil]]] = "Dune" :: "1965" :: true :: HNil
+
+// Replace a field, or add it at the end if the record has no field with that key
+book.updated("year", 1966)
+// res51: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], HNil]]] = "Dune" :: 1966 :: true :: HNil
+book.updated("author", "Frank Herbert")
+// res52: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], ::[->>["author", String], HNil]]]] = "Dune" :: 1965 :: true :: "Frank Herbert" :: HNil
+book + ("pages" ->> 412)
+// res53: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], ::[->>["pages", Int], HNil]]]] = "Dune" :: 1965 :: true :: 412 :: HNil
+
+// Remove a field
+book - "inPrint"
+// res54: ::[->>["title", String], ::[->>["year", Int], HNil]] = "Dune" :: 1965 :: HNil
+book.remove("inPrint")
+// res55: Tuple2[Boolean, ::[->>["title", String], ::[->>["year", Int], HNil]]] = (
+//   true,
+//   "Dune" :: 1965 :: HNil
+// )
+
+// Rename a field
+book.renameField("inPrint", "available")
+// res56: ::[->>["title", String], ::[->>["year", Int], ::[->>["available", Boolean], HNil]]] = "Dune" :: 1965 :: true :: HNil
+
+// Merge with another record; fields of the argument win
+book.merge(("year" ->> 1966) :: ("author" ->> "Frank Herbert") :: HNil)
+// res57: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], ::[->>["author", String], HNil]]]] = "Dune" :: 1966 :: true :: "Frank Herbert" :: HNil
+
+// The keys, the values, and the fields as key-value pairs
+book.keys
+// res58: ::["title", ::["year", ::["inPrint", HNil]]] = "title" :: "year" :: "inPrint" :: HNil
+book.values
+// res59: ::[String, ::[Int, ::[Boolean, HNil]]] = "Dune" :: 1965 :: true :: HNil
+book.fields
+// res60: ::[Tuple2["title", String], ::[Tuple2["year", Int], ::[Tuple2["inPrint", Boolean], HNil]]] = (
+//   "title",
+//   "Dune"
+// ) :: ("year", 1965) :: ("inPrint", true) :: HNil
+```
+
+Looking up a key the record doesn't have is a compile-time error:
+
+```scala
+book.get("author")
+// error: 
+// Cannot select field ("author" : String) from record ("title" : String) ->> String :: ("year" : String) ->> Int ::
+//   ("inPrint" : String) ->> Boolean :: formless.hlist.HNil.type: no field has that key, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time.
+// I found:
+// 
+//     formless.record.Selector.selectorAt[
+//       ("title" : String) ->> String :: ("year" : String) ->> Int ::
+//         ("inPrint" : String) ->> Boolean :: formless.hlist.HNil.type,
+//       ("author" : String)](???)
+// 
+// But macro expansion was stopped.
+```
+
+A lookup succeeds only when the answer is certain from the record's type. A field that could be inside an abstract part of the type, such as a type parameter tail `T` in `("a" ->> Int) :: T`, is neither found nor proven absent: `get("b")` on that record doesn't compile, and neither does `updated("b", ...)`, since the tail might already have a `"b"`. Fields before the abstract part work as usual. The same applies to the `HList` operations that find an element by type, such as `removeElem`, `replaceType`, `updateWith`, `splitLeft` and `splitRight`.
+
+### Case classes as `HList`s and records
+
+`Generic` converts a case class to an `HList` of its fields and back. `LabelledGeneric` does the same with a record, keyed by the field names, so you can work on any case class with the record operations above:
+
+```scala
+import formless.hlist.Generic
+import formless.record._
+
+final case class Book(title: String, year: Int, inPrint: Boolean)
+
+val dune = Book("Dune", 1965, true)
+val gen = Generic[Book]
+val labelled = LabelledGeneric[Book]
+```
+
+```scala
+gen.to(dune)
+// res63: ::[String, ::[Int, ::[Boolean, HNil]]] = "Dune" :: 1965 :: true :: HNil
+gen.from("Emma" :: 1815 :: false :: formless.hlist.HNil)
+// res64: Book = Book(title = "Emma", year = 1815, inPrint = false)
+
+val rec = labelled.to(dune)
+// rec: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], HNil]]] = "Dune" :: 1965 :: true :: HNil
+rec.get("year")
+// res65: Int = 1965
+labelled.from(rec.updated("year", 1966))
+// res66: Book = Book(title = "Dune", year = 1966, inPrint = true)
+```
+
+### Tagged types
+
+Tag a type to tell values apart without a runtime wrapper. `@@` is a tagged type, and `tag` makes one:
+
+```scala
+import formless.tagged._
+
+trait UserId
+val id: Int @@ UserId = tag[UserId](42)
+// id: OpaqueTagged[Int, UserId] = 42
+id.untag
+// res68: Int = 42
+```
+
+## Migrating from shapeless 2
+
+formless follows shapeless 2's names and syntax, so most code needs only its imports changed:
+
+| shapeless 2 | formless |
+|---|---|
+| `import shapeless._` | `import formless.hlist._` |
+| `import shapeless.record._`, `import shapeless.syntax.singleton._` | `import formless.record._` |
+| `import shapeless.tag._`, `@@` | `import formless.tagged._`, `@@` |
+| `shapeless.ops.hlist.*`, `shapeless.ops.record.*` | the type class of the same name in `formless.hlist` or `formless.record` |
+| `Nat` indices such as `_2` | `Int` literal types such as `2` on Scala 3; `shapeless.nat._2` on Scala 2.13 |
+
+On Scala 2.13 formless's `HList`, `::` and `HNil` are shapeless's own, so the two mix freely while you migrate.
+
+## For AI coding agents
+
+A summary for tools that write code against formless:
+
+- Imports: `formless.hlist._` for `HList`, `::`, `HNil`, `Poly` and the `HList` type classes; `formless.record._` for `->>`, record syntax and the record type classes. Both define `Selector` and `Modifier`, so import one package wholesale and refer to the other's by its package.
+- Build a record field with `"key" ->> value`; a record is an `HList` of fields. Keys are singleton types: string, int, long, char or boolean literals, or a stable object.
+- Each operation is a type class (`Selector`, `Updater`, `Remover`, `Modifier`, `Renamer`, `LacksKey`, ...) with syntax on `HList` and record values. The result type is the type class's `Out` member; summon one with its companion's `apply`, e.g. `Selector[R, "a"]`, to see it.
+- A failed lookup is a compile error that names the record and the key. It means the key isn't there, or it could only be in an abstract part of the type (a type parameter, abstract type member, or an element whose type isn't known yet). Make the type concrete at that point, or pass the evidence (`using Selector[T, "a"]`) in from where it is concrete.
+- On Scala 3 the source is in `core/src/main/scala-3/formless`, one file per type class; `record/Lookup.scala` holds the field lookup. The tests in `core/src/test` show every operation.
+
+## Contributing
+
+formless builds with sbt and [sbt-projectmatrix](https://github.com/sbt/sbt-projectmatrix). `sbt core3/test` tests Scala 3 on the JVM, `sbt core/test` Scala 2.13, and `sbt test` every platform and version. The README is generated from `docs/README.md` with `sbt docs3/mdoc`.
+
+## License
+
+formless is licensed under the [Apache License 2.0](LICENSE).
