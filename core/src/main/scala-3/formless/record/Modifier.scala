@@ -5,6 +5,7 @@ import formless.hlist.{DepFn2, HList}
 /**
  * Type class supporting modification of a record field by given function.
  */
+@scala.annotation.implicitNotFound("Cannot modify field ${K} of record ${T} with a function from ${A}: no field has that key with a value of type ${A}, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time")
 trait Modifier[T <: HList, K, A, B] extends DepFn2[T, A => B], Serializable
 
 object Modifier {

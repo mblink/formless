@@ -5,6 +5,7 @@ package formless.hlist
  * its transformation via a given function into a new element of type `V`.
  * Available only if this `HList` contains an element of type `U`.
  */
+@scala.annotation.implicitNotFound("Cannot modify an element of type ${U} in ${L}: no element has that type, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time")
 trait Modifier[L, U, V] extends DepFn2[L, U => V], Serializable
 
 object Modifier {

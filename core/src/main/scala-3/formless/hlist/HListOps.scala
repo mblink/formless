@@ -191,13 +191,13 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    * The `Elem` suffix is here to avoid creating an ambiguity with RecordOps#updated and should be removed if
    * SI-5414 is resolved in a way which eliminates the ambiguity.
    */
-  final def updatedElem[U, Out <: HList](u: U)(using r: Replacer.Aux[L, U, U, (U, Out)]): Out = r(l, u)._2
+  final def updatedElem[U, R <: HList](u: U)(using r: Replacer[L, U, U] { type Out = (U, R) }): R = r(l, u)._2
 
   /**
    * Replaces the first element of type `U` of this `HList` with the result of its transformation to a `V` via the
    * supplied function. Available only if there is evidence that this `HList` has an element of type `U`.
    */
-  final def updateWith[U, V, Out <: HList](f: U => V)(using m: Modifier.Aux[L, U, V, (U, Out)]): Out = m(l, f)._2
+  final def updateWith[U, V, R <: HList](f: U => V)(using m: Modifier[L, U, V] { type Out = (U, R) }): R = m(l, f)._2
 
   /**
    * Replaces the `N`th element of this `HList` with the result of calling the supplied function on it.

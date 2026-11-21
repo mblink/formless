@@ -3,6 +3,7 @@ package formless.hlist
 /**
  * Type class witnessing that `L` doesn't contain elements of type `U`
  */
+@scala.annotation.implicitNotFound("Cannot prove that ${L} has no element of type ${U}: it has one, or one could be in an abstract part of the type (a type parameter or abstract type member)")
 trait NotContains[L, U] extends Serializable
 
 object NotContains {

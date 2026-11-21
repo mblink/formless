@@ -33,7 +33,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * keyType equal to the singleton type K and valueType equal to V.
    */
   final def replace[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(
-    using s: Selector.Aux[T, K, V],
+    using s: Selector[T, K] { type Out = V },
     u: Updater[T, K ->> V],
   ): u.Out = u(t, label[K](v))
 
@@ -57,7 +57,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Remove the field associated with the singleton typed key k, returning the updated record. Only available if this
    * record has a field with keyType equal to the singleton type K.
    */
-  final def -[K <: Singleton, R, V, O](@annotation.nowarn("msg=unused") k: K)(using r: Remover.Aux[T, K, R], ev: R <:< (V, O)): O = r(t)._2
+  final def -[K <: Singleton, R, V, O](@annotation.nowarn("msg=unused") k: K)(using r: Remover[T, K] { type Out = R }, ev: R <:< (V, O)): O = r(t)._2
 
   /**
    * Returns the union of this record and another record.

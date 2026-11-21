@@ -178,4 +178,20 @@ class ElemOpTests extends FunSuite {
     assertEquals(r(l30)._1, 29)
     assertEquals(r.reinsert(r(l30)), l30)
   }
+
+  test("a failed lookup names the list and the element type") {
+    val msgs = typeCheckErrors("""Remove[L, Char]""").map(_.message) ++
+      typeCheckErrors("""l.removeElem[Char]""").map(_.message) ++
+      typeCheckErrors("""l.updatedElem('c')""").map(_.message) ++
+      typeCheckErrors("""Replacer[L, Char, Int]""").map(_.message) ++
+      typeCheckErrors("""def f[T <: HList] = SplitRight[String :: T, String]""").map(_.message) ++
+      typeCheckErrors("""NotContains[L, Int]""").map(_.message)
+    assertEquals(msgs.length, 6, msgs.mkString("\n"))
+    assert(msgs(0).startsWith("Cannot remove an element of type Char from"), msgs(0))
+    assert(msgs(1).startsWith("Cannot remove an element of type Char from"), msgs(1))
+    assert(msgs(2).startsWith("Cannot replace an element of type Char in"), msgs(2))
+    assert(msgs(3).startsWith("Cannot replace an element of type Char in"), msgs(3))
+    assert(msgs(4).startsWith("Cannot split String :: T at its last element of type String"), msgs(4))
+    assert(msgs(5).startsWith("Cannot prove that"), msgs(5))
+  }
 }

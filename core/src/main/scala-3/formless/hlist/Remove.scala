@@ -5,6 +5,7 @@ package hlist
  * Type class supporting removal of an element from this `HList`. Available only if this `HList` contains an
  * element of type `E`.
  */
+@scala.annotation.implicitNotFound("Cannot remove an element of type ${E} from ${L}: no element has that type, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time")
 trait Remove[L, E] extends DepFn1[L], Serializable {
   def reinsert(out: Out): L
 }

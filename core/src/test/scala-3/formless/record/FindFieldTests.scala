@@ -761,6 +761,21 @@ class FindFieldTests extends FunSuite {
     summon[s.Out =:= Int]
   }
 
+  type MsgR = ("a" ->> Int) :: ("b" ->> String) :: HNil
+  val msgR: MsgR = ("a" ->> 1) :: ("b" ->> "x") :: HNil
+
+  test("a failed lookup names the record and the key, through the syntax as well as the type classes") {
+    abortsWith("""Selector[MsgR, "c"]""", "Cannot select field (\"c\" : String) from record")
+    abortsWith("""msgR.get("c")""", "Cannot select field (\"c\" : String) from record")
+    abortsWith("""msgR.replace("c", 1)""", "Cannot select field (\"c\" : String) from record")
+    abortsWith("""msgR - "c"""", "Cannot remove field (\"c\" : String) from record")
+    abortsWith("""Remover[MsgR, "c"]""", "Cannot remove field (\"c\" : String) from record")
+    abortsWith("""Modifier[MsgR, "a", String, Int]""", "Cannot modify field (\"a\" : String) of record")
+    abortsWith("""LacksKey[MsgR, "a"]""", "Cannot prove that record")
+    abortsWith("""def f[T <: HList] = Updater[("b" ->> String) :: T, "a" ->> Int]""", "Cannot update record")
+    abortsWith("""def f[T <: HList](t: ("b" ->> String) :: T) = t.get("a")""", "abstract part")
+  }
+
   test("Modifier and Replacer leave the new value's type to be inferred from the expected result type") {
     // `Tab(None, 1)` alone would infer `Tab[Nothing]`; the expected record type makes it `Tab[Unit]`, as in 0.8.x
     type R = ("all" ->> ModTab[Unit]) :: ("n" ->> Int) :: HNil

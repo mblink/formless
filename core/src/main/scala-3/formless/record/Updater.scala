@@ -5,6 +5,7 @@ import formless.hlist.{DepFn2, HList}
 /**
  * Type class supporting record update and extension.
  */
+@scala.annotation.implicitNotFound("Cannot update record ${T} with field ${F}: a field with its key could be in an abstract part of the record (a type parameter or abstract type member), so it can be neither replaced nor safely appended")
 trait Updater[T, F] extends DepFn2[T, F], Serializable
 
 object Updater {
