@@ -32,6 +32,7 @@ ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Run(List("sbt mdoc"), name = Some("Build docs"), cond = Some(isJava25)),
   WorkflowStep.Run(List("sbt perf3/test"), name = Some("Check compile-time performance"), cond = Some(isJava25)),
   WorkflowStep.Run(List("sbt coverage core3/test core3/coverageReport"), name = Some("Check test coverage"), cond = Some(isJava25)),
+  WorkflowStep.Run(List("sbt findUnusedAll"), name = Some("Check for unused code"), cond = Some(isJava25)),
 )
 
 // Pushing a tag `vX.Y.Z` matching `version` publishes to Maven Central; see "Publishing" in AGENTS.md
@@ -75,6 +76,75 @@ def foldScalaV[A](scalaVersion: String)(_213: => A, _3: => A): A =
 
 lazy val mavenRepoUrl = "https://maven.bondlink-cdn.com"
 
+// find-unused analyzes one Scala version, from 3.8 on, so it reads only the Scala 3 Next build of `core`, whose tests
+// count as uses: what it reports is code that neither the library nor its tests use. The Scala 3 LTS sources are the
+// same files, and the Scala 2.13 ones are mostly shapeless wrappers.
+Global / findUnusedPackages := Seq("formless")
+
+Global / findUnusedExclusions := {
+  def companionApply(pkg: String, companions: String*): Seq[String] =
+    companions.map(name => s"formless.$pkg.$name.apply")
+
+  // Public summoners for callers who need the type class instance. The operation tests exercise their givens.
+  val summoners = companionApply(
+    "hlist",
+    "Align", "Collect", "CollectFirst", "ConstMapper", "Diff", "Drop", "FlatMapInterleave", "FlatMapper", "Init",
+    "Interleave", "Intersection", "Last", "LeftFolder", "LeftReducer", "LeftScanner", "Length", "MapCons", "MapFolder",
+    "Mapper", "ModifierAt", "NotContains", "PadTo", "Partition", "Patcher", "Permutations", "Prepend", "Range",
+    "RemoveAll", "Repeat", "ReplaceAt", "Reverse", "ReversePrepend", "ReverseSplit", "RightFolder", "RightReducer",
+    "RightScanner", "RotateLeft", "RotateRight", "SelectAll", "SelectRange", "Slice", "Split", "SubtypeUnifier", "Take",
+    "ToTraversable", "Transposer", "Tupler", "Unifier", "Union", "Unzip", "Zip", "ZipApply", "ZipOne", "ZipWith",
+    "ZipWithIndex", "ZipWithKeys",
+  ) ++ companionApply(
+    "record",
+    "Extractor", "Fields", "FromMap", "Keys", "LacksKey", "MapValues", "MergeWith", "Merger", "Remove", "Remover",
+    "ToMap", "Updater", "Values",
+  )
+
+  val retained = Seq(
+    // Public alias for the input types of a Poly2 case.
+    "formless.hlist.Poly2.Case",
+    // The shared package object exposes HList compatibility definitions on Scala 2.13.
+    "formless.hlist.package",
+    // This match type reduces before the analyzer sees the equality witnesses in HListHelperTests.
+    "formless.hlist.IfEq$package.IfEq",
+    // The one-argument overload exists to give an error, and its calls occur only in negative test snippets.
+    "formless.record.FormlessRecordOps.replace",
+    // The analyzer misses symbols referenced only by compile-time snippets.
+    "formless.hlist.ElemOpTests.OpaqueTail.O",
+    "formless.hlist.ElemOpTests.KA",
+    "formless.hlist.ElemOpTests.KB",
+    "formless.record.LookupTests.msgR",
+    "formless.record.LookupTests.UnionAB",
+    // The analyzer misses references reduced away in compile-time type-equality proofs.
+    "formless.hlist.ElemOpTests.<init>.sl",
+    "formless.hlist.ElemOpTests.<init>.rsl",
+    "formless.hlist.ElemOpTests.<init>.sr",
+    "formless.hlist.ElemOpTests.<init>.rsr",
+    "formless.hlist.ElemOpTests.<init>.rm",
+    "formless.record.LookupTests.<init>.sa",
+    "formless.record.LookupTests.<init>.rm",
+    "formless.record.LookupTests.<init>.st",
+    "formless.record.LookupTests.<init>.f",
+    "formless.record.LookupTests.<init>.alias",
+    "formless.record.LookupTests.<init>.viaFieldKey",
+    "formless.record.LookupTests.<init>.escaped",
+    "formless.record.LookupTests.<init>.su",
+    "formless.record.LookupTests.<init>.s",
+    "formless.record.LookupTests.<init>.u",
+    "formless.hlist.HListTests.IIII",
+    "formless.hlist.HListTests.IYII",
+    "formless.hlist.HListTests.YYYY",
+    // The structural member and its parameter are fixtures for the lookup's treatment of method refinements.
+    "formless.record.LookupTests.<init>.Payload.<refinement>.value",
+    "formless.record.LookupTests.<init>.Payload.<refinement>.value.i",
+  )
+
+  (summoners ++ retained).map { symbol =>
+    FindUnusedExclusion(sym = ("^" + java.util.regex.Pattern.quote(symbol) + "$").r)
+  }
+}
+
 // JVM builds compile against the Java 17 API and emit Java 17 bytecode
 lazy val jvmSettings = Seq(tpolecatScalacOptions += org.typelevel.scalacoptions.ScalacOptions.release("17"))
 
@@ -98,6 +168,7 @@ lazy val baseSettings = Seq(
   licenses += License.Apache2,
   publish / skip := true,
   mimaFailOnNoPrevious := false,
+  findUnusedFullTestClasspath := (if (scalaVersion.value == scala3Next) findUnusedFullTestClasspath.value else Seq()),
 )
 
 lazy val root = project.in(file("."))

@@ -140,12 +140,8 @@ class HListTests extends FunSuite with HListTestsCompat {
     assertEquals(HNil.mkString("", ", ", "]"), "]")
   }
 
-  type SI = Set[Int] :: HNil
   type OI = Option[Int] :: HNil
 
-  type III = Int :: Int :: Int :: HNil
-
-  type SISS = Set[Int] :: Set[String] :: HNil
   type OIOS = Option[Int] :: Option[String] :: HNil
 
   type ISII = Int :: String :: Int :: Int :: HNil
@@ -166,7 +162,6 @@ class HListTests extends FunSuite with HListTestsCompat {
   type FF = Fruit :: Fruit :: HNil
   type AP = Apple :: Pear :: HNil
   type BP = Banana :: Pear :: HNil
-  type AF = Apple :: Fruit :: HNil
   type FFFF = Fruit :: Fruit :: Fruit :: Fruit :: HNil
   type APAP = Apple :: Pear :: Apple :: Pear :: HNil
   type APBP = Apple :: Pear :: Banana :: Pear :: HNil
@@ -183,10 +178,6 @@ class HListTests extends FunSuite with HListTestsCompat {
   val bp: BP = b :: p :: HNil
   val apap: APAP = a :: p :: a :: p :: HNil
   val apbp: APBP = a :: p :: b :: p :: HNil
-  val apapList = List(a, p, a, p)
-  val apbpList = List(a, p, b, p)
-  val apapArray = Array(a, p, a, p)
-  val apbpArray = Array(a, p, b, p)
 
   trait Ctv[-T]
   type CICSCICICD = Ctv[Int] :: Ctv[String] :: Ctv[Int] :: Ctv[Int] :: Ctv[Double] :: HNil
@@ -1730,10 +1721,11 @@ class HListTests extends FunSuite with HListTestsCompat {
         (1 :: HNil).zipWith(2 :: HNil)(empty)
       """)
 
-      @annotation.unused
       object noIntFn extends Poly2 {
         implicit val caseDoubleDouble: Case.Aux[Double, Double, Double] = at[Double, Double](_ + _)
       }
+
+      assertEquals((1.0 :: HNil).zipWith(2.0 :: HNil)(noIntFn), 3.0 :: HNil)
 
       illTyped("""
         (1 :: HNil).zipWith(2 :: HNil)(noIntFn)
@@ -2201,7 +2193,6 @@ class HListTests extends FunSuite with HListTestsCompat {
   object smear extends Poly2 {
     implicit val caseIntInt: Case.Aux[Int, Int, Int] = at((x: Int, y: Int) => x + y)
     implicit val caseStringInt: Case.Aux[String, Int, Int] = at((x: String, y: Int) => x.toInt + y)
-    implicit val caseIntString: Case.Aux[Int, String, Int] = at((x: Int, y: String) => x + y.toInt)
   }
 
   test("ScanLeft") {

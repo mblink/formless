@@ -15,6 +15,40 @@ class HListHelperTests extends FunSuite {
     rejects("""At[Int :: HNil, 1]""", "No given instance of type formless.hlist.At")
   }
 
+  test("At exposes the selected element through its companion") {
+    val at = At[Int :: String :: Boolean :: HNil, 1]
+    assertEquals(at(values), "a")
+  }
+
+  test("Head and Tail expose the component types of a nonempty HList") {
+    type Values = Int :: String :: Boolean :: HNil
+    val head: HList.Head[Values] = values.head
+    val tail: HList.Tail[Values] = values.tail
+    assertEquals((head, tail), (1, "a" :: true :: HNil))
+  }
+
+  test("summonAllHList and summonAllValueOfHList preserve order and types") {
+    val instances = summonAllHList[ValueOf[2] :: ValueOf["a"] :: HNil]
+    assertEquals((instances.head.value, instances.tail.head.value), (2, "a"))
+    assertEquals(summonAllValueOfHList[2 :: "a" :: HNil], 2 :: "a" :: HNil)
+  }
+
+  test("the Combinations companion summons or applies the operation") {
+    val value = 7 :: HNil
+    assertEquals(Combinations[1, Int :: HNil].apply(value), value :: HNil)
+    assertEquals(Combinations[1, Int :: HNil](1, value), value :: HNil)
+  }
+
+  test("IfEq selects its branch at compile time") {
+    summon[IfEq[Int, Int, String, Boolean] =:= String]
+    summon[IfEq[Int, String, String, Boolean] =:= Boolean]
+  }
+
+  test("Case.Hom describes a case whose input and result have the same type") {
+    val increment: Case.Hom[Unit, Int] = Case1[Unit, Int, Int](_ + 1)
+    assertEquals(increment(1), 2)
+  }
+
   test("selectMany accepts a list of singleton indices") {
     val indices = constValueHList[2 :: 0 :: HNil]
     assertEquals(values.selectMany(indices), true :: 1 :: HNil)

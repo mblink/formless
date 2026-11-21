@@ -51,6 +51,10 @@ Record ops (`Selector`, `Updater`, `Modifier`, `Remover`, `LacksKey`) and HList 
 
 `project/SourceGenerator.scala` generates scalacheck suites at test-compile time (selector/updater/modifier/renamer/remover over records of up to 12 fields, written to `target/.../src_managed/test/generated`). Edit the generator, not the generated output.
 
+## Unused code
+
+Run `sbt findUnusedAll` to analyze the `formless` packages in `coreNext3`, including its tests. Follow [the remove-unused-code skill](.claude/skills/remove-unused-code/SKILL.md) to verify deletions and handle findings for public APIs.
+
 ## Code style
 
 Follow `.claude/skills/scala-code-style/SKILL.md`. In short:

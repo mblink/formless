@@ -82,6 +82,10 @@ jobs:
         if: matrix.java == 'temurin@25'
         run: sbt coverage core3/test core3/coverageReport
 
+      - name: Check for unused code
+        if: matrix.java == 'temurin@25'
+        run: sbt findUnusedAll
+
   publish:
     name: Publish Artifacts
     needs: [build]

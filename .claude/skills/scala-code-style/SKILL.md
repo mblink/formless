@@ -74,7 +74,7 @@ Push correctness into the types so the compiler rejects wrong code, and let it d
 - A type shape, function type or constant written twice becomes one named alias or `val`. Near-identical functions become one parameterized function.
 - Derive a list of members and the type of the same members from one source instead of restating them.
 - Utilities keep generic names and parameters; domain specifics belong in the caller.
-- Removing a feature removes everything it orphans, in the same change.
+- Removing a feature removes everything it orphans, in the same change. Run find-unused with `sbt findUnusedAll` to check.
 
 ## Tests
 

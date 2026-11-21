@@ -202,7 +202,6 @@ class ElemOpTests extends FunSuite with LookupAssertions {
 
   object OpaqueTail {
     opaque type O <: Any :: HNil = Int :: HNil
-    val o: O = 2 :: HNil
   }
 
   test("an opaque list's elements might be narrower than its bound") {
