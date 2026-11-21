@@ -19,13 +19,4 @@ object Remover {
       type Out = f.Out
       def apply(t: T): Out = HList.removedAt(t, f.index).asInstanceOf[Out]
     }
-
-  @deprecated("Retained for binary compatibility", "0.8.1")
-  def removerInst[T <: HList, K](
-    using f: FindField[T, K ->> Any, <:<]
-  ): Remover.Aux[T, K, (f.Value, f.Removed)] =
-    new Remover[T, K] {
-      type Out = (f.Value, f.Removed)
-      def apply(t: T): Out = HList.removedAt(t, f.index).asInstanceOf[Out]
-    }
 }

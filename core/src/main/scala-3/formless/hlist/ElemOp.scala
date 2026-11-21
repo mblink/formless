@@ -34,10 +34,10 @@ object ElemOp {
   }
 
   private def elemOpImpl[T <: HList: Type, U: Type, Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] =
-    formless.record.FindField.guarded("look up an HList element")(elemOpImpl0[T, U, Op])
+    formless.record.Lookup.guarded("look up an HList element")(elemOpImpl0[T, U, Op])
 
   private def elemOpImpl0[T <: HList: Type, U: Type, Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] = {
-    val lookup = formless.record.FindField.Lookup[T, U, =:=]
+    val lookup = formless.record.Lookup.Walk[T, U, =:=]
     import lookup.q.reflect.*
 
     val hnil = TypeRepr.of[HNil]

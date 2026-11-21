@@ -4,33 +4,8 @@ package record
 import formless.hlist.*
 import scala.quoted.*
 
-private[formless] sealed trait FindField[T <: HList, F, Cmp[_, _]] {
-  type Key
-  type Value
-  type Replaced[A] <: HList
-  type Removed <: HList
-  val index: Int
-}
-
-object FindField {
-  type Aux[T <: HList, F, Cmp[_, _], K, V, Rep[_] <: HList, Rem <: HList] = FindField[T, F, Cmp] {
-    type Key = K
-    type Value = V
-    type Replaced[A] = Rep[A]
-    type Removed = Rem
-  }
-
-  inline def apply[T <: HList, F, Cmp[_, _]](
-    using f: FindField[T, F, Cmp],
-  ): FindField.Aux[T, F, Cmp, f.Key, f.Value, f.Replaced, f.Removed] = f
-
-  final class Inst[T <: HList, F, Cmp[_, _], K, V, Rep[_] <: HList, Rem <: HList](val index: Int) extends FindField[T, F, Cmp] {
-    final type Key = K
-    final type Value = V
-    final type Replaced[A] = Rep[A]
-    final type Removed = Rem
-  }
-
+/** Walks a record or HList type for the record and HList operations, and keeps their macros from crashing */
+private[formless] object Lookup {
   private class ConcreteLabelled[K, V]
 
   /** The most elements one lookup walks, across every walk it makes */
@@ -58,9 +33,9 @@ object FindField {
    * Walks a record type looking for the first field `head` such that `Cmp[head, F]` holds.
    *
    * A record whose tail is not statically known (an abstract `L <: HList`) is `Unknown`: it neither contains nor lacks
-   * the field, so neither `FindField` nor `FieldAbsent` resolves for it.
+   * the field, so neither `FieldOp` nor `FieldAbsent` resolves for it.
    */
-  private[formless] final class Lookup[T <: HList: Type, F: Type, Cmp[_, _]: Type](using val q: Quotes) {
+  private[formless] final class Walk[T <: HList: Type, F: Type, Cmp[_, _]: Type](using val q: Quotes) {
     import q.reflect.*
 
     private enum Mode { case Find, Prove, Update }
@@ -310,8 +285,8 @@ object FindField {
       expanded: List[TypeRepr],
     ): Outcome = {
       steps += 1
-      if (steps > FindField.MaxSteps)
-        report.errorAndAbort(s"Cannot look through ${display(TypeRepr.of[T])}: it has more than ${FindField.MaxSteps} elements, or never ends")
+      if (steps > Lookup.MaxSteps)
+        report.errorAndAbort(s"Cannot look through ${display(TypeRepr.of[T])}: it has more than ${Lookup.MaxSteps} elements, or never ends")
       // Most tails are already `H :: T`, which needs no normalizing
       val t = normalize(rest)
       // A tail that had to be reduced, e.g. an alias or a match type, may grow as it is reduced again, so these have a
@@ -322,9 +297,9 @@ object FindField {
       }
       if (reduced) {
         expansions += 1
-        if (expansions > FindField.MaxExpansions)
+        if (expansions > Lookup.MaxExpansions)
           report.errorAndAbort(
-            s"Cannot look through ${display(TypeRepr.of[T])}: more than ${FindField.MaxExpansions} of its tails are aliases or match types to reduce, so it may never end"
+            s"Cannot look through ${display(TypeRepr.of[T])}: more than ${Lookup.MaxExpansions} of its tails are aliases or match types to reduce, so it may never end"
           )
       }
       val direct = isDirectCons(t)
@@ -488,55 +463,22 @@ object FindField {
       }
   }
 
-  private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] =
-    guarded("find a field in a record")(findFieldInstImpl0[T, F, Cmp])
-
-  private def findFieldInstImpl0[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
-    val lookup = Lookup[T, F, Cmp]
-    import lookup.q.reflect.*
-
-    val consTpe = lookup.consSym.typeRef
-    val instSym = TypeRepr.of[Inst[HNil, Any, =:=, Any, Any, [a] =>> HNil, HNil]].typeSymbol
-    def cons(h: TypeRepr, t: TypeRepr): TypeRepr = consTpe.appliedTo(List(h, t))
-
-    // `Replaced` and `Removed` are built as concrete HList types, not as nested `HList.Append`/`HList.Concat` match types
-    def found(revInit: List[TypeRepr], head: TypeRepr, tail: TypeRepr, idx: Int): Expr[FindField[T, F, Cmp]] = {
-      val (key, value) = lookup.keyValue(head)
-      val replaced = TypeLambda(
-        List("a"),
-        _ => List(TypeBounds.empty),
-        tl => revInit.foldLeft(cons(tl.param(0), tail))((acc, h) => cons(h, acc)),
-      )
-      val removed = revInit.foldLeft(tail)((acc, h) => cons(h, acc))
-      val targs = List(TypeRepr.of[T], TypeRepr.of[F], TypeRepr.of[Cmp], key, value, replaced, removed)
-      New(Inferred(instSym.typeRef.appliedTo(targs)))
-        .select(instSym.primaryConstructor)
-        .appliedToTypes(targs)
-        .appliedTo(Literal(IntConstant(idx)))
-        .asExprOf[FindField[T, F, Cmp]]
-    }
-
-    val f = lookup.foundOrAbort
-    found(f.revInit, f.head, f.tail, f.index)
-  }
-
-  transparent inline given findFieldInst[T <: HList, F, Cmp[_, _]]: FindField[T, F, Cmp] = ${ findFieldInstImpl[T, F, Cmp] }
 }
 
 /**
  * Evidence that no field `head` of the record `T` satisfies `Cmp[head, F]`, whatever its abstract types turn out to be.
- * Unlike `NotGiven[FindField[T, F, Cmp]]`, it does not resolve for a record with an abstract tail, with an element that
- * might match once its type parameters are known, or with a field that satisfies `Cmp[head, F]` but that `FindField`
+ * Unlike the absence of a lookup that succeeds, it does not resolve for a record with an abstract tail, with an element
+ * that might match once its type parameters are known, or with a field that satisfies `Cmp[head, F]` but that `FieldOp`
  * can't use.
  */
 private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Unit
 
 object FieldAbsent {
   private def fieldAbsentImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FieldAbsent[T, F, Cmp]] =
-    FindField.guarded("prove a field absent from a record")(fieldAbsentImpl0[T, F, Cmp])
+    Lookup.guarded("prove a field absent from a record")(fieldAbsentImpl0[T, F, Cmp])
 
   private def fieldAbsentImpl0[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FieldAbsent[T, F, Cmp]] = {
-    val lookup = FindField.Lookup[T, F, Cmp]
+    val lookup = Lookup.Walk[T, F, Cmp]
     import lookup.q.reflect.*
 
     lookup.absence match {
@@ -561,8 +503,8 @@ object FieldAbsent {
 }
 
 /**
- * The result of a record operation `Op` on the field `F` of `T`, with the index it acts on. Unlike `FindField`, it carries
- * only the result type its operation needs, so the macro builds only that one.
+ * The result of a record operation `Op` on the field `F` of `T`, with the index it acts on. It carries only the result type
+ * its operation needs, so the macro builds only that one.
  */
 private[formless] sealed trait FieldOp[T <: HList, F, Op] {
   type Out
@@ -584,7 +526,7 @@ object FieldOp {
   }
 
   private def fieldOpImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] =
-    FindField.guarded("look up a record field")(fieldOpImpl0[T, F, Op])
+    Lookup.guarded("look up a record field")(fieldOpImpl0[T, F, Op])
 
   private def fieldOpImpl0[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] =
     Type.of[Op] match {
@@ -599,7 +541,7 @@ object FieldOp {
     '{ new Inst[T, F, Op, O](${ Expr(idx) }) }
 
   private def selectImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
-    val lookup = FindField.Lookup[T, F, <:<]
+    val lookup = Lookup.Walk[T, F, <:<]
     val f = lookup.foundOrAbort
     (lookup.keyValue(f.head)._2.asType: @unchecked) match {
       case '[v] => inst[T, F, Op, v](f.index)
@@ -607,7 +549,7 @@ object FieldOp {
   }
 
   private def removeImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
-    val lookup = FindField.Lookup[T, F, <:<]
+    val lookup = Lookup.Walk[T, F, <:<]
     val f = lookup.foundOrAbort
     ((lookup.keyValue(f.head)._2.asType, lookup.removed(f).asType): @unchecked) match {
       case ('[v], '[rem]) => inst[T, F, Op, (v, rem)](f.index)
@@ -615,10 +557,10 @@ object FieldOp {
   }
 
   private def modifyImpl[T <: HList: Type, F: Type, Op: Type, K: Type, B: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
-    val lookup = FindField.Lookup[T, F, =:=]
+    val lookup = Lookup.Walk[T, F, =:=]
     import lookup.q.reflect.*
     val f = lookup.foundOrAbort
-    // As with `FindField`, the field must have a key and value that can be read
+    // The field must have a key and value that can be read
     val _ = lookup.keyValue(f.head)
     (lookup.replaced(f, TypeRepr.of[K ->> B]).asType: @unchecked) match {
       case '[o] => inst[T, F, Op, o](f.index)
@@ -626,7 +568,7 @@ object FieldOp {
   }
 
   private def updateImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] = {
-    val lookup = FindField.Lookup[T, F, =:=]
+    val lookup = Lookup.Walk[T, F, =:=]
     import lookup.q.reflect.*
 
     def instOf(out: TypeRepr, idx: Int): Expr[FieldOp[T, F, Op]] =
@@ -638,7 +580,7 @@ object FieldOp {
 
     lookup.replaceOrAppend match {
       case f @ lookup.Found(_, head, _, idx) =>
-        // As with `FindField`, a field matched up to `=:=` is only replaced when its key and value can be read
+        // A field matched up to `=:=` is only replaced when its key and value can be read
         if (lookup.keyValueOpt(head).isEmpty) refuse(s"element `${lookup.display(head)}` at index $idx matches but isn't a field")
         instOf(lookup.replaced(f, TypeRepr.of[F]), idx)
       case lookup.Absent =>
