@@ -1,7 +1,6 @@
 package formless
 package hlist
 
-import compiletime.ops.int.S
 import scala.quoted.*
 
 private[formless] sealed trait FindField[T <: HList, F] {
@@ -36,37 +35,31 @@ object FindField {
     final type Index = Idx
   }
 
-  private def findFieldInstImpl[T <: HList: Type, F: Type](using q: Quotes): Expr[FindField[T, F]] = {
-    import q.reflect.*
+  // Kept for the deprecated methods that still take a `FindField`; it walks the list as `ElemOp` does, so it is refused
+  // cleanly wherever `ElemOp` is
+  private def findFieldInstImpl[T <: HList: Type, F: Type](using q: Quotes): Expr[FindField[T, F]] =
+    formless.record.FindField.guarded("look up an HList element")(findFieldInstImpl0[T, F])
 
-    def go[
-      RevHead <: HList: Type,
-      Rep[_] <: HList: Type,
-      Rem <: HList: Type,
-      RestT <: HList: Type,
-      Idx <: Int: Type,
-    ](idx: Idx): Expr[FindField[T, F]] =
-      Type.of[RestT] match {
-        case '[::[head, tail]] if Expr.summon[head =:= F].nonEmpty =>
-          '{
-            FindField.Inst[
-              T,
-              F,
-              head,
-              HList.Reverse[RevHead],
-              tail,
-              [a] =>> HList.Concat[Rep[a], tail],
-              HList.Concat[Rem, tail],
-              Idx,
-            ](${ Expr(idx) })
-          }
-        case '[::[head, tail]] =>
-          go[head :: RevHead, [a] =>> HList.Append[Rep[head], a], HList.Append[Rem, head], tail, S[Idx]]((idx + 1).asInstanceOf[S[Idx]])
-        case '[HNil] =>
-          report.errorAndAbort(s"Failed to find field ${Type.show[F]} in HList ${Type.show[T]}")
-      }: @annotation.nowarn("msg=match may not be exhaustive")
+  private def findFieldInstImpl0[T <: HList: Type, F: Type](using Quotes): Expr[FindField[T, F]] = {
+    val lookup = formless.record.FindField.Lookup[T, F, =:=]
+    import lookup.q.reflect.*
 
-    go[HNil, [a] =>> a :: HNil, HNil, T, 0](0)
+    val f = lookup.foundOrAbort
+    // Its users include `Remove.reinsert`, which only holds for `T`'s own elements, as with `ElemOp.Remove`
+    if (f.bounded) report.errorAndAbort(
+      s"Cannot find ${lookup.display(TypeRepr.of[F])} in ${lookup.display(TypeRepr.of[T])}: it was found in the upper bound of an abstract list"
+    )
+    val prefix = f.revInit.reverse
+    def list(elems: List[TypeRepr], end: TypeRepr): TypeRepr = elems.foldRight(end)(lookup.cons)
+    val replaced = TypeLambda(List("a"), _ => List(TypeBounds.empty), tl => list(prefix, lookup.cons(tl.param(0), f.tail)))
+    val idx = ConstantType(IntConstant(f.index))
+    val instSym = TypeRepr.of[Inst[HNil, Any, Any, HNil, HNil, [a] =>> HNil, HNil, 0]].typeSymbol
+    val targs = List(TypeRepr.of[T], TypeRepr.of[F], f.head, list(prefix, TypeRepr.of[HNil]), f.tail, replaced, lookup.removed(f), idx)
+    New(Inferred(instSym.typeRef.appliedTo(targs)))
+      .select(instSym.primaryConstructor)
+      .appliedToTypes(targs)
+      .appliedTo(Literal(IntConstant(f.index)))
+      .asExprOf[FindField[T, F]]
   }
 
   transparent inline given findFieldInst[T <: HList, F]: FindField[T, F] = ${ findFieldInstImpl[T, F] }
