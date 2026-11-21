@@ -2,12 +2,6 @@ package formless.hlist
 
 import compiletime.ops.int.S
 
-@deprecated("Retained for binary compatibility", "0.7.0")
-private[hlist] type RangeT[N <: Int, M <: Int] <: HList = N match {
-  case M => HNil
-  case _ => N :: RangeT[S[N], M]
-}
-
 /**
  * Type class supporting the patching of a `HList`.
  */
@@ -17,12 +11,6 @@ object Range {
   type Aux[N, M, O] = Range[N, M] { type Out = O }
 
   inline def apply[N, M](using r: Range[N, M]): Range.Aux[N, M, r.Out] = r
-
-  @deprecated("Retained for binary compatibility", "0.7.0")
-  private[hlist] final class Inst[N, M, O](o: O) extends Range[N, M], Serializable {
-    final type Out = O
-    final def apply(): Out = o
-  }
 
   given range1[A <: Int]: Range.Aux[A, A, HNil] =
     new Range[A, A] {
