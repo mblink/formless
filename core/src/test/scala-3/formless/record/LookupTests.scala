@@ -5,7 +5,7 @@ import formless.hlist.{::, HList, HNil}
 import munit.{FunSuite, Location}
 import scala.compiletime.testing.typeCheckErrors
 
-class FindFieldTests extends FunSuite {
+class LookupTests extends FunSuite {
   object intKey extends FieldOf[Int]
 
   object Opaque {

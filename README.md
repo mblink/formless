@@ -339,7 +339,7 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x0000100002e03800@50023127 :: repl.MdocSession$MdocApp$$Lambda/0x0000100002e03400@75325229 :: repl.MdocSession$MdocApp$$Lambda/0x0000100002e03000@a993da3 :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x00007ffc05b0c800@ce09c39 :: repl.MdocSession$MdocApp$$Lambda/0x00007ffc05b0c400@2d897837 :: repl.MdocSession$MdocApp$$Lambda/0x00007ffc05b0c000@7231d51c :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil
@@ -495,6 +495,7 @@ A summary for tools that write code against formless:
 - Build a record field with `"key" ->> value`; a record is an `HList` of fields. Keys are singleton types: string, int, long, char or boolean literals, or a stable object.
 - Each operation is a type class (`Selector`, `Updater`, `Remover`, `Modifier`, `Renamer`, `LacksKey`, ...) with syntax on `HList` and record values. The result type is the type class's `Out` member; summon one with its companion's `apply`, e.g. `Selector[R, "a"]`, to see it.
 - A failed lookup is a compile error that names the record and the key. It means the key isn't there, or it could only be in an abstract part of the type (a type parameter, abstract type member, or an element whose type isn't known yet). Make the type concrete at that point, or pass the evidence (`using Selector[T, "a"]`) in from where it is concrete.
+- Working on formless itself? [`AGENTS.md`](AGENTS.md) describes the build, the source layout and the conventions.
 - On Scala 3 the source is in `core/src/main/scala-3/formless`, one file per type class; `record/Lookup.scala` holds the field lookup. The tests in `core/src/test` show every operation.
 
 ## Contributing

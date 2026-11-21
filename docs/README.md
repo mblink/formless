@@ -378,6 +378,7 @@ A summary for tools that write code against formless:
 - Build a record field with `"key" ->> value`; a record is an `HList` of fields. Keys are singleton types: string, int, long, char or boolean literals, or a stable object.
 - Each operation is a type class (`Selector`, `Updater`, `Remover`, `Modifier`, `Renamer`, `LacksKey`, ...) with syntax on `HList` and record values. The result type is the type class's `Out` member; summon one with its companion's `apply`, e.g. `Selector[R, "a"]`, to see it.
 - A failed lookup is a compile error that names the record and the key. It means the key isn't there, or it could only be in an abstract part of the type (a type parameter, abstract type member, or an element whose type isn't known yet). Make the type concrete at that point, or pass the evidence (`using Selector[T, "a"]`) in from where it is concrete.
+- Working on formless itself? [`AGENTS.md`](AGENTS.md) describes the build, the source layout and the conventions.
 - On Scala 3 the source is in `core/src/main/scala-3/formless`, one file per type class; `record/Lookup.scala` holds the field lookup. The tests in `core/src/test` show every operation.
 
 ## Contributing
