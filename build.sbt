@@ -29,6 +29,7 @@ ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Run(List("sbt mimaReportBinaryIssues"), name = Some("Check binary compatibility"), cond = Some(isJava25)),
   WorkflowStep.Run(List("sbt mdoc"), name = Some("Build docs"), cond = Some(isJava25)),
   WorkflowStep.Run(List("sbt perf3/test"), name = Some("Check compile-time performance"), cond = Some(isJava25)),
+  WorkflowStep.Run(List("sbt coverage core3/test core3/coverageReport"), name = Some("Check test coverage"), cond = Some(isJava25)),
 )
 
 ThisBuild / githubWorkflowPublishTargetBranches := Seq()
@@ -101,6 +102,11 @@ lazy val core = maybeAddScala3Next(projectMatrix.in(file("core")))
   .settings(publishSettings)
   .settings(
     name := "formless",
+    // `sbt coverage core3/test core3/coverageReport` fails below these. The lookup macros count too: they run in the
+    // compiler, with the instrumented classes, while the tests compile.
+    coverageMinimumStmtTotal := 90,
+    coverageMinimumBranchTotal := 82,
+    coverageFailOnMinimum := true,
     libraryDependencies ++= Seq(munit.value, scalacheck.value),
     libraryDependencies ++= foldScalaV(scalaVersion.value)(
       Seq(

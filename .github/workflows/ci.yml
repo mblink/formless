@@ -97,3 +97,7 @@ jobs:
       - name: Check compile-time performance
         if: matrix.java == 'temurin@25'
         run: sbt perf3/test
+
+      - name: Check test coverage
+        if: matrix.java == 'temurin@25'
+        run: sbt coverage core3/test core3/coverageReport
