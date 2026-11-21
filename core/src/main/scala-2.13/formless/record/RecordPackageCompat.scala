@@ -24,19 +24,17 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   final def record: FormlessDynamicRecordOps[T] = new FormlessDynamicRecordOps[T](t)
 }
 
-private[formless] sealed trait RecordPackageCompatLP {
+private[formless] sealed trait RecordSyntaxLP {
   @inline final implicit def hlistToRecordOps[T <: HList](t: T): shapeless.syntax.RecordOps[T] =
     new shapeless.syntax.RecordOps[T](t)
 }
 
-private[formless] trait RecordPackageCompat extends RecordPackageCompatLP {
+/** Building fields and the record syntax, without the record type classes; see `formless.record.syntax` */
+private[formless] trait RecordSyntax extends RecordSyntaxLP {
   final type ->>[K, +V] = tagged.TranslucentTagged[V, K]
 
   final def field[K]: FormlessLabelPartialAp[K] = new FormlessLabelPartialAp[K]
   final def label[K]: FormlessLabelPartialAp[K] = new FormlessLabelPartialAp[K]
-
-  final type FieldPoly = shapeless.FieldPoly
-  final type FieldOf[V] = shapeless.FieldOf[V]
 
   @inline final implicit def toFormlessSingletonOps[K <: Singleton](k: K): FormlessSingletonOps[K] = new FormlessSingletonOps[K](k)
   @inline final implicit def toFormlessLabelledOps[K, V](kv: K ->> V): FormlessLabelledOps[K, V] = new FormlessLabelledOps[K, V](kv)
@@ -46,6 +44,11 @@ private[formless] trait RecordPackageCompat extends RecordPackageCompatLP {
 
   @inline final implicit def toFormlessMapOps[K, V](m: Map[K, V]): shapeless.syntax.std.MapOps[K, V] =
     new shapeless.syntax.std.MapOps(m)
+}
+
+private[formless] trait RecordPackageCompat extends RecordSyntax {
+  final type FieldPoly = shapeless.FieldPoly
+  final type FieldOf[V] = shapeless.FieldOf[V]
 
   final type AlignByKeys[T <: HList, K <: HList] = shapeless.ops.record.AlignByKeys[T, K]
   final val AlignByKeys: shapeless.ops.record.AlignByKeys.type = shapeless.ops.record.AlignByKeys

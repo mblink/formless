@@ -14,7 +14,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Returns the value associated with the singleton typed key k. Only available if this record has a field with
    * with keyType equal to the singleton type K.
    */
-  final def apply[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using s: Selector[T, K]): s.Out = s(t)
+  final def apply[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using MaybeRecord[T])(using s: Selector[T, K]): s.Out = s(t)
 
   /**
    * Returns the value associated with the singleton typed key k. Only available if this record has a field with
@@ -32,15 +32,21 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Replaces the value of field k with a value of the same type. Only available if this record has a field with
    * keyType equal to the singleton type K and valueType equal to V.
    */
-  final def replace[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(
+  final def replace[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(using MaybeRecord[T])(
     using s: Selector[T, K] { type Out = V },
     u: Updater[T, K ->> V],
   ): u.Out = u(t, label[K](v))
 
   /**
+   * Not record syntax: `replace` on a record takes a key and a value. It's here so that `replace(value)` on a plain
+   * `HList`, the `HList` method this syntax hides, explains why instead of reporting a missing argument.
+   */
+  final def replace[V](@annotation.nowarn("msg=unused") v: V)(using MaybeRecord[T])(using ev: ReplaceTakesAKey[T]): ev.Out = ev.out
+
+  /**
    * Updates a field having a value with type A by given function.
    */
-  final def updateWith[K, B](k: K)(using s: Selector[T, k.type])(f: s.Out => B)(using m: Modifier[T, k.type, s.Out, B]): m.Out = m(t, f)
+  final def updateWith[K, B](k: K)(using MaybeRecord[T])(using s: Selector[T, k.type])(f: s.Out => B)(using m: Modifier[T, k.type, s.Out, B]): m.Out = m(t, f)
 
   /**
    * Remove the field associated with the singleton typed key k, returning both the corresponding value and the updated

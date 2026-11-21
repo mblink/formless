@@ -344,7 +344,7 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x000007fc03083800@10480a34 :: repl.MdocSession$MdocApp$$Lambda/0x000007fc03083400@406c16c :: repl.MdocSession$MdocApp$$Lambda/0x000007fc03083000@1656a005 :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x00000ff806e75000@54929fbf :: repl.MdocSession$MdocApp$$Lambda/0x00000ff806e74c00@4eddb00b :: repl.MdocSession$MdocApp$$Lambda/0x00000ff806e74800@738512c9 :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil
@@ -352,7 +352,11 @@ fns.zipApply(x)
 
 ### Records
 
-A record is an `HList` of fields, each a value tagged with a singleton-typed key. Import `formless.record._` to build and use them. It defines a `Selector` and a `Modifier` of its own, so importing both `formless.hlist._` and `formless.record._` makes those two names ambiguous; refer to them through their package, or import only what you need.
+A record is an `HList` of fields, each a value tagged with a singleton-typed key. Import `formless.record._` to build and use them.
+
+`formless.record` also has type classes named like `HList` ones (`Selector`, `Modifier`, `Remove`, `RemoveAll` and `SelectAll`), so importing both `formless.hlist._` and `formless.record._` makes those names ambiguous. To use both, import `formless.record.syntax._` instead of `formless.record._`: it has everything for building and using records except the type classes, which you can still name as `formless.record.Selector` and so on. Use one of the two record imports in a file, not both.
+
+The record syntax adds `apply`, `updateWith` and `replace` to every `HList`, taking a key, so they hide the `HList` methods of the same names in files that import it. Using one of them on a list with no fields is a compile error saying so; call the `HList` method as `formless.hlist.HList.toHListOps(list).updateWith(...)`.
 
 ```scala
 import formless.hlist.{::, HNil}
@@ -496,7 +500,8 @@ On Scala 2.13 formless's `HList`, `::` and `HNil` are shapeless's own, so the tw
 
 A summary for tools that write code against formless:
 
-- Imports: `formless.hlist._` for `HList`, `::`, `HNil`, `Poly` and the `HList` type classes; `formless.record._` for `->>`, record syntax and the record type classes. Both define `Selector` and `Modifier`, so import one package wholesale and refer to the other's by its package.
+- Imports: `formless.hlist._` for `HList`, `::`, `HNil`, `Poly` and the `HList` type classes; `formless.record._` for `->>`, record syntax and the record type classes. Five type class names (`Selector`, `Modifier`, `Remove`, `RemoveAll`, `SelectAll`) exist in both, so alongside `formless.hlist._` import `formless.record.syntax._` (record building and syntax, no type classes) instead of `formless.record._`, never both record imports.
+- With record syntax in scope, `apply`, `updateWith` and `replace` on any `HList` are the record versions, which take a key. To use the `HList` versions there, call `formless.hlist.HList.toHListOps(list).updateWith(...)`.
 - Build a record field with `"key" ->> value`; a record is an `HList` of fields. Keys are singleton types: string, int, long, char or boolean literals, or a stable object.
 - Each operation is a type class (`Selector`, `Updater`, `Remover`, `Modifier`, `Renamer`, `LacksKey`, ...) with syntax on `HList` and record values. The result type is the type class's `Out` member; summon one with its companion's `apply`, e.g. `Selector[R, "a"]`, to see it.
 - A failed lookup is a compile error that names the record and the key. It means the key isn't there, or it could only be in an abstract part of the type (a type parameter, abstract type member, or an element whose type isn't known yet). Make the type concrete at that point, or pass the evidence (`using Selector[T, "a"]`) in from where it is concrete.

@@ -23,12 +23,14 @@ private[formless] object Lookup {
     case Present(record: String, element: String, index: Int, field: String)
     case Refused(action: String, reason: Reason)
     case AbstractOperation(operation: String)
+    case PlainList(list: String)
 
     def message: String = this match {
       case NotFound(field, record) => s"Failed to find field $field in record $record"
       case Present(record, element, index, field) => s"Record $record has field $element at index $index matching $field"
       case Refused(action, reason) => s"Cannot $action: ${reason.message}"
       case AbstractOperation(operation) => s"Cannot expand a lookup for the abstract operation $operation"
+      case PlainList(list) => s"$list has no record fields"
     }
   }
 
@@ -536,6 +538,23 @@ private[formless] object Lookup {
       loop(TypeRepr.of[T], idx)
     }
 
+    /**
+     * Whether `T` is spelled out as `H1 :: ... :: HNil`, or a union of such lists, with no element that is a field or,
+     * once its types are known, might be one
+     */
+    def isPlainList: Boolean = {
+      @annotation.tailrec def loop(t: TypeRepr, steps: Int): Boolean = {
+        val n = normalize(t)
+        if (steps > Lookup.MaxSteps) false
+        else if (!isDirectCons(n)) n <:< hnilTpe && isGround(n)
+        else consParts(n) match {
+          case Some((head, tail)) => keyValueOpt(head).isEmpty && isGround(head) && loop(tail, steps + 1)
+          case None => false
+        }
+      }
+      loop(TypeRepr.of[T], 0)
+    }
+
     /** Like `found`, but `Undecided` at the first element that doesn't match yet might once its types are known */
     def absence: Either[LookupError, Outcome] = start(Mode.Prove)
 
@@ -734,5 +753,35 @@ object ReplaceAt {
   }
 
   transparent inline given replaceAtInst[T <: HList, F, Kind <: ReplaceAt.Kind]: ReplaceAt[T, F, Kind] = ${ replaceAtImpl[T, F, Kind] }
+}
+
+/**
+ * Evidence that `T` is, or might be, a record: it resolves for anything but a list spelled out as `H1 :: ... :: HNil`
+ * with no element that is or might be a field. The record syntax's `apply`, `updateWith` and `replace`, whose names
+ * `HList`s also have, require it, so using them on a plain `HList` explains why instead of reporting a missing field.
+ */
+@scala.annotation.implicitNotFound("${T} has no record fields, so this `apply`, `updateWith` or `replace` is the record syntax that importing formless.record adds to every HList, not the HList method of the same name. To call the HList method, write formless.hlist.HList.toHListOps(list).updateWith(...), or don't import the record syntax in this file.")
+private[formless] sealed trait MaybeRecord[T <: HList]
+
+object MaybeRecord {
+  final class Proof[T <: HList] extends MaybeRecord[T]
+
+  private def maybeRecordImpl[T <: HList: Type](using Quotes): Expr[MaybeRecord[T]] =
+    Lookup.guarded("check for record fields")(maybeRecordImpl0[T])
+
+  private def maybeRecordImpl0[T <: HList: Type](using Quotes): Either[Lookup.LookupError, Expr[MaybeRecord[T]]] = {
+    val lookup = Lookup.Walk[T, Nothing, <:<]
+    if (lookup.isPlainList) Left(Lookup.LookupError.PlainList(lookup.display(lookup.q.reflect.TypeRepr.of[T])))
+    else Right('{ new Proof[T] })
+  }
+
+  transparent inline given maybeRecordInst[T <: HList]: MaybeRecord[T] = ${ maybeRecordImpl[T] }
+}
+
+/** Never resolves: a record's `replace` takes a key and a value */
+@scala.annotation.implicitNotFound("A record's replace takes a key and a value, e.g. record.replace(\"key\", value)")
+private[formless] sealed trait ReplaceTakesAKey[T <: HList] {
+  type Out
+  def out: Out
 }
 
