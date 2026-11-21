@@ -6,11 +6,7 @@ import scala.language.implicitConversions
 
 trait RecordPackageCompat {
   final opaque type ->>[K, +V] = V
-  sealed trait `->>LP` {
-    @deprecated("Use inlineConvertToV", "0.8.0")
-    private[record] implicit def convertToV[K, V](kv: K ->> V): V = kv
-  }
-  object ->> extends `->>LP` {
+  object ->> {
     inline implicit def inlineConvertToV[K, V](kv: K ->> V): V = kv
   }
 
