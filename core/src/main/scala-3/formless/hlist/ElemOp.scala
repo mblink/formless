@@ -15,7 +15,7 @@ private[formless] sealed trait ElemOp[T <: HList, U, Op] {
 }
 
 object ElemOp {
-  /** `A` is `T` without the element; `B` is unused */
+  /** `A` is `T` without the element, keeping each arm of a union of lists separate; `B` is unused */
   sealed trait Remove
   /** `A` is `T` with `V` in place of the element; `B` is unused */
   sealed trait Replace[V]
@@ -33,7 +33,10 @@ object ElemOp {
     final type B = B0
   }
 
-  private def elemOpImpl[T <: HList: Type, U: Type, Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] = {
+  private def elemOpImpl[T <: HList: Type, U: Type, Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] =
+    formless.record.FindField.guarded("look up an HList element")(elemOpImpl0[T, U, Op])
+
+  private def elemOpImpl0[T <: HList: Type, U: Type, Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] = {
     val lookup = formless.record.FindField.Lookup[T, U, =:=]
     import lookup.q.reflect.*
 
@@ -48,7 +51,12 @@ object ElemOp {
     Type.of[Op] match {
       case '[Remove] =>
         val f = lookup.foundOrAbort
-        inst(lookup.removed(f), hnil, f.index)
+        // `reinsert` puts the element back and calls the result a `T`, which only holds when the removed type describes
+        // `T`'s own elements, not those of an abstract `T`'s upper bound, which `T` may narrow
+        if (f.bounded) report.errorAndAbort(
+          s"Cannot remove ${lookup.display(u)} from ${lookup.display(TypeRepr.of[T])}: it was found in the upper bound of an abstract list, so it couldn't be reinserted"
+        )
+        inst(lookup.removedByArm(f.index), hnil, f.index)
       case '[Replace[v]] =>
         val f = lookup.foundOrAbort
         inst(lookup.replaced(f, TypeRepr.of[v]), hnil, f.index)
@@ -65,7 +73,7 @@ object ElemOp {
         val f = lookup.lastFoundOrAbort
         inst(lookup.cons(u, list(f.revInit)), f.tail, f.index)
       case _ =>
-        report.errorAndAbort(s"Unexpected HList operation ${Type.show[Op]}")
+        report.errorAndAbort("Unexpected HList operation: expected Remove, Replace, or one of the splits")
     }
   }
 

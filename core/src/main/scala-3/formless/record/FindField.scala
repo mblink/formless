@@ -33,6 +33,27 @@ object FindField {
 
   private class ConcreteLabelled[K, V]
 
+  /** The most elements one lookup walks, across every walk it makes */
+  private[formless] final val MaxSteps = 10000
+
+  /** The most tails one lookup reduces from an alias or match type, across every walk it makes */
+  private[formless] final val MaxExpansions = 200
+
+  /**
+   * Runs a macro's body, turning any exception other than the compiler's own control flow (aborting or suspending the
+   * expansion) into a compile error, so a lookup is refused rather than crashing the compiler
+   */
+  private[formless] def guarded[A](what: String)(body: => A)(using q: Quotes): A =
+    try body
+    catch {
+      case e: scala.quoted.runtime.StopMacroExpansion => throw e
+      case e: Exception if e.getClass.getName.endsWith("SuspendException") => throw e
+      case _: StackOverflowError =>
+        q.reflect.report.errorAndAbort(s"Cannot $what: the types are too deeply nested to look through")
+      case scala.util.control.NonFatal(e) =>
+        q.reflect.report.errorAndAbort(s"Cannot $what: looking through the types failed with ${e.getClass.getName}")
+    }
+
   /**
    * Walks a record type looking for the first field `head` such that `Cmp[head, F]` holds.
    *
@@ -67,7 +88,8 @@ object FindField {
       }
 
     // `show` throws CyclicReference for a type owned by a method whose result type is still being inferred
-    def display(t: TypeRepr): String = scala.util.Try(t.show).getOrElse(t.typeSymbol.name)
+    def display(t: TypeRepr): String =
+      scala.util.Try(t.show).orElse(scala.util.Try(t.typeSymbol.name)).getOrElse("<type>")
 
     // A type parameter or abstract type member stands for some subtype of its upper bound. A member's bound is taken as
     // seen from its prefix, so `c.H` for `c: C[Int]` and `trait C[A] { type H <: "a" ->> A }` is bounded by `"a" ->> Int`
@@ -262,6 +284,11 @@ object FindField {
         case _ => false
       }
 
+    // Every walk of this lookup counts against one budget, so a record type that never ends, e.g. a match type that
+    // keeps producing elements as it reduces, is refused instead of walked forever
+    private var steps = 0
+    private var expansions = 0
+
     /**
      * @param mode `Find` looks for the first match; `Prove` also stops, `Undecided`, at the first element that might
      *             match once its types are known, and splits a union of records into arms that end at different points;
@@ -282,8 +309,24 @@ object FindField {
       bounded: Boolean,
       expanded: List[TypeRepr],
     ): Outcome = {
+      steps += 1
+      if (steps > FindField.MaxSteps)
+        report.errorAndAbort(s"Cannot look through ${display(TypeRepr.of[T])}: it has more than ${FindField.MaxSteps} elements, or never ends")
       // Most tails are already `H :: T`, which needs no normalizing
       val t = normalize(rest)
+      // A tail that had to be reduced, e.g. an alias or a match type, may grow as it is reduced again, so these have a
+      // smaller budget, stopping before the compiler's own recursion limit
+      val reduced = rest match {
+        case AppliedType(tycon, _) => tycon.typeSymbol != consSym
+        case _ => true
+      }
+      if (reduced) {
+        expansions += 1
+        if (expansions > FindField.MaxExpansions)
+          report.errorAndAbort(
+            s"Cannot look through ${display(TypeRepr.of[T])}: more than ${FindField.MaxExpansions} of its tails are aliases or match types to reduce, so it may never end"
+          )
+      }
       val direct = isDirectCons(t)
       if (!direct && expandedBefore(t, expanded)) Unknown(t)
       else consParts(t) match {
@@ -393,6 +436,24 @@ object FindField {
     def replaced(found: Found, newHead: TypeRepr): TypeRepr =
       found.revInit.foldLeft(cons(newHead, found.tail))((acc, h) => cons(h, acc))
 
+    /**
+     * `T` without its element at `idx`, taken from each arm of a union of records separately, so the arms' other elements
+     * stay together, e.g. `(String :: String :: HNil) | (Boolean :: Boolean :: HNil)` from removing the `Int` in
+     * `(String :: Int :: String :: HNil) | (Boolean :: Int :: Boolean :: HNil)`
+     */
+    def removedByArm(idx: Int): TypeRepr = {
+      def loop(t: TypeRepr, i: Int): TypeRepr =
+        normalize(t) match {
+          case OrType(a, b) => union(loop(a, i), loop(b, i))
+          case n =>
+            consParts(n) match {
+              case Some((head, tail)) => if (i == 0) tail else cons(head, loop(tail, i - 1))
+              case None => report.errorAndAbort(s"Unexpected end of ${display(TypeRepr.of[T])}")
+            }
+        }
+      loop(TypeRepr.of[T], idx)
+    }
+
     /** The record without the field `found` */
     def removed(found: Found): TypeRepr =
       found.revInit.foldLeft(found.tail)((acc, h) => cons(h, acc))
@@ -427,7 +488,10 @@ object FindField {
       }
   }
 
-  private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
+  private def findFieldInstImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] =
+    guarded("find a field in a record")(findFieldInstImpl0[T, F, Cmp])
+
+  private def findFieldInstImpl0[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FindField[T, F, Cmp]] = {
     val lookup = Lookup[T, F, Cmp]
     import lookup.q.reflect.*
 
@@ -468,7 +532,10 @@ object FindField {
 private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Unit
 
 object FieldAbsent {
-  private def fieldAbsentImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FieldAbsent[T, F, Cmp]] = {
+  private def fieldAbsentImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FieldAbsent[T, F, Cmp]] =
+    FindField.guarded("prove a field absent from a record")(fieldAbsentImpl0[T, F, Cmp])
+
+  private def fieldAbsentImpl0[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FieldAbsent[T, F, Cmp]] = {
     val lookup = FindField.Lookup[T, F, Cmp]
     import lookup.q.reflect.*
 
@@ -517,12 +584,15 @@ object FieldOp {
   }
 
   private def fieldOpImpl[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] =
+    FindField.guarded("look up a record field")(fieldOpImpl0[T, F, Op])
+
+  private def fieldOpImpl0[T <: HList: Type, F: Type, Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] =
     Type.of[Op] match {
       case '[Select] => selectImpl[T, F, Op]
       case '[Remove] => removeImpl[T, F, Op]
       case '[Modify[k, b]] => modifyImpl[T, F, Op, k, b]
       case '[Update] => updateImpl[T, F, Op]
-      case _ => quotes.reflect.report.errorAndAbort(s"Unexpected record operation ${Type.show[Op]}")
+      case _ => quotes.reflect.report.errorAndAbort("Unexpected record operation: expected Select, Remove, Modify or Update")
     }
 
   private def inst[T <: HList: Type, F: Type, Op: Type, O: Type](idx: Int)(using Quotes): Expr[FieldOp[T, F, Op]] =
