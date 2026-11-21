@@ -16,6 +16,6 @@ object Modifier {
   given modifierAt[T <: HList, K, A, B](using op: ReplaceAt[T, K ->> A, ReplaceAt.Field]): Modifier.Aux[T, K, A, B, op.Replaced[K ->> B]] =
     new Modifier[T, K, A, B] {
       type Out = op.Replaced[K ->> B]
-      def apply(t: T, f: A => B): Out = HList.updatedAt(t, op.index, a => f(a.asInstanceOf[A])).asInstanceOf[Out]
+      def apply(t: T, f: A => B): Out = HList.updatedAt(t, op.index, f).asInstanceOf[Out]
     }
 }

@@ -10,8 +10,8 @@ import scala.quoted.*
  */
 @scala.annotation.implicitNotFound("Cannot find an element of ${T} of type ${U}")
 private[formless] sealed trait ElemOp[T <: HList, U, Op <: ElemOp.Op] extends Serializable {
-  type A
-  type B
+  type A <: HList
+  type B <: HList
   val index: Int
 }
 
@@ -29,7 +29,7 @@ object ElemOp {
   sealed trait ReverseSplitRight extends Op
 
   // Built only by the macro below, which proves `index` is the element of `T` that `A0` and `B0` were built around
-  private[formless] final class Inst[T <: HList, U, Op <: ElemOp.Op, A0, B0](val index: Int) extends ElemOp[T, U, Op] {
+  private[formless] final class Inst[T <: HList, U, Op <: ElemOp.Op, A0 <: HList, B0 <: HList](val index: Int) extends ElemOp[T, U, Op] {
     final type A = A0
     final type B = B0
   }
@@ -47,10 +47,16 @@ object ElemOp {
     val hnil = TypeRepr.of[HNil]
     val u = TypeRepr.of[U]
     def list(elems: List[TypeRepr]): TypeRepr = elems.foldRight(hnil)(lookup.cons)
-    def inst(f: lookup.Found, a: TypeRepr, b: TypeRepr): Expr[ElemOp[T, U, Op]] =
-      ((a.asType, b.asType): @unchecked) match {
-        case ('[a], '[b]) => '{ new Inst[T, U, Op, a, b](${ Expr(f.index) }) }
-      }
+    def inst(f: lookup.Found, a: TypeRepr, b: TypeRepr): Expr[ElemOp[T, U, Op]] = {
+      // Scala 3.3 quote patterns cannot bind the HList-bounded type arguments.
+      val instSym = TypeRepr.of[Inst[HNil, Any, Remove, HNil, HNil]].typeSymbol
+      val args = List(TypeRepr.of[T], u, TypeRepr.of[Op], a, b)
+      New(Inferred(instSym.typeRef.appliedTo(args)))
+        .select(instSym.primaryConstructor)
+        .appliedToTypes(args)
+        .appliedTo(Literal(IntConstant(f.index)))
+        .asExprOf[ElemOp[T, U, Op]]
+    }
 
     Type.of[Op] match {
       case '[Remove] =>

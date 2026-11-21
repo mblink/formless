@@ -31,9 +31,8 @@ object Extractor extends ExtractorLP {
       def apply(c: L): E = HNil
     }
 
-  private val identicalInst: Extractor[HList, HList] = t => t
-
-  given identical[L <: HList]: Extractor[L, L] = identicalInst.asInstanceOf[Extractor[L, L]]
+  // A lambda that captures nothing is created once by the JVM, so this allocates no more than a shared instance would
+  given identical[L <: HList]: Extractor[L, L] = (t: L) => t
 
   given descend[L <: HList, K, V <: HList, V1 <: HList, LR <: HList, ET <: HList](
     using ev0: NotGiven[L =:= ((K ->> V) :: ET)],

@@ -19,6 +19,6 @@ object Remove {
     new Remove[L, E] {
       type Out = (E, f.A)
       def apply(l: L): Out = HList.removedAt(l, f.index).asInstanceOf[Out]
-      def reinsert(out: Out): L = HList.insertedAt(out._2.asInstanceOf[HList], f.index, out._1).asInstanceOf[L]
+      def reinsert(out: Out): L = HList.insertedAt(out._2, f.index, out._1).asInstanceOf[L]
     }
 }

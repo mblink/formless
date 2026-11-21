@@ -27,8 +27,8 @@ object OpaqueTagged {
     new ValueOf[OpaqueTagged[A, T]](a.value)
 
   inline def deriving[TC[_], A, T](using inline tc: TC[A]): TC[OpaqueTagged[A, T]] =
-    tc.asInstanceOf[TC[OpaqueTagged[A, T]]]
+    tc
 
   inline def derivingK[TC[_[_]], T](using inline tc: TC[[a] =>> a]): TC[OpaqueTagged[*, T]] =
-    tc.asInstanceOf[TC[OpaqueTagged[*, T]]]
+    tc
 }

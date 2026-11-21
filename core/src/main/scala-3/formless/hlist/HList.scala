@@ -116,10 +116,13 @@ object HList {
       case _ => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength - 1})")
     }
 
-  /** `l` with `f` applied to its element at `idx`; the elements after it are shared */
-  private[formless] def updatedAt(l: HList, idx: Int, f: Any => Any): HList = {
+  /**
+   * `l` with `f` applied to its element at `idx`; the elements after it are shared. The lookup that found `idx` proved
+   * the element is an `A`, which the erased list can't show, so this is the one place that reads it as one.
+   */
+  private[formless] def updatedAt[A](l: HList, idx: Int, f: A => Any): HList = {
     val (prefix, c) = cellAt(l, idx)
-    prependAll(prefix, f(c.head) :: c.tail)
+    prependAll(prefix, f(c.head.asInstanceOf[A]) :: c.tail)
   }
 
   private def reversed(prefix: Array[Any]): HList = prefix.foldLeft(HNil: HList)((acc, x) => x :: acc)
@@ -151,10 +154,11 @@ object HList {
     (c.head :: reversed(prefix), c.tail)
   }
 
-  /** The element at `idx`, and `l` with `f` of it in its place; the elements after it are shared */
-  private[formless] def replacedAt(l: HList, idx: Int, f: Any => Any): (Any, HList) = {
+  /** The element at `idx`, read as an `A` as in `updatedAt`, and `l` with `f` of it in its place */
+  private[formless] def replacedAt[A](l: HList, idx: Int, f: A => Any): (A, HList) = {
     val (prefix, c) = cellAt(l, idx)
-    (c.head, prependAll(prefix, f(c.head) :: c.tail))
+    val a = c.head.asInstanceOf[A]
+    (a, prependAll(prefix, f(a) :: c.tail))
   }
 
   /** `l` with `x` inserted at index `idx`, which may be `l`'s length; the elements from `idx` on are shared */
@@ -179,7 +183,9 @@ object HList {
 
   def fromTuple[T <: Tuple](t: T): FromTuple[T] = t match {
     case _: EmptyTuple => HNil
-    case x: (h *: t) => x.head.asInstanceOf[h] :: fromTuple(x.tail.asInstanceOf[t])
+    case x: (h *: t) =>
+      val tuple: h *: t = x
+      tuple.head :: fromTuple(tuple.tail)
   }
 
   type ToTuple[H <: HList] <: Tuple = H match {

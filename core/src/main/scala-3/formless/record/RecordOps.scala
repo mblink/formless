@@ -48,7 +48,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    */
   final def updateWith[K, B](k: K)(using MaybeRecord[T])(using s: Selector[T, k.type], op: ReplaceAt[T, k.type ->> Any, ReplaceAt.Keyed])(
     f: s.Out => B,
-  ): op.Replaced[k.type ->> B] = HList.updatedAt(t, op.index, a => f(a.asInstanceOf[s.Out])).asInstanceOf[op.Replaced[k.type ->> B]]
+  ): op.Replaced[k.type ->> B] = HList.updatedAt(t, op.index, f).asInstanceOf[op.Replaced[k.type ->> B]]
 
   /**
    * Remove the field associated with the singleton typed key k, returning both the corresponding value and the updated

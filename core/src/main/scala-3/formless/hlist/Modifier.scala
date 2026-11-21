@@ -16,6 +16,6 @@ object Modifier {
   given modifierAt[T <: HList, U, V](using op: formless.record.ReplaceAt[T, U, formless.record.ReplaceAt.Elem]): Modifier.Aux[T, U, V, (U, op.Replaced[V])] =
     new Modifier[T, U, V] {
       type Out = (U, op.Replaced[V])
-      def apply(t: T, f: U => V): Out = HList.replacedAt(t, op.index, x => f(x.asInstanceOf[U])).asInstanceOf[Out]
+      def apply(t: T, f: U => V): Out = HList.replacedAt(t, op.index, f).asInstanceOf[Out]
     }
 }

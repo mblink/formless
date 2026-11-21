@@ -139,6 +139,19 @@ private[formless] object Lookup {
     private val fTpe = TypeRepr.of[F]
     private val cmpTpe = TypeRepr.of[Cmp]
 
+    // A type parameter or abstract type member, which stands for some subtype of its bound; an opaque type is abstract
+    // only outside its scope, where its bound is all that's known of it, so it's handled on its own
+    private def isAbstract(sym: Symbol): Boolean = sym.isTypeParam || (sym.isAbstractType && !sym.flags.is(Flags.Opaque))
+
+    /** `t`'s head and tail when `t` is spelled `H :: T` */
+    private object DirectCons {
+      def unapply(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+        t match {
+          case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym => Some((head, tail))
+          case _ => None
+        }
+    }
+
     private def labelledArgs(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
       t.dealias match {
         case AppliedType(tycon, List(k, v)) if tycon.typeSymbol == labelledSym => Some((k, v))
@@ -153,7 +166,7 @@ private[formless] object Lookup {
     // seen from its prefix, so `c.H` for `c: C[Int]` and `trait C[A] { type H <: "a" ->> A }` is bounded by `"a" ->> Int`
     private def upperBound(t: TypeRepr): Option[TypeRepr] =
       t.dealias match {
-        case tr: TypeRef if tr.typeSymbol.isTypeParam || (tr.typeSymbol.isAbstractType && !tr.typeSymbol.flags.is(Flags.Opaque)) =>
+        case tr: TypeRef if isAbstract(tr.typeSymbol) =>
           val bounds = tr.qualifier match {
             case NoPrefix() => scala.util.Try(tr.typeSymbol.tree).toOption.collect { case TypeDef(_, b: TypeBoundsTree) => b.tpe }
             case pre => scala.util.Try(pre.memberType(tr.typeSymbol)).toOption
@@ -169,8 +182,9 @@ private[formless] object Lookup {
     def fieldKeyValue(f: Found): Either[LookupError, (TypeRepr, TypeRepr)] =
       keyValueOpt(f.head).toRight(LookupError.Refused(s"use $field in $record", Reason.NotAField(display(f.head), f.index)))
 
-    private def record: String = display(TypeRepr.of[T])
-    private def field: String = display(fTpe)
+    /** `T` and `F` as written in messages */
+    def record: String = display(TypeRepr.of[T])
+    def field: String = display(fTpe)
 
     private def keyValueOpt(head: TypeRepr): Option[(TypeRepr, TypeRepr)] =
       upperBound(head) match {
@@ -227,7 +241,7 @@ private[formless] object Lookup {
     private def intersectionKeyValue(t: AndType): Option[(TypeRepr, TypeRepr)] =
       fLabelledKey.flatMap { fk =>
         conjuncts(t)
-          .flatMap(c => labelledArgs(c).orElse(upperBound(c).flatMap(labelledArgs)))
+          .flatMap(labelledOrBound)
           .filter(_._1 =:= fk)
           .reduceOption((x, y) => (x._1, if (x._2 =:= y._2) x._2 else AndType(x._2, y._2)))
       }
@@ -259,7 +273,7 @@ private[formless] object Lookup {
         case tr: TypeRef =>
           val sym = tr.typeSymbol
           val opaque = sym.flags.is(Flags.Opaque)
-          !(sym.isTypeParam || (sym.isAbstractType && !opaque)) && ground(tr.qualifier) &&
+          !isAbstract(sym) && ground(tr.qualifier) &&
             // An opaque type stands for some subtype of its bound, which may itself be abstract, e.g. `opaque type X <: T`
             // in a class with a type parameter `T`
             (!opaque || sym == labelledSym || opaques(sym) || opaqueBoundGround(tr, opaques + sym))
@@ -301,8 +315,10 @@ private[formless] object Lookup {
         case other => isGround(other, opaques)
       }
 
-    private def labelledKey(t: TypeRepr): Option[TypeRepr] =
-      labelledArgs(t).orElse(upperBound(t).flatMap(labelledArgs)).map(_._1)
+    // The key and value of `t` when it is a field, or is abstract and bounded by one
+    private def labelledOrBound(t: TypeRepr): Option[(TypeRepr, TypeRepr)] = labelledArgs(t).orElse(upperBound(t).flatMap(labelledArgs))
+
+    private def labelledKey(t: TypeRepr): Option[TypeRepr] = labelledOrBound(t).map(_._1)
 
     // An abstract element bounded by `"a" ->> V` may still be `("a" ->> V) & ("b" ->> W)`, a subtype of `"b" ->> Any`, so
     // its bound's key rules out other keys only under `=:=`. Bounding `F` instead is fine: `head <: F <: ("b" ->> W)`
@@ -358,7 +374,7 @@ private[formless] object Lookup {
     // upper bound, an intersection, a singleton), and arm by arm for a union of records
     private def consParts(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
       t match {
-        case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym => Some((head, tail))
+        case DirectCons(head, tail) => Some((head, tail))
         case OrType(a, b) =>
           for {
             (ha, ta) <- consParts(a.dealias.simplified)
@@ -379,7 +395,7 @@ private[formless] object Lookup {
 
     private def isDirectCons(t: TypeRepr): Boolean =
       t match {
-        case AppliedType(tycon, _) => tycon.typeSymbol == consSym
+        case DirectCons(_, _) => true
         case OrType(a, b) => isDirectCons(a.dealias.simplified) && isDirectCons(b.dealias.simplified)
         case _ => false
       }
@@ -485,7 +501,7 @@ private[formless] object Lookup {
         case AppliedType(tycon, _) => tycon.typeSymbol
         case _ => t.typeSymbol
       }
-      Option.when(!sym.isNoSymbol && (sym.isTypeParam || (sym.isAbstractType && !sym.flags.is(Flags.Opaque))))(sym)
+      Option.when(!sym.isNoSymbol && isAbstract(sym))(sym)
     }
 
     private def expandedBefore(t: TypeRepr, expanded: List[TypeRepr]): Boolean = {
@@ -495,7 +511,7 @@ private[formless] object Lookup {
 
     private def normalize(t: TypeRepr): TypeRepr =
       t match {
-        case AppliedType(tycon, _) if tycon.typeSymbol == consSym => t
+        case DirectCons(_, _) => t
         case _ => t.dealias.simplified
       }
 
@@ -537,7 +553,7 @@ private[formless] object Lookup {
      */
     def appended(t: TypeRepr, f: TypeRepr): Option[TypeRepr] =
       t.dealias match {
-        case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym => appended(tail, f).map(cons(head, _))
+        case DirectCons(head, tail) => appended(tail, f).map(cons(head, _))
         case OrType(a, b) =>
           for {
             x <- appended(a, f)
@@ -562,7 +578,7 @@ private[formless] object Lookup {
       def loop(t: TypeRepr, before: List[TypeRepr]): Either[LookupError, TypeRepr] =
         normalize(t) match {
           case OrType(a, b) => loop(a, before).flatMap(x => loop(b, before).map(union(x, _)))
-          case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym =>
+          case DirectCons(head, tail) =>
             before match {
               case scala.collection.immutable.::(_, more) => loop(tail, more).map(cons(head, _))
               case Nil => if (head =:= fTpe) Right(tail) else refuse(Reason.ArmDiffers(display(head), found.index, field))
@@ -586,7 +602,7 @@ private[formless] object Lookup {
             if (steps > Lookup.MaxSteps) false
             else n match {
               case OrType(a, b) => loop(a :: b :: more, steps + 1)
-              case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym =>
+              case DirectCons(head, tail) =>
                 keyValueOpt(head).isEmpty && isGround(head) && loop(tail :: more, steps + 1)
               case _ => n <:< hnilTpe && isGround(n) && loop(more, steps + 1)
             }
@@ -625,19 +641,20 @@ private[formless] object Lookup {
 private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Unit
 
 object FieldAbsent {
+  // Inside the opaque type's scope, so the proof is made without a cast; the macro below is the only caller
+  private[formless] def proof[T <: HList, F, Cmp[_, _]]: FieldAbsent[T, F, Cmp] = ()
+
   private def fieldAbsentImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FieldAbsent[T, F, Cmp]] =
     Lookup.guarded("prove a field absent from a record")(fieldAbsentImpl0[T, F, Cmp])
 
   private def fieldAbsentImpl0[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Either[Lookup.LookupError, Expr[FieldAbsent[T, F, Cmp]]] = {
     val lookup = Lookup.Walk[T, F, Cmp]
-    import lookup.q.reflect.*
     import Lookup.{LookupError, Reason}
-    val record = lookup.display(TypeRepr.of[T])
-    val field = lookup.display(TypeRepr.of[F])
+    import lookup.{field, record}
     def refuse(reason: Reason) = Left(LookupError.Refused(s"prove $field is absent from $record", reason))
 
     lookup.absence.flatMap {
-      case lookup.Absent => Right('{ ().asInstanceOf[FieldAbsent[T, F, Cmp]] })
+      case lookup.Absent => Right('{ FieldAbsent.proof[T, F, Cmp] })
       case f: lookup.Found => Left(LookupError.Present(record, lookup.display(f.head), f.index, field))
       case lookup.Unknown(rest) => refuse(Reason.TailUnknown(lookup.display(rest)))
       case u: lookup.Undecided => refuse(Reason.MightMatch(lookup.display(u.head), u.index))
@@ -728,7 +745,7 @@ object FieldUpdate {
     import lookup.q.reflect.*
     import Lookup.{LookupError, Reason}
     def refuse(reason: Reason) =
-      Left(LookupError.Refused(s"update ${lookup.display(TypeRepr.of[T])} with ${lookup.display(TypeRepr.of[F])}", reason))
+      Left(LookupError.Refused(s"update ${lookup.record} with ${lookup.field}", reason))
 
     lookup.replaceOrAppend.flatMap {
       case f: lookup.Found =>
