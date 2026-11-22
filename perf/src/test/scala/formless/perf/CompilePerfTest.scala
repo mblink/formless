@@ -4,6 +4,7 @@ import dotty.tools.dotc.Driver
 import java.lang.management.ManagementFactory
 import java.nio.file.{Files, Path}
 import java.util.Comparator
+import java.util.concurrent.FutureTask
 import munit.FunSuite
 import scala.util.Using
 
@@ -84,11 +85,54 @@ class CompilePerfTest extends FunSuite {
     // in the list's length, and 8 if quadratic, as in 0.8. 0.9 measures about 2.7.
     assert(ratio <= 5.0, f"doubling the list made its lookups allocate $ratio%.1f times as much; linear growth is at most 4")
   }
+
+  test("long record and union lookups compile with a one MiB stack") {
+    Using.resource(Files.createTempDirectory("formless-stack")) { dir =>
+      val file = dir.resolve("LongRecord.scala")
+      Files.writeString(file, longRecordSource)
+      val compile = new FutureTask[Boolean](() =>
+        !new Driver().process(Array("-usejavacp", "-d", dir.toString, file.toString)).hasErrors,
+      )
+      // Leave the larger stack used by the allocation measurements out of this compiler run.
+      val thread = new Thread(Thread.currentThread().getThreadGroup, compile, "formless-small-stack-compiler", 1024L * 1024)
+      thread.start()
+      assert(compile.get(), "long record lookups didn't compile")
+    }
+  }
 }
 
 object CompilePerfTest {
   private val WarmUps = 2
   private val Samples = 3
+
+  private def longRecordSource: String = {
+    val size = 250
+    // Short aliases isolate lookup from the compiler's recursion through a single deep infix type tree.
+    val aliases = (0 until size).grouped(25).map { fields =>
+      val next = fields.last + 1
+      val tail = if (next == size) """("target" ->> Int) :: HNil""" else s"Fields$next[V]"
+      val heads = fields.map { i =>
+        val value = if (i == size - 1) "V" else "Int"
+        s"""("f$i" ->> $value)"""
+      }
+      s"  type Fields${fields.head}[V] = ${(heads :+ tail).mkString(" :: ")}"
+    }.mkString("\n")
+    s"""package formless.bench
+       |import formless.hlist.{::, HNil, Remove}
+       |import formless.record.*
+       |object LongRecord {
+       |$aliases
+       |  type A = ("a" ->> Int) :: Fields0[Int]
+       |  type B = ("b" ->> Int) :: Fields0[String]
+       |  type R = A | B
+       |  val a = Selector[A, "target"]
+       |  val b = Selector[R, "f${size - 1}"]
+       |  summon[b.Out =:= (Int | String)]
+       |  val c = Updater[R, "new" ->> Int]
+       |  val d = Remove[R, "target" ->> Int]
+       |}
+       |""".stripMargin
+  }
 
   final case class Cost(bytes: Long, cpuNanos: Long) {
     def -(other: Cost): Cost = Cost(bytes - other.bytes, cpuNanos - other.cpuNanos)

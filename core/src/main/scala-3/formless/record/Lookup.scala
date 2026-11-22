@@ -3,6 +3,7 @@ package record
 
 import formless.hlist.*
 import scala.quoted.*
+import scala.util.control.TailCalls.{TailRec, done, tailcall}
 
 /** Walks a record or HList type for the record and HList operations, and keeps their macros from crashing */
 private[formless] object Lookup {
@@ -111,6 +112,7 @@ private[formless] object Lookup {
    * A record whose tail is not statically known (an abstract `L <: HList`) is `Unknown`: it neither contains nor lacks
    * the field, so neither `FieldOp` nor `FieldAbsent` resolves for it.
    */
+  // TailCalls keeps the continuations of nested type trees on the heap. Linear spines use compiler-checked tail recursion.
   private[formless] final class Walk[T <: HList: Type, F: Type, Cmp[_, _]: Type](target: Target)(using val q: Quotes) {
     import q.reflect.*
 
@@ -203,42 +205,46 @@ private[formless] object Lookup {
     def field: String = display(fTpe)
 
     private def keyValueOpt(head: TypeRepr): Option[(TypeRepr, TypeRepr)] =
-      // An explicit field already has its exact key and value. Only other shapes need bound or subtype checks.
-      labelledArgs(head).orElse(indirectKeyValue(head))
+      labelledArgs(head).orElse(indirectKeyValue(head).result)
 
-    private def indirectKeyValue(head: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+    private def keyValueStep(head: TypeRepr): TailRec[Option[(TypeRepr, TypeRepr)]] =
+      labelledArgs(head) match {
+        case some @ Some(_) => done(some)
+        case None => indirectKeyValue(head)
+      }
+
+    private def indirectKeyValue(head: TypeRepr): TailRec[Option[(TypeRepr, TypeRepr)]] =
       upperBound(head) match {
-        case Some(bound) => keyValueOpt(bound)
+        case Some(bound) => tailcall(keyValueStep(bound))
         case None =>
           head.dealias match {
-            // e.g. `("a" ->> Int) | ("a" ->> String)`, from a union of records; its arms may be aliases `dealias` leaves
-            // alone
             case OrType(a, b) =>
-              for {
-                (ka, va) <- keyValueOpt(a)
-                (kb, vb) <- keyValueOpt(b)
-              } yield (union(ka, kb), union(va, vb))
-            // e.g. `("a" ->> Int) & ("b" ->> String)` looked up by `"b"`: the quoted match below would pick a key and
-            // value from neither conjunct in particular, so take them from the conjuncts keyed like `F`
-            case and: AndType => intersectionKeyValue(and).orElse(matchedKeyValue(head))
-            case _ => matchedKeyValue(head)
+              tailcall(keyValueStep(a)).flatMap {
+                case Some((ka, va)) =>
+                  tailcall(keyValueStep(b)).map(_.map { case (kb, vb) => (union(ka, kb), union(va, vb)) })
+                case None => done(None)
+              }
+            // A quoted match on an intersection would pick a key and value from neither conjunct in particular.
+            case and: AndType => done(intersectionKeyValue(and).orElse(matchedKeyValue(head)))
+            case _ => done(matchedKeyValue(head))
           }
       }
 
-    // Aliases inside intersections and unions too, e.g. `A` in `A & Serializable` for `type A = "a" ->> Int`, which
-    // `substituteTypes` would otherwise not see through
-    private def deepDealias(t: TypeRepr): TypeRepr =
+    // Aliases inside intersections and unions too, e.g. `A` in `A & Serializable` for `type A = "a" ->> Int`.
+    private def deepDealias(t: TypeRepr): TailRec[TypeRepr] =
       t.dealias match {
-        case AndType(a, b) => AndType(deepDealias(a), deepDealias(b))
-        case OrType(a, b) => OrType(deepDealias(a), deepDealias(b))
-        case AnnotatedType(u, _) => deepDealias(u)
-        case other => other
+        case AndType(a, b) =>
+          tailcall(deepDealias(a)).flatMap(x => tailcall(deepDealias(b)).map(y => AndType(x, y)))
+        case OrType(a, b) =>
+          tailcall(deepDealias(a)).flatMap(x => tailcall(deepDealias(b)).map(y => OrType(x, y)))
+        case AnnotatedType(u, _) => tailcall(deepDealias(u))
+        case other => done(other)
       }
 
     // The match infers a key and value even for a type that isn't a subtype of any one field, e.g. `Nothing` as the
     // value of `(K ->> String) & ("b" ->> String)`, so only a key and value the head is proven a field of are kept
     private def matchedKeyValue(head: TypeRepr): Option[(TypeRepr, TypeRepr)] = {
-      val concreteHead = deepDealias(head).substituteTypes(List(labelledSym), List(concreteLabelled))
+      val concreteHead = deepDealias(head).result.substituteTypes(List(labelledSym), List(concreteLabelled))
       def unConcrete(t: TypeRepr): TypeRepr = t.substituteTypes(List(concreteLabelledSym), List(labelled))
       concreteHead.asType match {
         case '[ConcreteLabelled[k, v]] if concreteHead <:< TypeRepr.of[ConcreteLabelled[k, v]] =>
@@ -249,11 +255,16 @@ private[formless] object Lookup {
 
     private def union(a: TypeRepr, b: TypeRepr): TypeRepr = if (a =:= b) a else OrType(a, b)
 
-    private def conjuncts(t: TypeRepr): List[TypeRepr] =
-      t.dealias match {
-        case AndType(a, b) => conjuncts(a) ++ conjuncts(b)
-        case other => List(other)
+    private def conjuncts(t: TypeRepr): List[TypeRepr] = {
+      @annotation.tailrec def loop(todo: List[TypeRepr], rev: List[TypeRepr]): List[TypeRepr] = todo match {
+        case scala.collection.immutable.::(next, rest) => next.dealias match {
+          case AndType(a, b) => loop(a :: b :: rest, rev)
+          case other => loop(rest, other :: rev)
+        }
+        case Nil => rev.reverse
       }
+      loop(t :: Nil, Nil)
+    }
 
     // The conjuncts keyed exactly like `F`, abstract keys included, e.g. `K ->> String` in `(K ->> String) & ("b" ->> String)`
     // looked up by `K`. Each is a supertype of the field, so the value is the intersection of theirs, or a supertype of
@@ -284,42 +295,54 @@ private[formless] object Lookup {
       }
 
     // Free of type parameters and abstract type members, so a failed `Cmp` check against it is final
-    private def isGround(t: TypeRepr): Boolean = isGround(t, Set.empty)
+    private def isGround(t: TypeRepr): Boolean = {
+      sealed trait Check
+      final case class Inspect(tpe: TypeRepr, opaques: Set[Symbol]) extends Check
+      final case class InspectOpaque(ref: TypeRef, opaques: Set[Symbol]) extends Check
 
-    /** @param opaques the opaque types whose bounds are being checked, so a bound that refers to its own type stops */
-    private def isGround(t: TypeRepr, opaques: Set[Symbol]): Boolean = {
-      def ground(t: TypeRepr): Boolean = isGround(t, opaques)
-      t.dealias match {
-        case tr: TypeRef =>
-          val sym = tr.typeSymbol
-          val opaque = sym.flags.is(Flags.Opaque)
-          !isAbstract(sym) && ground(tr.qualifier) &&
-            // An opaque type stands for some subtype of its bound, which may itself be abstract, e.g. `opaque type X <: T`
-            // in a class with a type parameter `T`
-            (!opaque || sym == labelledSym || opaques(sym) || opaqueBoundGround(tr, opaques + sym))
-        case AppliedType(tycon, args) => ground(tycon) && args.forall(ground)
-        case AndType(a, b) => ground(a) && ground(b)
-        case OrType(a, b) => ground(a) && ground(b)
-        case AnnotatedType(u, _) => ground(u)
-        case Refinement(parent, _, info) => ground(parent) && ground(info)
-        case TypeBounds(lo, hi) => ground(lo) && ground(hi)
-        case ByNameType(u) => ground(u)
-        case mt: MethodType => mt.paramTypes.forall(ground) && ground(mt.resType)
-        // A type lambda's own parameters, e.g. in `Payload[[X] =>> Either[Int, X]]`, are bound within it
-        case tl: TypeLambda => tl.paramBounds.forall(ground) && ground(tl.resType)
-        case pt: PolyType => pt.paramBounds.forall(ground) && ground(pt.resType)
-        case _: ParamRef => true
-        case RecursiveType(u) => ground(u)
-        case _: RecursiveThis => true
-        // A singleton of an abstract type, e.g. `x.type` for `x: T`, could become a subtype of anything `T` could be, and
-        // so could `b.x.type` for `b: B` once `B` is known. A method parameter's singleton, e.g. `x.type` for
-        // `x: String`, could become the same path as another one once the method is applied, and so could a member a
-        // subclass can override, e.g. `val y: String` in a trait, which an implementation may define as `val y: x.type`.
-        case tr: TermRef =>
-          !tr.termSymbol.flags.is(Flags.Param) && !overridable(tr.termSymbol) && ground(tr.qualifier) && ground(tr.widen)
-        case _: ConstantType | _: ThisType | _: NoPrefix => true
-        case _ => false
+      @annotation.tailrec def loop(t: TypeRepr, opaques: Set[Symbol], todo: List[Check]): Boolean = {
+        t.dealias match {
+          case tr: TypeRef =>
+            val sym = tr.typeSymbol
+            val opaque = sym.flags.is(Flags.Opaque)
+            if (isAbstract(sym)) false
+            else {
+              val next = if (opaque && sym != labelledSym && !opaques(sym)) InspectOpaque(tr, opaques + sym) :: todo else todo
+              loop(tr.qualifier, opaques, next)
+            }
+          case AppliedType(tycon, args) => loop(tycon, opaques, args.map(Inspect(_, opaques)) ::: todo)
+          case AndType(a, b) => loop(a, opaques, Inspect(b, opaques) :: todo)
+          case OrType(a, b) => loop(a, opaques, Inspect(b, opaques) :: todo)
+          case AnnotatedType(u, _) => loop(u, opaques, todo)
+          case Refinement(parent, _, info) => loop(parent, opaques, Inspect(info, opaques) :: todo)
+          case TypeBounds(lo, hi) => loop(lo, opaques, Inspect(hi, opaques) :: todo)
+          case ByNameType(u) => loop(u, opaques, todo)
+          case mt: MethodType => loop(mt.resType, opaques, mt.paramTypes.map(Inspect(_, opaques)) ::: todo)
+          // A lambda's own type parameters are bound within it.
+          case tl: TypeLambda => loop(tl.resType, opaques, tl.paramBounds.map(Inspect(_, opaques)) ::: todo)
+          case pt: PolyType => loop(pt.resType, opaques, pt.paramBounds.map(Inspect(_, opaques)) ::: todo)
+          case RecursiveType(u) => loop(u, opaques, todo)
+          // A singleton of an abstract or overridable term could end up a subtype of a type that it doesn't yet match.
+          case tr: TermRef =>
+            !tr.termSymbol.flags.is(Flags.Param) && !overridable(tr.termSymbol) &&
+              loop(tr.qualifier, opaques, Inspect(tr.widen, opaques) :: todo)
+          case _: ConstantType | _: ThisType | _: NoPrefix | _: ParamRef | _: RecursiveThis =>
+            todo match {
+              case Nil => true
+              case scala.collection.immutable.::(Inspect(next, seen), rest) => loop(next, seen, rest)
+              case scala.collection.immutable.::(InspectOpaque(ref, seen), rest) =>
+                // A bound that can't be read might be abstract.
+                scala.util.Try(ref.qualifier.memberType(ref.typeSymbol)).toOption match {
+                  case Some(TypeBounds(_, hi)) => loop(hi, seen, rest)
+                  case Some(other) => loop(other, seen, rest)
+                  case None => false
+                }
+            }
+          case _ => false
+        }
       }
+
+      loop(t, Set.empty, Nil)
     }
 
     // A member of a class or trait that isn't final, nor in a final class or an object
@@ -327,13 +350,6 @@ private[formless] object Lookup {
       val owner = sym.owner
       owner.isClassDef && !sym.flags.is(Flags.Final) && !owner.flags.is(Flags.Final) && !owner.flags.is(Flags.Module)
     }
-
-    // A bound that can't be read, e.g. one still being inferred, might be abstract, so it isn't ground
-    private def opaqueBoundGround(tr: TypeRef, opaques: Set[Symbol]): Boolean =
-      scala.util.Try(tr.qualifier.memberType(tr.typeSymbol)).toOption.exists {
-        case TypeBounds(_, hi) => isGround(hi, opaques)
-        case other => isGround(other, opaques)
-      }
 
     // The key and value of `t` when it is a field, or is abstract and bounded by one
     private def labelledOrBound(t: TypeRepr): Option[(TypeRepr, TypeRepr)] = labelledArgs(t).orElse(upperBound(t).flatMap(labelledArgs))
@@ -351,13 +367,20 @@ private[formless] object Lookup {
 
     // Whether `Cmp[head, F]` could hold once the abstract types in `head` or `F` are known. A `bounded` head was read
     // off the upper bound of an abstract record, so the element it stands for may be any subtype of it.
-    private def mightMatch(head: TypeRepr, bounded: Boolean): Boolean =
-      head.dealias match {
-        // A union, e.g. the heads of `(A :: HNil) | (B :: HNil)` or a field typed `A | B`, may be any of its arms, so it
-        // might match if any of them does
-        case OrType(a, b) => List(a, b).exists(arm => (!keyMismatch(arm) && cmpHolds(arm)) || mightMatch(arm, bounded))
-        case _ => mightMatchOne(head, bounded)
-      }
+    private def mightMatch(head: TypeRepr, bounded: Boolean): Boolean = {
+      @annotation.tailrec def loop(next: TypeRepr, pending: List[TypeRepr], arm: Boolean): Boolean =
+        if (arm && !keyMismatch(next) && cmpHolds(next)) true
+        else next.dealias match {
+          case OrType(a, b) => loop(a, b :: pending, arm = true)
+          case _ =>
+            if (mightMatchOne(next, bounded)) true
+            else pending match {
+              case scala.collection.immutable.::(t, rest) => loop(t, rest, arm = true)
+              case Nil => false
+            }
+        }
+      loop(head, Nil, arm = false)
+    }
 
     private def mightMatchOne(head: TypeRepr, bounded: Boolean): Boolean = {
       val headKey =
@@ -394,31 +417,47 @@ private[formless] object Lookup {
 
     // Selector can read a field with a narrower type. An exact field lookup must stop there, even if a later field
     // matches exactly or an updater would otherwise append. For a union, this can happen in just one arm.
-    private def strictFieldSubtype(head: TypeRepr): Option[TypeRepr] =
-      if ((head <:< fTpe) && !(head =:= fTpe) && exactFieldKey.exists(fk => keyValueOpt(head).exists(_._1 =:= fk))) Some(head)
-      else head.dealias match {
-        case OrType(a, b) => strictFieldSubtype(a).orElse(strictFieldSubtype(b))
-        case _ => None
-      }
+    private def strictFieldSubtype(head: TypeRepr): Option[TypeRepr] = {
+      @annotation.tailrec def loop(next: TypeRepr, pending: List[TypeRepr]): Option[TypeRepr] =
+        if ((next <:< fTpe) && !(next =:= fTpe) && exactFieldKey.exists(fk => keyValueOpt(next).exists(_._1 =:= fk))) Some(next)
+        else next.dealias match {
+          case OrType(a, b) => loop(a, b :: pending)
+          case _ => pending match {
+            case scala.collection.immutable.::(t, rest) => loop(t, rest)
+            case Nil => None
+          }
+        }
+      loop(head, Nil)
+    }
 
     // The head and tail of a record type: directly for `H :: T`, through the base type otherwise (an abstract record's
-    // upper bound, an intersection, a singleton), and arm by arm for a union of records
+    // upper bound, an intersection, a singleton), and arm by arm for a union of records.
     private def consParts(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
       t match {
         case DirectCons(head, tail) => Some((head, tail))
-        case OrType(a, b) =>
-          // Comparing entire tails here can recurse through their common prefix at every position. Carry the arms
-          // forward so the walk only needs the next element from each.
-          for {
-            (ha, ta) <- consParts(a.dealias.simplified)
-            (hb, tb) <- consParts(b.dealias.simplified)
-          } yield (union(ha, hb), OrType(ta, tb))
-        case _ =>
-          t.baseType(consSym) match {
-            case AppliedType(_, List(head, tail)) => Some((head, tail))
-            case _ => None
-          }
+        case OrType(a, b) => unionCons(a, b).result
+        case _ => baseCons(t)
       }
+
+    private def baseCons(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+      t.baseType(consSym) match {
+        case AppliedType(_, List(head, tail)) => Some((head, tail))
+        case _ => None
+      }
+
+    private def unionCons(a: TypeRepr, b: TypeRepr): TailRec[Option[(TypeRepr, TypeRepr)]] = {
+      def parts(t: TypeRepr): TailRec[Option[(TypeRepr, TypeRepr)]] = normalize(t) match {
+        case DirectCons(head, tail) => done(Some((head, tail)))
+        case OrType(a, b) => tailcall(unionCons(a, b))
+        case other => done(baseCons(other))
+      }
+      tailcall(parts(a)).flatMap {
+        case Some((ha, ta)) =>
+          // Carry both tails forward without asking the compiler to compare their entire common prefix.
+          tailcall(parts(b)).map(_.map { case (hb, tb) => (union(ha, hb), OrType(ta, tb)) })
+        case None => done(None)
+      }
+    }
 
     private inline def undecidedInUnion(t: TypeRepr, undecided: => Boolean): Boolean =
       t match {
@@ -428,12 +467,17 @@ private[formless] object Lookup {
         case _ => false
       }
 
-    private def isDirectCons(t: TypeRepr): Boolean =
-      t match {
-        case a: AppliedType => isCons(a)
-        case OrType(a, b) => isDirectCons(a.dealias.simplified) && isDirectCons(b.dealias.simplified)
+    private def isDirectCons(t: TypeRepr): Boolean = {
+      @annotation.tailrec def loop(next: TypeRepr, pending: List[TypeRepr]): Boolean = next match {
+        case a: AppliedType if isCons(a) => pending match {
+          case scala.collection.immutable.::(t, rest) => loop(normalize(t), rest)
+          case Nil => true
+        }
+        case OrType(a, b) => loop(normalize(a), b :: pending)
         case _ => false
       }
+      loop(t, Nil)
+    }
 
     // Every walk of this lookup counts against one budget, so a record type that never ends, e.g. a match type that
     // keeps producing elements as it reduces, is refused instead of walked forever. The counters are mutable so the
@@ -452,6 +496,8 @@ private[formless] object Lookup {
      *                some subtype of itself
      * @param expanded the abstract records already walked through their bound, so `type L <: Int :: L` doesn't loop
      */
+    private final case class Branch(tpe: TypeRepr, revInit: List[TypeRepr], bounded: Boolean, expanded: List[TypeRepr])
+
     @annotation.tailrec
     private def go(
       rest: TypeRepr,
@@ -459,6 +505,7 @@ private[formless] object Lookup {
       mode: Mode,
       bounded: Boolean,
       expanded: List[TypeRepr],
+      pending: List[Branch],
     ): Either[LookupError, Outcome] = {
       steps += 1
       // A tail that had to be reduced, e.g. an alias or a match type, may grow as it is reduced again, so these have a
@@ -467,7 +514,7 @@ private[formless] object Lookup {
       // Most tails are already `H :: T`, which needs no normalizing or separate check of the result.
       val spelledCons = isCons(rest)
       if (!spelledCons && !isDirectCons(rest)) expansions += 1
-      val t = if (spelledCons) rest else rest.dealias.simplified
+      val t = normalize(rest)
       val direct = spelledCons || isDirectCons(t)
       if (steps > Lookup.MaxSteps) Left(LookupError.Refused(s"look through $record", Reason.TooLong(Lookup.MaxSteps)))
       else if (expansions > Lookup.MaxExpansions)
@@ -485,7 +532,8 @@ private[formless] object Lookup {
               case Some(narrowerField) =>
                 Left(LookupError.Refused(s"find field $field in record $record", Reason.StrictFieldSubtype(display(narrowerField), revInit.length)))
               case None =>
-                lazy val undecided = mightMatch(head, nowBounded)
+                // Different literal keys rule out a match unless reading a subtype off an abstract bound.
+                lazy val undecided = (!differentKey || (nowBounded && !cmpIsEq)) && mightMatch(head, nowBounded)
                 // An element of a union of lists that matches in only some arms, e.g. `String | Int` in
                 // `(String :: Int :: HNil) | (Int :: Int :: HNil)` looked up by `Int`, is the first match in those
                 // arms, so no later element is the first match in all of them.
@@ -495,38 +543,30 @@ private[formless] object Lookup {
                     case Mode.Update(None) if undecided => Mode.Update(Some(Undecided(revInit, head)))
                     case same @ (Mode.Find | Mode.Prove | Mode.Update(_)) => same
                   }
-                  go(tail, head :: revInit, nowMode, nowBounded, if (direct) expanded else t :: expanded)
+                  go(tail, head :: revInit, nowMode, nowBounded, if (direct) expanded else t :: expanded, pending)
                 }
             }
           }
         case None =>
-          if (t <:< hnilTpe) Right(mode match {
-            case Mode.Update(Some(pending)) => pending
-            case Mode.Find | Mode.Prove | Mode.Update(None) => Absent
-          })
+          if (t <:< hnilTpe) pending match {
+            case scala.collection.immutable.::(branch, rest) =>
+              go(branch.tpe, branch.revInit, Mode.Prove, branch.bounded, branch.expanded, rest)
+            case Nil => Right(mode match {
+              case Mode.Update(Some(first)) => first
+              case Mode.Find | Mode.Prove | Mode.Update(None) => Absent
+            })
+          }
           else t match {
-            // A union of records that don't all have another element, e.g. `HNil | (A :: HNil)`: absent only when it's
-            // absent from every arm
-            case OrType(a, b) if mode == Mode.Prove => absenceInArms(a, b, revInit, bounded, expanded)
+            // Some arms can end before others. Absence must hold in every arm.
+            case OrType(a, b) if mode == Mode.Prove =>
+              go(a, revInit, Mode.Prove, bounded, expanded, Branch(b, revInit, bounded, expanded) :: pending)
             case _ => Right(Unknown(t))
           }
       }
     }
 
-    private def absenceInArms(
-      a: TypeRepr,
-      b: TypeRepr,
-      revInit: List[TypeRepr],
-      bounded: Boolean,
-      expanded: List[TypeRepr],
-    ): Either[LookupError, Outcome] =
-      go(a, revInit, Mode.Prove, bounded, expanded).flatMap {
-        case Absent => go(b, revInit, Mode.Prove, bounded, expanded)
-        case decided @ (_: Found | _: Unknown | _: Undecided) => Right(decided)
-      }
-
     private def start(mode: Mode): Either[LookupError, Outcome] =
-      go(TypeRepr.of[T], Nil, mode, bounded = false, expanded = Nil)
+      go(TypeRepr.of[T], Nil, mode, bounded = false, expanded = Nil, pending = Nil)
 
     /** The first field `Cmp[head, F]` holds for, or why there's none */
     def found: Either[LookupError, Found] = {
@@ -557,7 +597,12 @@ private[formless] object Lookup {
     private def normalize(t: TypeRepr): TypeRepr =
       t match {
         case a: AppliedType if isCons(a) => t
-        case _ => t.dealias.simplified
+        case _: OrType => t
+        case _ => t.dealias match {
+          case a: AppliedType if isCons(a) => a
+          case union: OrType => union
+          case other => other.simplified
+        }
       }
 
     /**
@@ -571,7 +616,7 @@ private[formless] object Lookup {
         val rest = normalize(f.tail)
         val direct = isDirectCons(rest)
         if (!direct && expandedBefore(rest, seen)) refuse(Reason.TailRefersToItself(display(rest)))
-        else go(f.tail, f.head :: f.revInit, Mode.Update(None), f.bounded, expanded = Nil) match {
+        else go(f.tail, f.head :: f.revInit, Mode.Update(None), f.bounded, expanded = Nil, pending = Nil) match {
           case Right(g: Found) => loop(g, if (direct) seen else rest :: seen)
           case Right(Absent) => Right(f)
           case Right(Unknown(tail)) => refuse(Reason.TailUnknown(display(tail)))
@@ -596,41 +641,48 @@ private[formless] object Lookup {
      * `t` with `f` appended, when `t` is spelled out as `H1 :: ... :: HNil`, or is a union of such records, which each
      * get `f` appended
      */
-    def appended(t: TypeRepr, f: TypeRepr): Option[TypeRepr] =
-      t.dealias match {
-        case DirectCons(head, tail) => appended(tail, f).map(cons(head, _))
-        case OrType(a, b) =>
-          for {
-            x <- appended(a, f)
-            y <- appended(b, f)
-          } yield union(x, y)
-        case end if end =:= hnilTpe => Some(cons(f, end))
-        case _ => None
-      }
+    def appended(t: TypeRepr, f: TypeRepr): Option[TypeRepr] = {
+      @annotation.tailrec
+      def loop(rest: TypeRepr, prefix: List[TypeRepr]): TailRec[Option[TypeRepr]] =
+        rest.dealias match {
+          case DirectCons(head, tail) => loop(tail, head :: prefix)
+          case OrType(a, b) => combine(a, b, prefix)
+          case end if end =:= hnilTpe => done(Some(prefix.foldLeft(cons(f, end))((acc, h) => cons(h, acc))))
+          case _ => done(None)
+        }
+      def combine(a: TypeRepr, b: TypeRepr, prefix: List[TypeRepr]): TailRec[Option[TypeRepr]] =
+        tailcall(loop(a, Nil)).flatMap {
+          case Some(x) =>
+            tailcall(loop(b, Nil)).map(_.map(y => prefix.foldLeft(OrType(x, y): TypeRepr)((acc, h) => cons(h, acc))))
+          case None => done(None)
+        }
+      loop(t, Nil).result
+    }
 
     /**
-     * `T` without the element `found`, for `Remove`, taken from each arm of a union of lists separately so the arms'
-     * other elements stay together, e.g. `(String :: String :: HNil) | (Boolean :: Boolean :: HNil)` from removing the
-     * `Int` in `(String :: Int :: String :: HNil) | (Boolean :: Int :: Boolean :: HNil)`. Refused when `reinsert` couldn't
-     * give back a `T`: it rebuilds the list up to `found`, so every part of `T` up to there must be spelled out as `H :: T`
-     * (or be a union of such lists), not a singleton, intersection or abstract list that it would claim to rebuild, and
-     * every arm of a union must have `F` there, so an element taken from one arm can't be put back into another.
+     * `T` without `found` in each arm, preserving the types that occur together in that arm. Reinsertion is sound
+     * only when every prefix is spelled out as cons cells and every arm has exactly `F` at the chosen position.
      */
     def removedReinsertably(found: Found): Either[LookupError, TypeRepr] = {
       def refuse(reason: Reason): Left[LookupError, Nothing] = Left(LookupError.Refused(s"remove $field from $record", reason))
-      // `before` is the elements of `found`'s prefix still to pass in this arm; the walk found an element after them in
-      // every arm, so every arm spelled out as `H :: T` this far has one
-      def loop(t: TypeRepr, before: List[TypeRepr]): Either[LookupError, TypeRepr] =
+
+      @annotation.tailrec
+      def loop(t: TypeRepr, remaining: Int, prefix: List[TypeRepr]): TailRec[Either[LookupError, TypeRepr]] =
         normalize(t) match {
-          case OrType(a, b) => loop(a, before).flatMap(x => loop(b, before).map(union(x, _)))
+          case OrType(a, b) => combine(a, b, remaining, prefix)
           case DirectCons(head, tail) =>
-            before match {
-              case scala.collection.immutable.::(_, more) => loop(tail, more).map(cons(head, _))
-              case Nil => if (head =:= fTpe) Right(tail) else refuse(Reason.ArmDiffers(display(head), found.index, field))
-            }
-          case _ => refuse(Reason.NotSpelledOut(display(t)))
+            if (remaining > 0) loop(tail, remaining - 1, head :: prefix)
+            else if (head =:= fTpe) done(Right(prefix.foldLeft(tail)((acc, h) => cons(h, acc))))
+            else done(refuse(Reason.ArmDiffers(display(head), found.index, field)))
+          case other => done(refuse(Reason.NotSpelledOut(display(other))))
         }
-      loop(TypeRepr.of[T], found.revInit)
+      def combine(a: TypeRepr, b: TypeRepr, remaining: Int, prefix: List[TypeRepr]): TailRec[Either[LookupError, TypeRepr]] =
+        tailcall(loop(a, remaining, Nil)).flatMap {
+          case Right(x) =>
+            tailcall(loop(b, remaining, Nil)).map(_.map(y => prefix.foldLeft(OrType(x, y): TypeRepr)((acc, h) => cons(h, acc))))
+          case Left(error) => done(Left(error))
+        }
+      loop(TypeRepr.of[T], found.index, Nil).result
     }
 
     /**
