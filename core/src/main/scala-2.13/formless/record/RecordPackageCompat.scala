@@ -21,6 +21,13 @@ final class FormlessDynamicRecordOps[T <: HList](t: T) extends Dynamic {
 }
 
 final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
+  final def updated[V](k: shapeless.Witness, v: V)(implicit u: Updater[T, k.T ->> V]): u.Out =
+    u(t, label[k.T](v))
+
+  final def +[F](f: F)(implicit u: Updater[T, F]): u.Out = u(t, f)
+
+  final def merge[M <: HList](m: M)(implicit mg: Merger[T, M]): mg.Out = mg(t, m)
+
   final def record: FormlessDynamicRecordOps[T] = new FormlessDynamicRecordOps[T](t)
 }
 
@@ -68,9 +75,6 @@ private[formless] trait RecordPackageCompat extends RecordSyntax {
   final type MapValues[F, L <: HList] = shapeless.ops.record.MapValues[F, L]
   final val MapValues: shapeless.ops.record.MapValues.type = shapeless.ops.record.MapValues
 
-  final type Merger[L <: HList, M <: HList] = shapeless.ops.record.Merger[L, M]
-  final val Merger: shapeless.ops.record.Merger.type = shapeless.ops.record.Merger
-
   final type MergeWith[L <: HList, M <: HList, F] = shapeless.ops.record.MergeWith[L, M, F]
   final val MergeWith: shapeless.ops.record.MergeWith.type = shapeless.ops.record.MergeWith
 
@@ -103,9 +107,6 @@ private[formless] trait RecordPackageCompat extends RecordSyntax {
 
   final type UnzipFields[L <: HList] = shapeless.ops.record.UnzipFields[L]
   final val UnzipFields: shapeless.ops.record.UnzipFields.type = shapeless.ops.record.UnzipFields
-
-  final type Updater[T <: HList, F] = shapeless.ops.record.Updater[T, F]
-  final val Updater: shapeless.ops.record.Updater.type = shapeless.ops.record.Updater
 
   final type Values[L <: HList] = shapeless.ops.record.Values[L]
   final val Values: shapeless.ops.record.Values.type = shapeless.ops.record.Values

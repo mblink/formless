@@ -5,7 +5,7 @@ import formless.hlist.{DepFn2, HList}
 /**
  * Type class supporting record update and extension.
  */
-@scala.annotation.implicitNotFound("Cannot update record ${T} with field ${F}: the lookup may encounter a field with the same key and a strictly narrower type, a matching field could be in an abstract part of the record, or the match could differ between the arms of a union")
+@scala.annotation.implicitNotFound("Cannot update record ${T} with field ${F}: the key may already have a field with a different value type or a strict subtype of the requested field, or the lookup could be undecidable. To change the field's type, use updateWith or remove it first.")
 trait Updater[T, F] extends DepFn2[T, F], Serializable
 
 object Updater {
@@ -15,8 +15,7 @@ object Updater {
   inline def apply[T, F](t: T, f: F)(using u: Updater[T, F]): u.Out = u(t, f)
 
   /**
-   * Replaces the first field `=:=` to `F`, or appends `F` when no field could match. Refuses to skip a field with
-   * the same key and a strictly narrower type.
+   * Replaces the first field of the same key when it is `=:=` to `F`, or appends `F` when the key is absent.
    */
   given updaterAt[T <: HList, F](using u: FieldUpdate[T, F]): Updater.Aux[T, F, u.Out] =
     u

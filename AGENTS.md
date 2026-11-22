@@ -41,7 +41,7 @@ Version-specific source directories under `core/src/{main,test}`:
 - `scala-3/` — the native Scala 3 implementation. Each type class lives in its own file in `formless/hlist` or `formless/record`; syntax is in `HListOps.scala` / `RecordOps.scala`.
 - `test/scala-2` vs `test/scala-3` — differing `illTyped` helpers (Scala 3 uses `compiletime.testing.typeChecks`). `*TestsCompat.scala` hold version-specific tests alongside the shared `HListTests`/`RecordTests`.
 
-The public API is meant to be identical across versions, so a new op normally needs a Scala 3 implementation, a Scala 2.13 implementation (usually delegating to shapeless), and shared tests.
+The public API is meant to be identical across versions, so a new op normally needs a Scala 3 implementation, a Scala 2.13 implementation (usually delegating to shapeless), and shared tests. On both versions, `Updater` replaces a field of the exact same type and appends only when its key is absent. `Merger` uses that rule for the incoming record's fields. Use `updateWith` to change an existing field's type.
 
 ## Scala 3 record field lookup
 

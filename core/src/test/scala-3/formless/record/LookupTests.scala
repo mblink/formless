@@ -76,13 +76,16 @@ class LookupTests extends FunSuite with LookupAssertions {
     assertEquals(rm(r), (1, ("b" ->> true) :: ("a" ->> "x") :: HNil))
   }
 
-  test("the first field with a matching key and value type is the one updated or modified") {
+  test("Updater refuses to skip a conflicting key for a later exact match") {
+    abortsWith(
+      """FieldUpdate.fieldUpdateInst[("a" ->> Int) :: ("a" ->> String) :: HNil, "a" ->> String]""",
+      """would add a second "a" field""",
+    )
+  }
+
+  test("the first field with a matching key and value type is the one modified") {
     type R = ("a" ->> Int) :: ("b" ->> Boolean) :: ("a" ->> String) :: HNil
     val r: R = ("a" ->> 1) :: ("b" ->> true) :: ("a" ->> "x") :: HNil
-
-    val u = Updater[R, "a" ->> String]
-    summon[u.Out =:= R]
-    assertEquals(u(r, "a" ->> "y"), ("a" ->> 1) :: ("b" ->> true) :: ("a" ->> "y") :: HNil)
 
     val m = Modifier[R, "a", String, Long]
     summon[m.Out =:= (("a" ->> Int) :: ("b" ->> Boolean) :: ("a" ->> Long) :: HNil)]
@@ -650,8 +653,6 @@ class LookupTests extends FunSuite with LookupAssertions {
         .map(_.message),
       Nil,
     )
-    val u = Updater[("a" ->> String) :: HNil, "a" ->> Int]
-    summon[u.Out =:= (("a" ->> String) :: ("a" ->> Int) :: HNil)]
   }
 
   test("absence is not proven for an abstract field bounded by another key, which may have both keys") {
@@ -683,8 +684,10 @@ class LookupTests extends FunSuite with LookupAssertions {
 
   test("a field whose value has a method refinement is not mistaken for an abstract one") {
     type Payload = AnyRef { def value(i: Int): String }
-    val u = Updater[("a" ->> Payload) :: HNil, "a" ->> Int]
-    summon[u.Out =:= (("a" ->> Payload) :: ("a" ->> Int) :: HNil)]
+    abortsWith(
+      """type P = AnyRef { def value(i: Int): String }; FieldUpdate.fieldUpdateInst[("a" ->> P) :: HNil, "a" ->> Int]""",
+      "would add a second",
+    )
     summon[LacksKey[("a" ->> Payload) :: HNil, "b"]]
   }
 
@@ -696,6 +699,33 @@ class LookupTests extends FunSuite with LookupAssertions {
     refused("""Updater[HNil | (("a" ->> Int) :: HNil), "a" ->> Int]""")
     val u = Updater[HNil | (("a" ->> Int) :: HNil), "b" ->> Int]
     summon[u.Out =:= ((("b" ->> Int) :: HNil) | (("a" ->> Int) :: ("b" ->> Int) :: HNil))]
+  }
+
+  test("Updater names the conflicting key and tells the caller how to change its type") {
+    val errors = typeCheckErrors("""FieldUpdate.fieldUpdateInst[("pages" ->> Int) :: HNil, "pages" ->> String]""")
+    assertEquals(errors.size, 1)
+    val message = errors.head.message
+    assert(message.contains("""has field "pages" with value type"""), message)
+    assert(message.contains("Int") && message.contains("String"), message)
+    assert(message.contains("""would add a second "pages" field. Use updateWith("pages")(...)"""), message)
+  }
+
+  test("Updater refuses a value type conflict on a stable object key") {
+    abortsWith(
+      """object Pages; FieldUpdate.fieldUpdateInst[(Pages.type ->> Int) :: HNil, Pages.type ->> String]""",
+      "would add a second",
+    )
+  }
+
+  test("Updater refuses a value type conflict in any union arm") {
+    abortsWith(
+      """FieldUpdate.fieldUpdateInst[(("a" ->> Int) :: HNil) | (("b" ->> Int) :: HNil), "a" ->> String]""",
+      """would add a second "a" field""",
+    )
+    abortsWith(
+      """FieldUpdate.fieldUpdateInst[HNil | (("a" ->> Int) :: HNil), "a" ->> String]""",
+      """would add a second "a" field""",
+    )
   }
 
   test("absence is not proven for keys that are method parameters' singletons, which may be the same path") {
@@ -712,8 +742,10 @@ class LookupTests extends FunSuite with LookupAssertions {
   test("a field whose value has a type lambda in it is not mistaken for an abstract one") {
     trait Payload[F[_]]
     type P = Payload[[X] =>> Either[Int, X]]
-    val u = Updater[("a" ->> P) :: HNil, "a" ->> Int]
-    summon[u.Out =:= (("a" ->> P) :: ("a" ->> Int) :: HNil)]
+    abortsWith(
+      """trait Payload[F[_]]; type P = Payload[[X] =>> Either[Int, X]]; FieldUpdate.fieldUpdateInst[("a" ->> P) :: HNil, "a" ->> Int]""",
+      "would add a second",
+    )
     summon[LacksKey[("a" ->> P) :: HNil, "b"]]
   }
 
@@ -809,7 +841,7 @@ class LookupTests extends FunSuite with LookupAssertions {
       "might match",
     )
     abortsWith(
-      """trait P { val x: String; val y: String; def u = FieldUpdate.fieldUpdateInst[(x.type ->> Int) :: HNil, y.type ->> Int] }""",
+      """trait P { val x: String; val y: String; def u = FieldUpdate.fieldUpdateInst[(x.type ->> Int) :: HNil, y.type ->> String] }""",
       "might match",
     )
     refused("""trait P { val x: String; val y: String; def ev = LacksKey[(x.type ->> Int) :: HNil, y.type] }""")

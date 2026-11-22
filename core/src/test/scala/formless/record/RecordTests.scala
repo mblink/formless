@@ -46,6 +46,61 @@ class RecordTests extends FunSuite with RecordTestsCompat {
     assertEquals(merged, ("a" ->> 1) :: ("b" ->> "x") :: HNil)
   }
 
+  test("merge replaces same-typed fields and appends new keys in order") {
+    val book = ("title" ->> "Dune") :: ("pages" ->> 412) :: HNil
+    val extra = ("year" ->> 1965) :: ("pages" ->> 400) :: ("author" ->> "Frank Herbert") :: HNil
+    assertEquals(
+      book.merge(extra),
+      ("title" ->> "Dune") :: ("pages" ->> 400) :: ("year" ->> 1965) :: ("author" ->> "Frank Herbert") :: HNil,
+    )
+    assertEquals(book.merge(("year" ->> 1965) :: HNil), ("title" ->> "Dune") :: ("pages" ->> 412) :: ("year" ->> 1965) :: HNil)
+  }
+
+  test("updated rejects changing the value type of an existing key") {
+    val errors = compileErrors("""(("pages" ->> 412) :: HNil).updated("pages", "412")""")
+    assert(errors.contains("Cannot update record"))
+    assert(errors.contains("different value type"))
+    assert(errors.contains("updateWith"))
+  }
+
+  test("+ rejects changing the value type of an existing key") {
+    val errors = compileErrors("""(("pages" ->> 412) :: HNil) + ("pages" ->> "412")""")
+    assert(errors.contains("Cannot update record"))
+    assert(errors.contains("different value type"))
+    assert(errors.contains("updateWith"))
+  }
+
+  test("Updater rejects changing the value type of an existing key") {
+    val errors = compileErrors("""record.Updater[("pages" ->> Int) :: HNil, "pages" ->> String]""")
+    assert(errors.contains("Cannot update record"))
+    assert(errors.contains("different value type"))
+    assert(errors.contains("updateWith"))
+  }
+
+  test("merge rejects changing the value type of an existing key") {
+    val errors = compileErrors("""(("pages" ->> 412) :: HNil).merge(("year" ->> 1965) :: ("pages" ->> "412") :: HNil)""")
+    assert(errors.contains("Cannot merge record"))
+    assert(errors.contains("different value types"))
+    assert(errors.contains("updateWith"))
+  }
+
+  test("Merger rejects changing the value type of an existing key") {
+    val errors = compileErrors("""record.Merger[("pages" ->> Int) :: HNil, ("pages" ->> String) :: HNil]""")
+    assert(errors.contains("Cannot merge record"))
+    assert(errors.contains("different value types"))
+    assert(errors.contains("updateWith"))
+  }
+
+  test("Updater refuses a same-key field whose type is strictly narrower") {
+    val errors = compileErrors("""record.Updater[("pages" ->> Int) :: HNil, "pages" ->> Any]""")
+    assert(errors.contains("strict subtype"))
+  }
+
+  test("updated appends a numeric key with a distinct literal type") {
+    val record = (1 ->> 412) :: HNil
+    assertEquals(record.updated(1L, "Dune"), (1 ->> 412) :: (1L ->> "Dune") :: HNil)
+  }
+
   test("LabelledGeneric.toRecord uses product field names") {
     val record: ("a" ->> Int) :: ("b" ->> String) :: HNil = LabelledGeneric.toRecord(Bar(1, "x"))
     assertEquals(record, ("a" ->> 1) :: ("b" ->> "x") :: HNil)

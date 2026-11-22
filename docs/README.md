@@ -301,8 +301,7 @@ book.replace("year", 1966)
 book.updateWith("year")(_.toString)
 
 // Replace a field with a value of the same type, or add it at the end if the record has no field with that key.
-// As in shapeless, a value of another type is added as a new field even when the key is there; use updateWith to
-// change a field's type.
+// An existing key with a different value type is a compile error. Use updateWith to change the field's type.
 book.updated("year", 1966)
 book.updated("author", "Frank Herbert")
 book + ("pages" ->> 412)
@@ -314,8 +313,8 @@ book.remove("inPrint")
 // Rename a field
 book.renameField("inPrint", "available")
 
-// Merge with another record: its fields replace those with the same key and value type, and the rest are added at
-// the end
+// Shared keys must have the same value types. The merge takes their values from the right record and adds new keys
+// at the end. Use mergeWith to combine values of different types.
 book.merge(("year" ->> 1966) :: ("author" ->> "Frank Herbert") :: HNil)
 
 // The keys, the values, and the fields as key-value pairs
@@ -370,7 +369,11 @@ id.untag
 
 ## Upgrading from 0.8
 
-0.9 is source compatible with 0.8 for code that uses records and `HList`s through their syntax and type classes, but not binary compatible, so libraries built against 0.8 need rebuilding. On Scala 3:
+Rebuild libraries compiled against 0.8 for binary compatibility with 0.9.
+
+On Scala 2.13 and Scala 3, `updated`, `+`, `Updater`, `merge` and `Merger` reject an incoming field whose key already has a different value type. This change affects code that previously produced duplicate keys. Use `updateWith(key)(...)` to change a field's type, or remove the field before adding its replacement. For a merge, make the value types agree first or use `mergeWith` to combine the values.
+
+### Scala 3 migration
 
 - `formless.hlist.FindField` and `formless.record.FindField`, the building blocks of 0.8's lookups, are gone; use the type class for the operation (`Selector`, `Updater`, `Remove` and so on) instead.
 - The record syntax's `apply`, `replace` and `updateWith` take a leading `using` clause that checks the list has record fields, so a call that passes their evidence explicitly gains an argument: `record("a")(using selector)` becomes `record("a")(using summon)(using selector)`. Calls that leave the evidence to be found are unchanged.

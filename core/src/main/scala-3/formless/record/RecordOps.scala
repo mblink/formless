@@ -23,8 +23,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   final def fieldAt[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using s: Selector[T, K]): K ->> s.Out = label[K](s(t))
 
   /**
-   * Updates or adds to this record a field with key k. The new field has a value of type V. Only available if this
-   * record has a field with keyType equal to the singleton type K.
+   * Replaces a field of the same key and value type, or appends the field if the key is absent.
    */
   final def updated[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(using u: Updater[T, K ->> V]): u.Out = u(t, label[K](v))
 
@@ -55,7 +54,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   final def remove[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using r: Remover[T, K]): r.Out = r(t)
 
   /**
-   * Updates or adds to this record a field of type F.
+   * Replaces a field of the same key and type, or appends the field if the key is absent.
    */
   final def +[F](f: F)(using u: Updater[T, F]): u.Out = u(t, f)
 
@@ -66,7 +65,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   final def -[K <: Singleton, R, V, O](@annotation.nowarn("msg=unused") k: K)(using r: Remover[T, K] { type Out = R }, ev: R <:< (V, O)): O = r(t)._2
 
   /**
-   * Returns the union of this record and another record.
+   * Merges records whose shared keys have the same value types, taking their values from the right record.
    */
   final def merge[M](m: M)(using mg: Merger[T, M]): mg.Out = mg(t, m)
 

@@ -41,6 +41,7 @@ private[formless] object Lookup {
     case TailRefersToItself(tail: String)
     case MightMatch(element: String, index: Int)
     case StrictFieldSubtype(element: String, index: Int)
+    case DifferentFieldValue(key: String, existing: String, requested: String)
     case NotAField(element: String, index: Int)
     case TooLong(max: Int)
     case TooManyReductions(max: Int)
@@ -54,6 +55,8 @@ private[formless] object Lookup {
       case TailRefersToItself(tail) => s"its tail `$tail` refers to itself"
       case MightMatch(element, index) => s"element `$element` at index $index might match"
       case StrictFieldSubtype(element, index) => s"field `$element` at index $index has the same key and is a strict subtype of the requested field"
+      case DifferentFieldValue(key, existing, requested) =>
+        s"the record already has field $key with value type $existing, so updating it with $requested would add a second $key field. Use updateWith($key)(...) to change the field's type, or remove it first."
       case NotAField(element, index) => s"element `$element` at index $index matches but isn't a field"
       case TooLong(max) => s"it has more than $max elements, or never ends"
       case TooManyReductions(max) => s"more than $max of its tails are aliases or match types to reduce, so it may never end"
@@ -103,7 +106,7 @@ private[formless] object Lookup {
   }
 
   enum Target {
-    case Element, ExactField
+    case Element, ExactField, UpdateField
   }
 
   /**
@@ -277,21 +280,19 @@ private[formless] object Lookup {
           .reduceOption((x, y) => (x._1, if (x._2 =:= y._2) x._2 else AndType(x._2, y._2)))
       }
 
-    // A field's literal key, e.g. `"a"`, `1`, `1L` or `'1'`
-    private def literalKey(t: TypeRepr): Option[LiteralKey] =
-      labelledArgs(t).flatMap { case (k, _) =>
-        k.dealias match {
-          case ConstantType(StringConstant(v)) => Some(LiteralKey.Str(v))
-          case ConstantType(IntConstant(v)) => Some(LiteralKey.IntKey(v))
-          case ConstantType(LongConstant(v)) => Some(LiteralKey.LongKey(v))
-          case ConstantType(CharConstant(v)) => Some(LiteralKey.CharKey(v))
-          case ConstantType(BooleanConstant(v)) => Some(LiteralKey.BooleanKey(v))
-          case ConstantType(ShortConstant(v)) => Some(LiteralKey.ShortKey(v))
-          case ConstantType(ByteConstant(v)) => Some(LiteralKey.ByteKey(v))
-          case ConstantType(FloatConstant(v)) => Some(LiteralKey.FloatKey(v))
-          case ConstantType(DoubleConstant(v)) => Some(LiteralKey.DoubleKey(v))
-          case _ => None
-        }
+    // A literal key, e.g. `"a"`, `1`, `1L` or `'1'`
+    private def literalKey(k: TypeRepr): Option[LiteralKey] =
+      k.dealias match {
+        case ConstantType(StringConstant(v)) => Some(LiteralKey.Str(v))
+        case ConstantType(IntConstant(v)) => Some(LiteralKey.IntKey(v))
+        case ConstantType(LongConstant(v)) => Some(LiteralKey.LongKey(v))
+        case ConstantType(CharConstant(v)) => Some(LiteralKey.CharKey(v))
+        case ConstantType(BooleanConstant(v)) => Some(LiteralKey.BooleanKey(v))
+        case ConstantType(ShortConstant(v)) => Some(LiteralKey.ShortKey(v))
+        case ConstantType(ByteConstant(v)) => Some(LiteralKey.ByteKey(v))
+        case ConstantType(FloatConstant(v)) => Some(LiteralKey.FloatKey(v))
+        case ConstantType(DoubleConstant(v)) => Some(LiteralKey.DoubleKey(v))
+        case _ => None
       }
 
     // Free of type parameters and abstract type members, so a failed `Cmp` check against it is final
@@ -399,10 +400,10 @@ private[formless] object Lookup {
 
     // `->>` is invariant in its key, so a field keyed by a different literal can never satisfy `Cmp[field, F]`. Keys are
     // compared as `LiteralKey`s, so literals of different types differ, as `1` and `1L` or `49` and `'1'` do.
-    private val fKey = literalKey(fTpe)
+    private val fKey = labelledArgs(fTpe).flatMap(x => literalKey(x._1))
 
     private def keyMismatch(head: TypeRepr): Boolean =
-      fKey.exists(fk => literalKey(head).exists(_ != fk))
+      fKey.exists(fk => labelledArgs(head).flatMap(x => literalKey(x._1)).exists(_ != fk))
 
     private lazy val cmpIsSubtype = cmpTpe.typeSymbol == TypeRepr.of[<:<].typeSymbol
 
@@ -433,6 +434,34 @@ private[formless] object Lookup {
         }
       loop(head, Nil)
     }
+
+    private lazy val requestedField = keyValueOpt(fTpe)
+
+    private def sameUpdateKey(hk: TypeRepr, fk: TypeRepr): Boolean =
+      (literalKey(hk), literalKey(fk)) match {
+        case (Some(h), Some(f)) => h == f
+        case _ => isGround(hk) && isGround(fk) && (hk =:= fk)
+      }
+
+    // A collision in any union arm prevents appending, even if the other arms have different keys or lengths.
+    private def updateConflict(head: TypeRepr, index: Int, bounded: Boolean): Option[Reason] =
+      requestedField.flatMap { case (fk, fv) =>
+        @annotation.tailrec def loop(todo: List[TypeRepr]): Option[Reason] = todo match {
+          case scala.collection.immutable.::(next, rest) => next.dealias match {
+            case OrType(a, b) => loop(a :: b :: rest)
+            case _ =>
+              keyValueOpt(next) match {
+                case Some((hk, hv)) if sameUpdateKey(hk, fk) && !(next =:= fTpe) =>
+                  if (!bounded && isGround(next) && fIsGround)
+                    Some(Reason.DifferentFieldValue(display(fk), display(hv), display(fv)))
+                  else Some(Reason.MightMatch(display(next), index))
+                case _ => loop(rest)
+              }
+          }
+          case Nil => None
+        }
+        loop(head :: Nil)
+      }
 
     // The head and tail of a record type: directly for `H :: T`, through the base type otherwise (an abstract record's
     // upper bound, an intersection, a singleton), and arm by arm for a union of records.
@@ -531,10 +560,14 @@ private[formless] object Lookup {
           val differentKey = keyMismatch(head)
           if (!differentKey && cmpHolds(head)) Right(Found(revInit, head, tail)(rest, nowBounded))
           else {
-            val narrower = if (!differentKey && target == Target.ExactField) strictFieldSubtype(head) else None
-            narrower match {
-              case Some(narrowerField) =>
-                Left(LookupError.Refused(s"find field $field in record $record", Reason.StrictFieldSubtype(display(narrowerField), revInit.length)))
+            val refusal =
+              if (differentKey || target == Target.Element) None
+              else strictFieldSubtype(head).map(n => Reason.StrictFieldSubtype(display(n), revInit.length))
+                .orElse(if (target == Target.UpdateField) updateConflict(head, revInit.length, nowBounded) else None)
+            refusal match {
+              case Some(reason) =>
+                val action = if (target == Target.UpdateField) s"update $record with $field" else s"find field $field in record $record"
+                Left(LookupError.Refused(action, reason))
               case None =>
                 // Different literal keys rule out a match unless reading a subtype off an abstract bound.
                 lazy val undecided = (!differentKey || (nowBounded && !cmpIsEq)) && mightMatch(head, nowBounded)
@@ -822,8 +855,8 @@ object FieldOp {
 }
 
 /**
- * How `Updater` puts the field `F` into the record `T`: it replaces the first field `=:=` `F`, or appends `F` when no
- * field could be, deciding which in one walk of the record. `Out` is the new record.
+ * How `Updater` puts the field `F` into the record `T`: it replaces the first field of that key if it is `=:=` to
+ * `F`, or appends `F` if the key is absent. `Out` is the new record.
  */
 @scala.annotation.implicitNotFound("Cannot update ${T} with ${F}")
 private[formless] sealed trait FieldUpdate[T <: HList, F] extends Updater[T, F]
@@ -843,7 +876,7 @@ object FieldUpdate {
     Lookup.guarded("update a record field")(fieldUpdateImpl0[T, F])
 
   private def fieldUpdateImpl0[T <: HList: Type, F: Type](using Quotes): Either[Lookup.LookupError, Expr[FieldUpdate[T, F]]] = {
-    val lookup = Lookup.Walk[T, F, =:=](Lookup.Target.ExactField)
+    val lookup = Lookup.Walk[T, F, =:=](Lookup.Target.UpdateField)
     import lookup.q.reflect.*
     import Lookup.{LookupError, Reason}
     def refuse(reason: Reason) =
@@ -912,7 +945,7 @@ object ReplaceAt {
     for {
       f <- walk.found
       _ <- target match {
-        case Lookup.Target.ExactField => walk.fieldKeyValue(f).map(_ => ())
+        case Lookup.Target.ExactField | Lookup.Target.UpdateField => walk.fieldKeyValue(f).map(_ => ())
         case Lookup.Target.Element => Right(())
       }
     } yield {

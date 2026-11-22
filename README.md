@@ -16,7 +16,7 @@ On Scala 3 formless is implemented natively, with match types, `scala.compiletim
 
 - **One API for Scala 2.13 and Scala 3.** Cross-build generic code without `scala-2` and `scala-3` source splits, or migrate a shapeless 2 codebase to Scala 3 one module at a time.
 - **Fast to compile.** Record field and `HList` element lookups on Scala 3 are a single macro walk that builds each result type directly, instead of chains of implicit searches and match types: 3 to 20 times faster to compile than 0.8, allocating 3 to 35 times less memory. See [Compile-time performance](#compile-time-performance).
-- **Sound lookups.** A field is found only when the record's type proves it is there, and proven absent only when no field could possibly have the key. Abstract tails, abstract fields, unions and intersections are handled rather than guessed at, so `updated` never appends a duplicate key and `LacksKey` never lies.
+- **Sound lookups.** A field is found only when the record's type proves it is there, and proven absent only when no field could possibly have the key. Abstract tails, abstract fields, unions and intersections are handled rather than guessed at: a lookup that can't be decided until a type parameter is known, or that would pick different elements in different arms of a union, is a compile error rather than a guess, and `LacksKey` never lies.
 - **Never crashes the compiler.** Every lookup macro turns an unexpected input into an ordinary compile error, and long or self-referential types are refused instead of looping.
 - **Production tested.** formless is used across the BondLink codebase, a large Scala 3 application with heavy use of records.
 
@@ -32,7 +32,7 @@ formless 0.9 rebuilt how records and `HList`s find a field or an element by type
 | 120 `HList` element lookups (`Remove`, `Replacer`, `SplitLeft`, `SplitRight`) on a 30-element list | 2.2 s → 0.5 s (**4.8×**) | 3.2 s → 1.1 s (**3.0×**) | 1.28 GB → 0.14 GB (**9.1×**) |
 | The same on a 60-element list | 20.3 s → 1.0 s (**20×**) | 24.4 s → 1.6 s (**15×**) | 10.9 GB → 0.31 GB (**35×**) |
 
-In 0.8, doubling the `HList` from 30 to 60 elements made its lookups about eight times as costly; in 0.9 it costs about 1.5 times as much, so the gap widens as lists get longer. Peak memory of the compiler process fell from about 1.25 GB to 1.04 GB.
+In 0.8, doubling the `HList` from 30 to 60 elements made its lookups about eight times as costly; in 0.9 they take about 1.5 times as much CPU time and allocate about 2.2 times as much memory, close to the linear growth of twice as many lookups each walking a list twice as long, so the gap widens as lists get longer. CI checks that this ratio stays below 5 for allocation. Peak memory of the compiler process fell from about 1.25 GB to 1.04 GB.
 
 Each figure is the median of six runs compiling one generated file on a warm sbt server (Scala 3.3.8, JDK 25, Apple Silicon), with 0.8 and 0.9 runs interleaved so that load from other work on the machine affects both alike. Allocation was read from the JVM over JMX and varied by under 1% between runs.
 
@@ -344,7 +344,7 @@ val fns =
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x00000ff806e75000@54929fbf :: repl.MdocSession$MdocApp$$Lambda/0x00000ff806e74c00@4eddb00b :: repl.MdocSession$MdocApp$$Lambda/0x00000ff806e74800@738512c9 :: HNil
+// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x000007fc03705800@90c1886 :: repl.MdocSession$MdocApp$$Lambda/0x000007fc03705400@248ce3a8 :: repl.MdocSession$MdocApp$$Lambda/0x000007fc03705000@703f16d0 :: HNil
 
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil
@@ -383,7 +383,8 @@ book.replace("year", 1966)
 book.updateWith("year")(_.toString)
 // res50: ::[->>["title", String], ::[->>["year", String], ::[->>["inPrint", Boolean], HNil]]] = "Dune" :: "1965" :: true :: HNil
 
-// Replace a field, or add it at the end if the record has no field with that key
+// Replace a field with a value of the same type, or add it at the end if the record has no field with that key.
+// An existing key with a different value type is a compile error. Use updateWith to change the field's type.
 book.updated("year", 1966)
 // res51: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], HNil]]] = "Dune" :: 1966 :: true :: HNil
 book.updated("author", "Frank Herbert")
@@ -404,7 +405,8 @@ book.remove("inPrint")
 book.renameField("inPrint", "available")
 // res56: ::[->>["title", String], ::[->>["year", Int], ::[->>["available", Boolean], HNil]]] = "Dune" :: 1965 :: true :: HNil
 
-// Merge with another record; fields of the argument win
+// Shared keys must have the same value types. The merge takes their values from the right record and adds new keys
+// at the end. Use mergeWith to combine values of different types.
 book.merge(("year" ->> 1966) :: ("author" ->> "Frank Herbert") :: HNil)
 // res57: ::[->>["title", String], ::[->>["year", Int], ::[->>["inPrint", Boolean], ::[->>["author", String], HNil]]]] = "Dune" :: 1966 :: true :: "Frank Herbert" :: HNil
 
@@ -426,7 +428,7 @@ Looking up a key the record doesn't have is a compile-time error:
 book.get("author")
 // error: 
 // Cannot select field ("author" : String) from record ("title" : String) ->> String :: ("year" : String) ->> Int ::
-//   ("inPrint" : String) ->> Boolean :: formless.hlist.HNil.type: no field has that key, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time.
+//   ("inPrint" : String) ->> Boolean :: formless.hlist.HNil.type: no field has that key, or it could only be in an abstract part of the type (a type parameter or abstract type member), so it can't be found at compile time, or it is at different indexes in the arms of a union.
 // I found:
 // 
 //     formless.record.Selector.selectorAt[
@@ -481,6 +483,19 @@ val id: Int @@ UserId = tag[UserId](42)
 id.untag
 // res68: Int = 42
 ```
+
+## Upgrading from 0.8
+
+Rebuild libraries compiled against 0.8 for binary compatibility with 0.9.
+
+On Scala 2.13 and Scala 3, `updated`, `+`, `Updater`, `merge` and `Merger` reject an incoming field whose key already has a different value type. This change affects code that previously produced duplicate keys. Use `updateWith(key)(...)` to change a field's type, or remove the field before adding its replacement. For a merge, make the value types agree first or use `mergeWith` to combine the values.
+
+### Scala 3 migration
+
+- `formless.hlist.FindField` and `formless.record.FindField`, the building blocks of 0.8's lookups, are gone; use the type class for the operation (`Selector`, `Updater`, `Remove` and so on) instead.
+- The record syntax's `apply`, `replace` and `updateWith` take a leading `using` clause that checks the list has record fields, so a call that passes their evidence explicitly gains an argument: `record("a")(using selector)` becomes `record("a")(using summon)(using selector)`. Calls that leave the evidence to be found are unchanged.
+- A lookup that 0.8 resolved but that can't be decided soundly, such as a field at different indexes in the arms of a union of records, or one hidden behind an abstract tail, is now a compile error naming the reason.
+- formless needs Java 17 or newer.
 
 ## Migrating from shapeless 2
 
