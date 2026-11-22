@@ -261,14 +261,18 @@ x.reduceRight(reduceRightFn)
 
 // Repeat the `HList` a given number of times
 x.repeat[@SHAPELESS_NAT_PREFIX@3]
+```
 
+```scala mdoc:silent
 // Transform of a `HList` of functions and corresponding elements by passing the element to the function
 val fns =
   ((i: Int) => i % 2 == 0) ::
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
+```
 
+```scala mdoc
 fns.zipApply(x)
 ```
 

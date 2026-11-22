@@ -337,15 +337,18 @@ x.reduceRight(reduceRightFn)
 // Repeat the `HList` a given number of times
 x.repeat[3]
 // res44: ::[Int, ::[String, ::[Boolean, ::[Int, ::[String, ::[Boolean, ::[Int, ::[String, ::[Boolean, HNil]]]]]]]]] = 1 :: "foo" :: true :: 1 :: "foo" :: true :: 1 :: "foo" :: true :: HNil
+```
 
+```scala
 // Transform of a `HList` of functions and corresponding elements by passing the element to the function
 val fns =
   ((i: Int) => i % 2 == 0) ::
   ((s: String) => s.length) ::
   ((b: Boolean) => if (b) "yes" else "no") ::
   HNil
-// fns: ::[Function1[Int, Boolean], ::[Function1[String, Int], ::[Function1[Boolean, String], HNil]]] = repl.MdocSession$MdocApp$$Lambda/0x000007fc03705800@90c1886 :: repl.MdocSession$MdocApp$$Lambda/0x000007fc03705400@248ce3a8 :: repl.MdocSession$MdocApp$$Lambda/0x000007fc03705000@703f16d0 :: HNil
+```
 
+```scala
 fns.zipApply(x)
 // res45: ::[Boolean, ::[Int, ::[String, HNil]]] = false :: 3 :: "yes" :: HNil
 ```

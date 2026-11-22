@@ -180,6 +180,14 @@ lazy val root = project.in(file("."))
 
 lazy val publishSettings = Seq(
   publish / skip := false,
+  pomPostProcess := { pom =>
+    val omitTestDependencies = new scala.xml.transform.RewriteRule {
+      override def transform(node: scala.xml.Node): Seq[scala.xml.Node] =
+        if (node.label == "dependency" && (node \ "scope").text == "test") Seq.empty
+        else Seq(node)
+    }
+    new scala.xml.transform.RuleTransformer(omitTestDependencies).transform(pom).head
+  },
   s3PublishBucket := "bondlink-maven-repo",
   resolvers += "bondlink-maven-repo" at mavenRepoUrl,
   // 0.9.0 breaks binary compatibility with earlier releases; check against it once it is published
