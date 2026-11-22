@@ -21,10 +21,7 @@ object Selector extends SelectorFromField {
 
   private def derive[T <: HList: Type, K: Type](using Quotes): Expr[Selector[T, K]] =
     FieldOp.materialize[T, K ->> Any, FieldOp.Select, Selector[T, K]](
-      [O] => (out: Type[O], index: Int) => {
-        given Type[O] = out
-        '{ new Indexed[T, K, O](${ Expr(index) }) }
-      },
+      [O] => (out: Type[O], index: Int) => '{ new Indexed[T, K, out.Underlying](${ Expr(index) }) },
     )
 
   transparent inline given derived[T <: HList, K]: Selector[T, K] = ${ derive[T, K] }

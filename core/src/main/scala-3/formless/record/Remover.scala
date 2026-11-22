@@ -23,10 +23,7 @@ object Remover extends RemoverFromField {
 
   private def derive[T <: HList: Type, K: Type](using Quotes): Expr[Remover[T, K]] =
     FieldOp.materialize[T, K ->> Any, FieldOp.Remove, Remover[T, K]](
-      [O] => (out: Type[O], index: Int) => {
-        given Type[O] = out
-        '{ new Indexed[T, K, O](${ Expr(index) }) }
-      },
+      [O] => (out: Type[O], index: Int) => '{ new Indexed[T, K, out.Underlying](${ Expr(index) }) },
     )
 
   transparent inline given derived[T <: HList, K]: Remover[T, K] = ${ derive[T, K] }

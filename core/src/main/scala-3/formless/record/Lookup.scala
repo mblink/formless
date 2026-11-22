@@ -789,10 +789,7 @@ object FieldOp {
 
   private def fieldOpImpl[T <: HList: Type, F: Type, Op <: FieldOp.Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] =
     materialize[T, F, Op, FieldOp[T, F, Op]](
-      [O] => (out: Type[O], index: Int) => {
-        given Type[O] = out
-        '{ new Inst[T, F, Op, O](${ Expr(index) }) }
-      },
+      [O] => (out: Type[O], index: Int) => '{ new Inst[T, F, Op, out.Underlying](${ Expr(index) }) },
     )
 
   private[formless] def materialize[T <: HList: Type, F: Type, Op <: FieldOp.Op: Type, E](
