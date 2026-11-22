@@ -143,11 +143,21 @@ private[formless] object Lookup {
     // only outside its scope, where its bound is all that's known of it, so it's handled on its own
     private def isAbstract(sym: Symbol): Boolean = sym.isTypeParam || (sym.isAbstractType && !sym.flags.is(Flags.Opaque))
 
+    private def isCons(t: TypeRepr): Boolean =
+      t match {
+        case a: AppliedType => a.tycon.typeSymbol == consSym
+        case _ => false
+      }
+
     /** `t`'s head and tail when `t` is spelled `H :: T` */
     private object DirectCons {
       def unapply(t: TypeRepr): Option[(TypeRepr, TypeRepr)] =
         t match {
-          case AppliedType(tycon, List(head, tail)) if tycon.typeSymbol == consSym => Some((head, tail))
+          case a: AppliedType if isCons(a) =>
+            a.args match {
+              case List(head, tail) => Some((head, tail))
+              case _ => None
+            }
           case _ => None
         }
     }
@@ -187,6 +197,10 @@ private[formless] object Lookup {
     def field: String = display(fTpe)
 
     private def keyValueOpt(head: TypeRepr): Option[(TypeRepr, TypeRepr)] =
+      // An explicit field already has its exact key and value. Only other shapes need bound or subtype checks.
+      labelledArgs(head).orElse(indirectKeyValue(head))
+
+    private def indirectKeyValue(head: TypeRepr): Option[(TypeRepr, TypeRepr)] =
       upperBound(head) match {
         case Some(bound) => keyValueOpt(bound)
         case None =>
@@ -327,6 +341,7 @@ private[formless] object Lookup {
     private val cmpIsEq = cmpTpe.typeSymbol == TypeRepr.of[=:=].typeSymbol
 
     private lazy val fLabelledKey = labelledKey(fTpe)
+    private lazy val fIsGround = isGround(fTpe)
 
     // Whether `Cmp[head, F]` could hold once the abstract types in `head` or `F` are known. A `bounded` head was read
     // off the upper bound of an abstract record, so the element it stands for may be any subtype of it.
@@ -348,8 +363,8 @@ private[formless] object Lookup {
       (headKey, fLabelledKey) match {
         case (Some(hk), Some(fk)) if isGround(hk) && isGround(fk) && !(hk =:= fk) && (!cmpIsEq || exactKeys) => false
         // `head =:= F` needs `F` within `head`'s upper bound, e.g. never for `H <: String` and `Int`
-        case _ if cmpIsEq && upperBound(head).exists(hi => isGround(hi) && isGround(fTpe) && !(fTpe <:< hi)) => false
-        case _ => bounded || !(isGround(head) && isGround(fTpe))
+        case _ if cmpIsEq && upperBound(head).exists(hi => isGround(hi) && fIsGround && !(fTpe <:< hi)) => false
+        case _ => bounded || !(isGround(head) && fIsGround)
       }
     }
 
@@ -399,7 +414,7 @@ private[formless] object Lookup {
 
     private def isDirectCons(t: TypeRepr): Boolean =
       t match {
-        case DirectCons(_, _) => true
+        case a: AppliedType => isCons(a)
         case OrType(a, b) => isDirectCons(a.dealias.simplified) && isDirectCons(b.dealias.simplified)
         case _ => false
       }
@@ -433,10 +448,11 @@ private[formless] object Lookup {
       // A tail that had to be reduced, e.g. an alias or a match type, may grow as it is reduced again, so these have a
       // smaller budget, stopping before the compiler's own recursion limit. A union of `H :: T`s doesn't grow as it's
       // walked, so only other tails count.
-      if (!isDirectCons(rest)) expansions += 1
-      // Most tails are already `H :: T`, which needs no normalizing
-      val t = normalize(rest)
-      val direct = isDirectCons(t)
+      // Most tails are already `H :: T`, which needs no normalizing or separate check of the result.
+      val spelledCons = isCons(rest)
+      if (!spelledCons && !isDirectCons(rest)) expansions += 1
+      val t = if (spelledCons) rest else rest.dealias.simplified
+      val direct = spelledCons || isDirectCons(t)
       if (steps > Lookup.MaxSteps) Left(LookupError.Refused(s"look through $record", Reason.TooLong(Lookup.MaxSteps)))
       else if (expansions > Lookup.MaxExpansions)
         Left(LookupError.Refused(s"look through $record", Reason.TooManyReductions(Lookup.MaxExpansions)))
@@ -444,7 +460,7 @@ private[formless] object Lookup {
       else consParts(t) match {
         case Some((head, tail)) =>
           // An opaque record's elements are read off its bound, e.g. `Any` for `opaque type O <: Any :: HNil = Int :: HNil`
-          val nowBounded = bounded || !(direct || isGround(t)) || t.typeSymbol.flags.is(Flags.Opaque)
+          val nowBounded = bounded || (!direct && (!isGround(t) || t.typeSymbol.flags.is(Flags.Opaque)))
           lazy val undecided = mightMatch(head, nowBounded)
           if (cmpHolds(head)) Right(Found(revInit, head, tail)(rest, nowBounded))
           // An element of a union of lists that matches in only some arms, e.g. `String | Int` in
@@ -515,7 +531,7 @@ private[formless] object Lookup {
 
     private def normalize(t: TypeRepr): TypeRepr =
       t match {
-        case DirectCons(_, _) => t
+        case a: AppliedType if isCons(a) => t
         case _ => t.dealias.simplified
       }
 
