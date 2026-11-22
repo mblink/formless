@@ -1,3 +1,1 @@
 -Xmx2G
-# Scala 3's implicit search recursively compares the arms of long record unions.
--Xss2m

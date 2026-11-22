@@ -64,7 +64,7 @@ jobs:
         run: sbt '++ ${{ matrix.scala }}; githubWorkflowCheck'
 
       - name: Build project
-        run: sbt test
+        run: sbt -J-Xss2m test
 
       - name: Check binary compatibility
         if: matrix.java == 'temurin@25'
@@ -80,11 +80,11 @@ jobs:
 
       - name: Check test coverage
         if: matrix.java == 'temurin@25'
-        run: sbt coverage core3/test core3/coverageReport
+        run: sbt -J-Xss2m coverage core3/test core3/coverageReport
 
       - name: Check for unused code
         if: matrix.java == 'temurin@25'
-        run: sbt findUnusedAll
+        run: sbt -J-Xss2m findUnusedAll
 
   publish:
     name: Publish Artifacts

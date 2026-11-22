@@ -26,13 +26,16 @@ ThisBuild / githubWorkflowTargetBranches := Seq("main")
 
 val isJava25 = s"matrix.java == '${java25.render}'"
 
+// The Linux CI compiler needs extra stack to compare the two arms of the long record union in LookupTests.
+val sbtForTestCompile = "sbt -J-Xss2m"
+
 ThisBuild / githubWorkflowBuild := Seq(
-  WorkflowStep.Run(List("sbt test"), name = Some("Build project")),
+  WorkflowStep.Run(List(s"$sbtForTestCompile test"), name = Some("Build project")),
   WorkflowStep.Run(List("sbt mimaReportBinaryIssues"), name = Some("Check binary compatibility"), cond = Some(isJava25)),
   WorkflowStep.Run(List("sbt mdoc"), name = Some("Build docs"), cond = Some(isJava25)),
   WorkflowStep.Run(List("sbt perf3/test"), name = Some("Check compile-time performance"), cond = Some(isJava25)),
-  WorkflowStep.Run(List("sbt coverage core3/test core3/coverageReport"), name = Some("Check test coverage"), cond = Some(isJava25)),
-  WorkflowStep.Run(List("sbt findUnusedAll"), name = Some("Check for unused code"), cond = Some(isJava25)),
+  WorkflowStep.Run(List(s"$sbtForTestCompile coverage core3/test core3/coverageReport"), name = Some("Check test coverage"), cond = Some(isJava25)),
+  WorkflowStep.Run(List(s"$sbtForTestCompile findUnusedAll"), name = Some("Check for unused code"), cond = Some(isJava25)),
 )
 
 // Pushing a tag `vX.Y.Z` matching `version` publishes to Maven Central; see "Publishing" in AGENTS.md
