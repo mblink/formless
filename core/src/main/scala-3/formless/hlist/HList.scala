@@ -126,34 +126,67 @@ object HList {
     prependAll(prefix, f(c.head.asInstanceOf[A]) :: c.tail)
   }
 
-  private def reversed(prefix: Array[Any]): HList = prefix.foldLeft(HNil: HList)((acc, x) => x :: acc)
-
   /** The elements of `l` before index `idx`, and the rest of `l` from `idx` on, which is shared */
   private[formless] def splitBefore(l: HList, idx: Int): (HList, HList) = {
-    val (prefix, rest) = splitAt(l, idx)
-    (prependAll(prefix, HNil), rest)
+    // Copy two cells per recursive call. The caller handles a possible odd first cell.
+    def prefixPairs(h: HList, remaining: Int): HList =
+      if (remaining == 0) HNil
+      else h match {
+        case first: ::[?, ?] => first.tail match {
+          case second: ::[?, ?] =>
+            val rest = prefixPairs(second.tail, remaining - 2)
+            new ::(first.head, new ::(second.head, rest))
+          case HNil => HNil
+        }
+        case HNil => HNil
+      }
+
+    @annotation.tailrec def suffix(h: HList, remaining: Int): HList =
+      if (remaining == 0) h
+      else h match {
+        case c: ::[?, ?] => suffix(c.tail, remaining - 1)
+        case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength})")
+      }
+
+    // Build short prefixes directly. Keep the iterative array path for deep splits to bound the JVM stack.
+    if (idx <= 256) {
+      // Finding the suffix first establishes that all the cells to copy are present.
+      val rest = suffix(l, idx)
+      val prefix =
+        if (idx % 2 == 0) prefixPairs(l, idx)
+        else l match {
+          case first: ::[?, ?] =>
+            val copied = prefixPairs(first.tail, idx - 1)
+            new ::(first.head, copied)
+          case HNil => HNil
+        }
+      (prefix, rest)
+    } else {
+      val (heads, rest) = splitAt(l, idx)
+      (prependAll(heads, HNil), rest)
+    }
   }
 
   /** The elements of `l` before index `idx` in reverse, and the rest of `l` from `idx` on, which is shared */
   private[formless] def reverseSplitBefore(l: HList, idx: Int): (HList, HList) = {
-    val (prefix, rest) = splitAt(l, idx)
-    (reversed(prefix), rest)
+    @annotation.tailrec def loop(h: HList, remaining: Int, prefix: HList): (HList, HList) =
+      if (remaining == 0) (prefix, h)
+      else h match {
+        case c: ::[?, ?] => loop(c.tail, remaining - 1, new ::(c.head, prefix))
+        case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength})")
+      }
+
+    loop(l, idx, HNil)
   }
 
   /** The elements of `l` up to and including index `idx`, and the rest of `l` after it, which is shared */
-  private[formless] def splitAfter(l: HList, idx: Int): (HList, HList) = {
-    val (prefix, c) = cellAt(l, idx)
-    (prependAll(prefix, c.head :: HNil), c.tail)
-  }
+  private[formless] def splitAfter(l: HList, idx: Int): (HList, HList) = splitBefore(l, idx + 1)
 
   /**
    * The element at index `idx` followed by the elements before it in reverse, and the rest of `l` after it, which is
    * shared
    */
-  private[formless] def reverseSplitAfter(l: HList, idx: Int): (HList, HList) = {
-    val (prefix, c) = cellAt(l, idx)
-    (c.head :: reversed(prefix), c.tail)
-  }
+  private[formless] def reverseSplitAfter(l: HList, idx: Int): (HList, HList) = reverseSplitBefore(l, idx + 1)
 
   /** The element at `idx`, read as an `A` as in `updatedAt`, and `l` with `f` of it in its place */
   private[formless] def replacedAt[A](l: HList, idx: Int, f: A => Any): (A, HList) = {

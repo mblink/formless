@@ -155,6 +155,16 @@ class ElemOpTests extends FunSuite with LookupAssertions {
     assert(sameTail2 eq tail)
   }
 
+  test("a deep split preserves the prefix order and shares the suffix") {
+    val tail = "tail" :: HNil
+    val values = 0 until 300
+    val list = values.foldRight(tail: HList)((head, rest) => head :: rest)
+    val (prefix, suffix) = HList.splitBefore(list, values.length)
+
+    assertEquals(prefix.toArray.toSeq, values.toSeq)
+    assert(suffix eq tail)
+  }
+
   test("a long list") {
     type L30 = 0 :: 1 :: 2 :: 3 :: 4 :: 5 :: 6 :: 7 :: 8 :: 9 :: 10 :: 11 :: 12 :: 13 :: 14 :: 15 :: 16 :: 17 :: 18 :: 19 ::
       20 :: 21 :: 22 :: 23 :: 24 :: 25 :: 26 :: 27 :: 28 :: 29 :: HNil
