@@ -9,7 +9,13 @@ import formless.hlist.HList
 trait LacksKey[L <: HList, K]
 
 object LacksKey {
+  // A noncapturing SAM lets the JVM share a proof without changing the variance of the public type class.
+  private trait Proof[L <: HList, K] extends LacksKey[L, K] with Runnable
+
   inline def apply[T <: HList, K](using l: LacksKey[T, K]): LacksKey[T, K] = l
 
-  given lacksKeyAbsent[T <: HList, K](using a: FieldAbsent[T, K ->> Any, <:<]): LacksKey[T, K] = new LacksKey[T, K] {}
+  given lacksKeyAbsent[T <: HList, K](using a: FieldAbsent[T, K ->> Any, <:<]): LacksKey[T, K] = {
+    val proof: Proof[T, K] = () => ()
+    proof
+  }
 }

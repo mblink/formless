@@ -13,9 +13,11 @@ object Modifier {
 
   inline def apply[T <: HList, K, A, B](using m: Modifier[T, K, A, B]): Modifier.Aux[T, K, A, B, m.Out] = m
 
-  given modifierAt[T <: HList, K, A, B](using op: ReplaceAt[T, K ->> A, ReplaceAt.Field]): Modifier.Aux[T, K, A, B, op.Replaced[K ->> B]] =
+  given modifierAt[T <: HList, K, A, B](using op: ReplaceAt[T, K ->> A, ReplaceAt.Field]): Modifier.Aux[T, K, A, B, op.Replaced[K ->> B]] = {
+    val index = op.index
     new Modifier[T, K, A, B] {
       type Out = op.Replaced[K ->> B]
-      def apply(t: T, f: A => B): Out = HList.updatedAt(t, op.index, f).asInstanceOf[Out]
+      def apply(t: T, f: A => B): Out = HList.updatedAt(t, index, f).asInstanceOf[Out]
     }
+  }
 }

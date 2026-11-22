@@ -61,6 +61,17 @@ class ElemOpTests extends FunSuite with LookupAssertions {
     assertEquals(last(l), (l, HNil))
   }
 
+  test("the named split givens still accept explicit lookup evidence") {
+    val left = SplitLeft.splitLeftAt[L, String](using ElemOp.elemOpInst[L, String, ElemOp.SplitLeft])
+    val right = SplitRight.splitRightAt[L, String](using ElemOp.elemOpInst[L, String, ElemOp.SplitRight])
+    val reverseLeft = ReverseSplitLeft.reverseSplitLeftAt[L, Boolean](using ElemOp.elemOpInst[L, Boolean, ElemOp.ReverseSplitLeft])
+    val reverseRight = ReverseSplitRight.reverseSplitRightAt[L, String](using ElemOp.elemOpInst[L, String, ElemOp.ReverseSplitRight])
+    assertEquals(left(l), (1 :: HNil, "a" :: true :: "b" :: 2.0 :: HNil))
+    assertEquals(right(l), (1 :: "a" :: true :: "b" :: HNil, 2.0 :: HNil))
+    assertEquals(reverseLeft(l), ("a" :: 1 :: HNil, true :: "b" :: 2.0 :: HNil))
+    assertEquals(reverseRight(l), ("b" :: true :: "a" :: 1 :: HNil, 2.0 :: HNil))
+  }
+
   test("the result types equal the match types the operations used to be defined with") {
     val sl = SplitLeft[L, Boolean]
     summon[sl.Prefix =:= HList.Take[L, 2]]

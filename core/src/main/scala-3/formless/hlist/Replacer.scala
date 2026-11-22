@@ -20,9 +20,11 @@ object Replacer {
 
   inline def apply[L, U, V](using r: Replacer[L, U, V]): Replacer.Aux[L, U, V, r.Out] = r
 
-  given replacerAt[T <: HList, U, V](using op: formless.record.ReplaceAt[T, U, formless.record.ReplaceAt.Elem]): Replacer.Aux[T, U, V, (U, op.Replaced[V])] =
+  given replacerAt[T <: HList, U, V](using op: formless.record.ReplaceAt[T, U, formless.record.ReplaceAt.Elem]): Replacer.Aux[T, U, V, (U, op.Replaced[V])] = {
+    val index = op.index
     new Replacer[T, U, V] {
       type Out = (U, op.Replaced[V])
-      def apply(t: T, v: V): Out = HList.replacedAt(t, op.index, _ => v).asInstanceOf[Out]
+      def apply(t: T, v: V): Out = HList.replacedAt(t, index, _ => v).asInstanceOf[Out]
     }
+  }
 }

@@ -1,6 +1,7 @@
 package formless
 package hlist
 
+import formless.record.Lookup
 import scala.quoted.*
 
 /**
@@ -34,28 +35,40 @@ object ElemOp {
     final type B = B0
   }
 
-  private def elemOpImpl[T <: HList: Type, U: Type, Op <: ElemOp.Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] =
-    formless.record.Lookup.guarded("look up an HList element")(elemOpImpl0[T, U, Op])
+  // Scala 3.3 quote patterns cannot bind the HList-bounded result arguments of these constructors.
+  private[hlist] trait Constructor {
+    def apply(q: Quotes): (q.reflect.TypeRepr, List[q.reflect.TypeRepr])
+  }
 
-  // `Op`'s bound limits it to the operations below; the last case is an abstract `Op`, which can't be expanded
-  private def elemOpImpl0[T <: HList: Type, U: Type, Op <: ElemOp.Op: Type](
-    using Quotes,
-  ): Either[formless.record.Lookup.LookupError, Expr[ElemOp[T, U, Op]]] = {
-    val lookup = formless.record.Lookup.Walk[T, U, =:=](formless.record.Lookup.Target.Element)
+  private def elemOpImpl[T <: HList: Type, U: Type, Op <: ElemOp.Op: Type](using Quotes): Expr[ElemOp[T, U, Op]] =
+    materialize[T, U, Op, ElemOp[T, U, Op]] { q =>
+      import q.reflect.*
+      (TypeRepr.of[Inst[HNil, Any, Remove, HNil, HNil]], List(TypeRepr.of[T], TypeRepr.of[U], TypeRepr.of[Op]))
+    }
+
+  private[hlist] def materialize[T <: HList: Type, U: Type, Op <: ElemOp.Op: Type, E: Type](
+    constructor: Constructor,
+  )(using Quotes): Expr[E] =
+    Lookup.guarded("look up an HList element")(elemResult[T, U, Op, E](constructor))
+
+  private def elemResult[T <: HList: Type, U: Type, Op <: ElemOp.Op: Type, E: Type](
+    constructor: Constructor,
+  )(using Quotes): Either[Lookup.LookupError, Expr[E]] = {
+    val lookup = Lookup.Walk[T, U, =:=](Lookup.Target.Element)
     import lookup.q.reflect.*
 
     val hnil = TypeRepr.of[HNil]
     val u = TypeRepr.of[U]
-    def list(elems: List[TypeRepr]): TypeRepr = elems.foldRight(hnil)(lookup.cons)
-    def inst(f: lookup.Found, a: TypeRepr, b: TypeRepr): Expr[ElemOp[T, U, Op]] = {
-      // Scala 3.3 quote patterns cannot bind the HList-bounded type arguments.
-      val instSym = TypeRepr.of[Inst[HNil, Any, Remove, HNil, HNil]].typeSymbol
-      val args = List(TypeRepr.of[T], u, TypeRepr.of[Op], a, b)
-      New(Inferred(instSym.typeRef.appliedTo(args)))
-        .select(instSym.primaryConstructor)
-        .appliedToTypes(args)
+    def list(reversed: List[TypeRepr]): TypeRepr = reversed.foldLeft(hnil)((tail, head) => lookup.cons(head, tail))
+    def inst(f: lookup.Found, a: TypeRepr, b: TypeRepr): Expr[E] = {
+      val (cls, inputs) = constructor(lookup.q)
+      val symbol = cls.typeSymbol
+      val arguments = inputs ::: List(a, b)
+      New(Inferred(symbol.typeRef.appliedTo(arguments)))
+        .select(symbol.primaryConstructor)
+        .appliedToTypes(arguments)
         .appliedTo(Literal(IntConstant(f.index)))
-        .asExprOf[ElemOp[T, U, Op]]
+        .asExprOf[E]
     }
 
     Type.of[Op] match {
@@ -65,11 +78,11 @@ object ElemOp {
           f <- lookup.found
           removed <- lookup.removedReinsertably(f)
         } yield inst(f, removed, hnil)
-      case '[SplitLeft] => lookup.found.map(f => inst(f, list(f.revInit.reverse), f.rest))
-      case '[ReverseSplitLeft] => lookup.found.map(f => inst(f, list(f.revInit), f.rest))
-      case '[SplitRight] => lookup.lastFound.map(f => inst(f, list((u :: f.revInit).reverse), f.tail))
-      case '[ReverseSplitRight] => lookup.lastFound.map(f => inst(f, lookup.cons(u, list(f.revInit)), f.tail))
-      case _ => Left(formless.record.Lookup.LookupError.AbstractOperation(Type.show[Op]))
+      case '[SplitLeft] => lookup.found.map(f => inst(f, list(f.revInit), f.rest))
+      case '[ReverseSplitLeft] => lookup.found.map(f => inst(f, list(f.revInit.reverse), f.rest))
+      case '[SplitRight] => lookup.lastFound.map(f => inst(f, list(u :: f.revInit), f.tail))
+      case '[ReverseSplitRight] => lookup.lastFound.map(f => inst(f, lookup.cons(u, list(f.revInit.reverse)), f.tail))
+      case _ => Left(Lookup.LookupError.AbstractOperation(Type.show[Op]))
     }
   }
 

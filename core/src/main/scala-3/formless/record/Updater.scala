@@ -19,8 +19,5 @@ object Updater {
    * the same key and a strictly narrower type.
    */
   given updaterAt[T <: HList, F](using u: FieldUpdate[T, F]): Updater.Aux[T, F, u.Out] =
-    new Updater[T, F] {
-      type Out = u.Out
-      def apply(t: T, f: F): Out = u(t, f)
-    }
+    u
 }

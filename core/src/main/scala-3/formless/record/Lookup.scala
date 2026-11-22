@@ -404,14 +404,18 @@ private[formless] object Lookup {
     private def keyMismatch(head: TypeRepr): Boolean =
       fKey.exists(fk => literalKey(head).exists(_ != fk))
 
+    private lazy val cmpIsSubtype = cmpTpe.typeSymbol == TypeRepr.of[<:<].typeSymbol
+
     private def cmpHolds(head: TypeRepr): Boolean =
-      Implicits.search(cmpTpe.appliedTo(List(head, fTpe))) match {
-        case _: ImplicitSearchSuccess => true
-        // More than one witness, e.g. from local givens, still means `Cmp[head, F]` holds
-        case _: AmbiguousImplicits => true
-        // `ImplicitSearchResult` is an abstract type in the reflection API, so the failures can't be matched exhaustively
-        case _ => false
-      }
+      // For literal fields, use the compiler's relation directly when it proves the match. Otherwise keep searching
+      // for witnesses supplied by callers, including ambiguous witnesses when proving absence.
+      (fKey.nonEmpty && ((cmpIsEq && (head =:= fTpe)) || (cmpIsSubtype && (head <:< fTpe)))) ||
+        (Implicits.search(cmpTpe.appliedTo(List(head, fTpe))) match {
+          case _: ImplicitSearchSuccess => true
+          case _: AmbiguousImplicits => true
+          // The reflection API's ImplicitSearchResult is abstract.
+          case _ => false
+        })
 
     private lazy val exactFieldKey = keyValueOpt(fTpe).map(_._1)
 
@@ -784,30 +788,37 @@ object FieldOp {
   }
 
   private def fieldOpImpl[T <: HList: Type, F: Type, Op <: FieldOp.Op: Type](using Quotes): Expr[FieldOp[T, F, Op]] =
-    Lookup.guarded("look up a record field")(fieldOpImpl0[T, F, Op])
+    materialize[T, F, Op, FieldOp[T, F, Op]](
+      [O] => (out: Type[O], index: Int) => {
+        given Type[O] = out
+        '{ new Inst[T, F, Op, O](${ Expr(index) }) }
+      },
+    )
 
-  // `Op`'s bound limits it to the operations below; the last case is an abstract `Op`, which can't be expanded
-  private def fieldOpImpl0[T <: HList: Type, F: Type, Op <: FieldOp.Op: Type](using Quotes): Either[Lookup.LookupError, Expr[FieldOp[T, F, Op]]] = {
+  private[formless] def materialize[T <: HList: Type, F: Type, Op <: FieldOp.Op: Type, E](
+    build: [O] => (Type[O], Int) => Expr[E],
+  )(using Quotes): Expr[E] =
+    Lookup.guarded("look up a record field")(fieldResult[T, F, Op, E](build))
+
+  private def fieldResult[T <: HList: Type, F: Type, Op <: FieldOp.Op: Type, E](
+    build: [O] => (Type[O], Int) => Expr[E],
+  )(using Quotes): Either[Lookup.LookupError, Expr[E]] = {
     val lookup = Lookup.Walk[T, F, <:<](Lookup.Target.Element)
-    def inst[O: Type](f: lookup.Found): Expr[FieldOp[T, F, Op]] = '{ new Inst[T, F, Op, O](${ Expr(f.index) }) }
-
-    Type.of[Op] match {
-      case '[Select] =>
-        for {
-          f <- lookup.found
-          kv <- lookup.fieldKeyValue(f)
-        } yield (kv._2.asType: @unchecked) match {
-          case '[v] => inst[v](f)
-        }
-      case '[Remove] =>
-        for {
-          f <- lookup.found
-          kv <- lookup.fieldKeyValue(f)
-        } yield ((kv._2.asType, lookup.removed(f).asType): @unchecked) match {
-          case ('[v], '[rem]) => inst[(v, rem)](f)
-        }
-      case _ => Left(Lookup.LookupError.AbstractOperation(Type.show[Op]))
-    }
+    for {
+      f <- lookup.found
+      kv <- lookup.fieldKeyValue(f)
+      result <- Type.of[Op] match {
+        case '[Select] =>
+          (kv._2.asType: @unchecked) match {
+            case '[v] => Right(build[v](Type.of[v], f.index))
+          }
+        case '[Remove] =>
+          ((kv._2.asType, lookup.removed(f).asType): @unchecked) match {
+            case ('[v], '[rem]) => Right(build[(v, rem)](Type.of[(v, rem)], f.index))
+          }
+        case _ => Left(Lookup.LookupError.AbstractOperation(Type.show[Op]))
+      }
+    } yield result
   }
 
   transparent inline given fieldOpInst[T <: HList, F, Op <: FieldOp.Op]: FieldOp[T, F, Op] = ${ fieldOpImpl[T, F, Op] }
@@ -818,10 +829,7 @@ object FieldOp {
  * field could be, deciding which in one walk of the record. `Out` is the new record.
  */
 @scala.annotation.implicitNotFound("Cannot update ${T} with ${F}")
-private[formless] sealed trait FieldUpdate[T <: HList, F] extends Serializable {
-  type Out
-  def apply(t: T, f: F): Out
-}
+private[formless] sealed trait FieldUpdate[T <: HList, F] extends Updater[T, F]
 
 object FieldUpdate {
   private[formless] final class Replace[T <: HList, F, O](index: Int) extends FieldUpdate[T, F] {
@@ -931,10 +939,10 @@ object ReplaceAt {
  * `HList`s also have, require it, so using them on a plain `HList` explains why instead of reporting a missing field.
  */
 @scala.annotation.implicitNotFound("${T} has no record fields, so this `apply`, `updateWith` or `replace` is the record syntax that importing formless.record adds to every HList, not the HList method of the same name. To call the HList method, write formless.hlist.HList.toHListOps(list).updateWith(...), or don't import the record syntax in this file.")
-private[formless] sealed trait MaybeRecord[T <: HList]
+private[formless] opaque type MaybeRecord[T <: HList] = Unit
 
 object MaybeRecord {
-  private[formless] final class Proof[T <: HList] extends MaybeRecord[T]
+  private[formless] inline def proof[T <: HList]: MaybeRecord[T] = ()
 
   private def maybeRecordImpl[T <: HList: Type](using Quotes): Expr[MaybeRecord[T]] =
     Lookup.guarded("check for record fields")(maybeRecordImpl0[T])
@@ -942,7 +950,7 @@ object MaybeRecord {
   private def maybeRecordImpl0[T <: HList: Type](using Quotes): Either[Lookup.LookupError, Expr[MaybeRecord[T]]] = {
     val lookup = Lookup.Walk[T, Nothing, <:<](Lookup.Target.Element)
     if (lookup.isPlainList) Left(Lookup.LookupError.PlainList(lookup.display(lookup.q.reflect.TypeRepr.of[T])))
-    else Right('{ new Proof[T] })
+    else Right('{ proof[T] })
   }
 
   transparent inline given maybeRecordInst[T <: HList]: MaybeRecord[T] = ${ maybeRecordImpl[T] }
