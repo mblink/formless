@@ -33,6 +33,7 @@ Push correctness into the types so the compiler rejects wrong code, and let it d
 ## Prefer immutability
 
 - Use `val`, immutable collections, and recursion or folds by default.
+- Recursion whose depth grows with the input (a list's length, a record's fields, a long union) must be stack-safe: tail-recursive and annotated `@annotation.tailrec` so the compiler enforces it, or a loop or fold. Non-tail recursion is fine only when its depth is bounded by something small, such as how deeply a type is nested, and a comment says so.
 - Mutable state (`var`, arrays, builders) is allowed only where it measurably matters for performance. It must stay local to one method or one instance, with a comment saying why. Examples: the runtime split in `HList.splitAt`, and the walk's step budget in `Lookup.Walk`.
 
 ## Validate at boundaries, then trust the types

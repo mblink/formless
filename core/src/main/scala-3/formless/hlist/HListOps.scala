@@ -442,14 +442,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
   /**
    * Compute the length of this `HList` as a runtime Int value.
    */
-  final def runtimeLength: Int = {
-    @annotation.tailrec def loop(l: HList, acc: Int): Int = l match {
-      case HNil => acc
-      case _ :: t => loop(t, acc + 1)
-    }
-
-    loop(l, 0)
-  }
+  final def runtimeLength: Int = HList.count(l)
 
   /**
    * Convert this `HList` to a `List[Any]`.

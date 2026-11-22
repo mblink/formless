@@ -44,11 +44,31 @@ sealed trait NonEmptyHList extends HList
  * Non-empty `HList` element type.
  */
 final case class ::[+H, +T <: HList](head: H, tail: T) extends NonEmptyHList {
-  override final lazy val runtimeLength = 1 + tail.runtimeLength
+  override final lazy val runtimeLength = HList.count(this)
 
-  override final lazy val toString = head match {
-    case _: ::[_, _] => s"($head) :: $tail"
-    case _ => s"$head :: $tail"
+  override final lazy val toString = {
+    // A local builder keeps rendering linear even for long lists.
+    val result = new StringBuilder
+    @annotation.tailrec def render(rest: HList, parents: List[HList]): String = rest match {
+      case h :: t =>
+        h match {
+          case nested: ::[?, ?] =>
+            val _ = result.append('(')
+            render(nested, t :: parents)
+          case _ =>
+            val _ = result.append(h).append(" :: ")
+            render(t, parents)
+        }
+      case HNil =>
+        val end = result.append("HNil")
+        parents match {
+          case scala.collection.immutable.::(tail, more) =>
+            val _ = end.append(") :: ")
+            render(tail, more)
+          case Nil => end.toString
+        }
+    }
+    render(this, Nil)
   }
 }
 
@@ -87,6 +107,17 @@ object HList {
   def apply() = HNil
 
   def fromArray[A](a: Array[A]): HList = a.foldRight(HNil: HList)(_ :: _)
+
+  private[formless] def count(l: HList): Int = {
+    @annotation.tailrec def loop(l: HList, acc: Int): Int = l match {
+      case HNil => acc
+      case _ :: t => loop(t, acc + 1)
+    }
+
+    loop(l, 0)
+  }
+
+  private val DirectCopyLimit = 256
 
   /**
    * The elements of `l` before index `idx`, and the rest of `l` from `idx` on, which is shared rather than copied so a
@@ -149,7 +180,7 @@ object HList {
       }
 
     // Build short prefixes directly. Keep the iterative array path for deep splits to bound the JVM stack.
-    if (idx <= 256) {
+    if (idx <= DirectCopyLimit) {
       // Finding the suffix first establishes that all the cells to copy are present.
       val rest = suffix(l, idx)
       val prefix =
@@ -215,22 +246,16 @@ object HList {
     case h *: t => h :: FromTuple[t]
   }
 
-  def fromTuple[T <: Tuple](t: T): FromTuple[T] = t match {
-    case _: EmptyTuple => HNil
-    case x: (h *: t) =>
-      val tuple: h *: t = x
-      tuple.head :: fromTuple(tuple.tail)
-  }
+  def fromTuple[T <: Tuple](t: T): FromTuple[T] =
+    fromArray(t.toArray).asInstanceOf[FromTuple[T]]
 
   type ToTuple[H <: HList] <: Tuple = H match {
     case HNil => EmptyTuple
     case h :: t => h *: ToTuple[t]
   }
 
-  def toTuple[H <: HList](h: H): ToTuple[H] = h match {
-    case _: HNil => EmptyTuple
-    case x: (_ :: _) => x.head *: toTuple(x.tail)
-  }
+  def toTuple[H <: HList](h: H): ToTuple[H] =
+    Tuple.fromArray(h.toArray).asInstanceOf[ToTuple[H]]
 
   type ToUnion[H <: HList] = H match {
     case HNil => Nothing
@@ -242,10 +267,7 @@ object HList {
     case _ :: t => S[Length[t]]
   }
 
-  def length[H <: HList](h: H): Length[H] = h match {
-    case _: HNil => 0
-    case x: (_ :: t) => (1 + length[t](x.tail)).asInstanceOf[S[Length[t]]]
-  }
+  def length[H <: HList](h: H): Length[H] = h.runtimeLength.asInstanceOf[Length[H]]
 
   type Fill[N <: Int, A] <: HList = N match {
     case 0 => HNil
@@ -284,20 +306,24 @@ object HList {
     case h :: t => h :: Append[t, A]
   }
 
-  def append[H <: HList, A](h: H, a: A): Append[H, A] = h match {
-    case h: HNil => a :: h
-    case x: (_ :: _) => x.head :: append(x.tail, a)
-  }
+  def append[H <: HList, A](h: H, a: A): Append[H, A] =
+    concat0(h, a :: HNil, DirectCopyLimit).asInstanceOf[Append[H, A]]
 
   type Concat[X <: HList, +Y <: HList] <: HList = X match {
     case HNil => Y
     case h :: t => h :: Concat[t, Y]
   }
 
-  def concat[X <: HList, Y <: HList](x: X, y: Y): Concat[X, Y] = x match {
-    case _: HNil => y
-    case x: (_ :: _) => x.head :: concat(x.tail, y)
+  // Copy short prefixes on the stack. For longer ones use one array, preserving the suffix by reference.
+  private def concat0(x: HList, y: HList, remaining: Int): HList = x match {
+    case HNil => y
+    case h :: t =>
+      if (remaining == 0) prependAll(x.toArray, y)
+      else h :: concat0(t, y, remaining - 1)
   }
+
+  def concat[X <: HList, Y <: HList](x: X, y: Y): Concat[X, Y] =
+    concat0(x, y, DirectCopyLimit).asInstanceOf[Concat[X, Y]]
 
   /** Transforms an `HList` `(T1, ..., Tn)` into `(Ti+1, ..., Tn)`. */
   type Drop[H <: HList, N <: Int] <: HList = N match {
@@ -308,16 +334,16 @@ object HList {
     }
   }
 
-  private def drop0[H <: HList, N <: Int](h: H, n: N): Drop[H, N] =
-    (n match {
-      case 0 => h
-      case _ => h match {
-        case x @ HNil => x
-        case _ :: t => drop0(t, n - 1)
-      }
-    }).asInstanceOf[Drop[H, N]]
+  @annotation.tailrec
+  private def drop0(h: HList, n: Int): HList =
+    if (n == 0) h
+    else h match {
+      case HNil => HNil
+      case _ :: tail => drop0(tail, n - 1)
+    }
 
-  def drop[H <: HList, N <: Int](h: H, n: N)(using CountInBounds[H, N]): Drop[H, N] = drop0(h, n)
+  def drop[H <: HList, N <: Int](h: H, n: N)(using CountInBounds[H, N]): Drop[H, N] =
+    drop0(h, n).asInstanceOf[Drop[H, N]]
 
   type Elem[H <: HList, N <: Int] = H match {
     case h :: t =>
@@ -342,35 +368,43 @@ object HList {
     case h :: t => h :: Init[t]
   }
 
-  private def init0[H <: NonEmptyHList](h: H): Init[H] =
-    (h match {
+  // At most DirectCopyLimit frames before splitBefore takes over.
+  private def init0(h: NonEmptyHList, remaining: Int): HList =
+    h match {
       case _ :: HNil => HNil
-      case h :: (t @ (_ :: _)) => h :: init0(t)
-    }).asInstanceOf[Init[H]]
+      case head :: (tail: NonEmptyHList) =>
+        if (remaining == 0) splitBefore(h, h.runtimeLength - 1)._1
+        else head :: init0(tail, remaining - 1)
+    }
 
-  def init[H <: NonEmptyHList](h: H): Init[H] = init0(h)
+  def init[H <: NonEmptyHList](h: H): Init[H] =
+    init0(h, DirectCopyLimit).asInstanceOf[Init[H]]
 
   type Last[H <: NonEmptyHList] = H match {
     case h :: HNil => h
     case _ :: t => Last[t]
   }
 
-  private def last0[H <: NonEmptyHList](h: H): Last[H] =
-    (h match {
-      case h :: HNil => h
-      case _ :: (t @ (_ :: _)) => last0(t)
-    }).asInstanceOf[Last[H]]
+  @annotation.tailrec
+  private def last0(h: NonEmptyHList): Any =
+    h match {
+      case head :: HNil => head
+      case _ :: (tail: NonEmptyHList) => last0(tail)
+    }
 
-  def last[H <: NonEmptyHList](h: H): Last[H] = last0(h)
+  def last[H <: NonEmptyHList](h: H): Last[H] = last0(h).asInstanceOf[Last[H]]
 
   type Reverse[H <: HList] <: HList = H match {
     case HNil => HNil
     case h :: t => Append[Reverse[t], h]
   }
 
-  def reverse[H <: HList](h: H): Reverse[H] = h match {
-    case _: HNil => HNil
-    case x: (h :: t) => append[Reverse[t], h](reverse(x.tail), x.head)
+  def reverse[H <: HList](h: H): Reverse[H] = {
+    @annotation.tailrec def loop(rest: HList, acc: HList): HList = rest match {
+      case HNil => acc
+      case head :: tail => loop(tail, head :: acc)
+    }
+    loop(h, HNil).asInstanceOf[Reverse[H]]
   }
 
   type Size[H <: HList] <: Int = H match {
@@ -380,10 +414,7 @@ object HList {
 
   private[formless] type CountInBounds[H <: HList, N <: Int] = ((N >= 0) && (Size[H] >= N)) =:= true
 
-  def size[H <: HList](h: H): Size[H] = h match {
-    case _: HNil => 0
-    case x: (_ :: t) => (size(x.tail) + 1).asInstanceOf[S[Size[t]]]
-  }
+  def size[H <: HList](h: H): Size[H] = h.runtimeLength.asInstanceOf[Size[H]]
 
   type Take[H <: HList, N <: Int] <: HList = N match {
     case 0 => HNil
@@ -393,14 +424,15 @@ object HList {
     }
   }
 
-  private def take0[H <: HList, N <: Int](h: H, n: N): Take[H, N] =
-    (n match {
-      case 0 => HNil
-      case _ => h match {
-        case x @ HNil => x
-        case h :: t => h :: take0(t, n - 1)
-      }
-    }).asInstanceOf[Take[H, N]]
+  // Only the short path recurses, for at most DirectCopyLimit frames.
+  private def take0(h: HList, n: Int): HList =
+    if (n == 0) HNil
+    else if (n > DirectCopyLimit) splitBefore(h, n)._1
+    else h match {
+      case HNil => HNil
+      case head :: tail => head :: take0(tail, n - 1)
+    }
 
-  def take[H <: HList, N <: Int](h: H, n: N)(using CountInBounds[H, N]): Take[H, N] = take0(h, n)
+  def take[H <: HList, N <: Int](h: H, n: N)(using CountInBounds[H, N]): Take[H, N] =
+    take0(h, n).asInstanceOf[Take[H, N]]
 }
