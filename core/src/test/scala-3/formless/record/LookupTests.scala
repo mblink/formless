@@ -750,6 +750,13 @@ class LookupTests extends FunSuite with LookupAssertions {
     summon[s.Out =:= (Int | String)]
   }
 
+  test("equal union tails are walked as one list even when spelled differently") {
+    type Tail[K] = (K ->> Int) :: ("target" ->> String) :: HNil
+    type R[K] = (("left" ->> Int) :: Tail[K]) | (("right" ->> Int) :: (K ->> Int) :: ("target" ->> String) :: HNil)
+    def select[K](r: R[K]): String = Selector[R[K], "target"].apply(r)
+    assertEquals(select[Unit](("right" ->> 1) :: label[Unit](2) :: ("target" ->> "found") :: HNil), "found")
+  }
+
   type MsgR = ("a" ->> Int) :: ("b" ->> String) :: HNil
   val msgR: MsgR = ("a" ->> 1) :: ("b" ->> "x") :: HNil
 

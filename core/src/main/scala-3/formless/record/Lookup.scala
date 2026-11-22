@@ -376,10 +376,12 @@ private[formless] object Lookup {
       t match {
         case DirectCons(head, tail) => Some((head, tail))
         case OrType(a, b) =>
+          // Comparing entire tails here can recurse through their common prefix at every position. Carry the arms
+          // forward so the walk only needs the next element from each.
           for {
             (ha, ta) <- consParts(a.dealias.simplified)
             (hb, tb) <- consParts(b.dealias.simplified)
-          } yield (union(ha, hb), union(ta, tb))
+          } yield (union(ha, hb), OrType(ta, tb))
         case _ =>
           t.baseType(consSym) match {
             case AppliedType(_, List(head, tail)) => Some((head, tail))
@@ -387,9 +389,11 @@ private[formless] object Lookup {
           }
       }
 
-    private def isUnion(t: TypeRepr): Boolean =
+    private inline def undecidedInUnion(t: TypeRepr, undecided: => Boolean): Boolean =
       t match {
-        case _: OrType => true
+        // Equal tails, including differently spelled aliases, behave like a single list. Check equality only
+        // when an undecided head would otherwise stop the walk.
+        case OrType(a, b) => undecided && !(a =:= b)
         case _ => false
       }
 
@@ -446,7 +450,7 @@ private[formless] object Lookup {
           // An element of a union of lists that matches in only some arms, e.g. `String | Int` in
           // `(String :: Int :: HNil) | (Int :: Int :: HNil)` looked up by `Int`, is the first match in those arms, so no
           // later element is the first match in all of them
-          else if ((mode == Mode.Prove || isUnion(t)) && undecided) Right(Undecided(revInit, head))
+          else if ((mode == Mode.Prove && undecided) || undecidedInUnion(t, undecided)) Right(Undecided(revInit, head))
           else {
             val nowMode = mode match {
               case Mode.Update(None) if undecided => Mode.Update(Some(Undecided(revInit, head)))
