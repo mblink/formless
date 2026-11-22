@@ -30,12 +30,12 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
 
   /**
    * Replaces the value of field k with a value of the same type. Only available if this record has a field with
-   * keyType equal to the singleton type K and valueType equal to V.
+   * keyType equal to the singleton type K and field type equal to K ->> V.
    */
   final def replace[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(using MaybeRecord[T])(
-    using @annotation.nowarn("msg=unused") s: Selector[T, K] { type Out = V },
-    op: ReplaceAt[T, K ->> Any, ReplaceAt.Keyed],
-  ): op.Replaced[K ->> V] = HList.updatedAt(t, op.index, _ => label[K](v)).asInstanceOf[op.Replaced[K ->> V]]
+    using s: Selector[T, K] { type Out = V },
+    u: Updater[T, K ->> V],
+  ): u.Out = u(t, label[K](v))
 
   /**
    * Not record syntax: `replace` on a record takes a key and a value. It's here so that `replace(value)` on a plain
@@ -44,11 +44,9 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   final def replace[V](@annotation.nowarn("msg=unused") v: V)(using MaybeRecord[T])(using ev: ReplaceTakesAKey[T]): ev.Out = ev.out
 
   /**
-   * Updates a field having a value with type A by given function.
+   * Updates a field with a function from its selected value type. The field's type must match that key and value exactly.
    */
-  final def updateWith[K, B](k: K)(using MaybeRecord[T])(using s: Selector[T, k.type], op: ReplaceAt[T, k.type ->> Any, ReplaceAt.Keyed])(
-    f: s.Out => B,
-  ): op.Replaced[k.type ->> B] = HList.updatedAt(t, op.index, f).asInstanceOf[op.Replaced[k.type ->> B]]
+  final def updateWith[K, B](k: K)(using MaybeRecord[T])(using s: Selector[T, k.type])(f: s.Out => B)(using m: Modifier[T, k.type, s.Out, B]): m.Out = m(t, f)
 
   /**
    * Remove the field associated with the singleton typed key k, returning both the corresponding value and the updated

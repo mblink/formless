@@ -833,17 +833,47 @@ class LookupTests extends FunSuite with LookupAssertions {
   type Dup = ASAlias.AS :: ("a" ->> Int) :: HNil
   val dup: Dup = ("a" ->> 1).asInstanceOf[ASAlias.AS] :: ("a" ->> 2) :: HNil
 
-  test("replace and updateWith change the field the selector reads, even when a later field matches the type exactly") {
+  test("replace and updateWith refuse to skip the field the selector reads for a later exact match") {
     assertEquals(dup("a"), 1)
-    val replaced: ("a" ->> Int) :: ("a" ->> Int) :: HNil = dup.replace("a", 10)
-    assertEquals(replaced, ("a" ->> 10) :: ("a" ->> 2) :: HNil)
-    val modified: ("a" ->> Int) :: ("a" ->> Int) :: HNil = dup.updateWith("a")(_ + 100)
-    assertEquals(modified, ("a" ->> 101) :: ("a" ->> 2) :: HNil)
+    abortsWith("""FieldUpdate.fieldUpdateInst[Dup, "a" ->> Int]""", "same key and is a strict subtype")
+    abortsWith("""ReplaceAt.replaceAtInst[Dup, "a" ->> Int, ReplaceAt.Field]""", "same key and is a strict subtype")
+    abortsWith("""dup.replace("a", 10)""", "Cannot update record")
+    abortsWith("""dup.updateWith("a")(_ + 100)""", "Cannot modify field")
   }
 
-  test("replace on a field that is an intersection replaces it rather than appending another") {
-    val replaced: ("a" ->> Int) :: ("b" ->> String) :: HNil = ASAlias.inter.replace("a", 2)
-    assertEquals(replaced, ("a" ->> 2) :: ("b" ->> "x") :: HNil)
+  test("replace refuses to append when the selector reads a field with a stricter type") {
+    abortsWith("""FieldUpdate.fieldUpdateInst[ASAlias.Inter, "a" ->> Int]""", "same key and is a strict subtype")
+    abortsWith("""ASAlias.inter.replace("a", 2)""", "Cannot update record")
+  }
+
+  test("an exact field lookup refuses a strictly narrower value type in a union arm") {
+    abortsWith(
+      """FieldUpdate.fieldUpdateInst[(("a" ->> Int) :: HNil) | (("b" ->> Int) :: HNil), "a" ->> Any]""",
+      "same key and is a strict subtype",
+    )
+  }
+
+  test("HList lookups still skip strict subtypes when looking for an exact element type") {
+    val r = formless.hlist.Replacer[Dup, "a" ->> Int, String]
+    val (_, replaced) = r(dup, "replacement")
+    assertEquals(replaced, dup.head :: "replacement" :: HNil)
+    val remove = formless.hlist.Remove[Dup, "a" ->> Int]
+    assertEquals(remove(dup), (("a" ->> 2), dup.head :: HNil))
+  }
+
+  test("replace and updateWith accept public evidence for abstract records") {
+    assertEquals(
+      typeCheckErrors("""def replace[R <: HList, K <: Singleton, V](r: R, k: K, v: V)(
+        using s: Selector.Aux[R, K, V], u: Updater[R, K ->> V]
+      ): u.Out = r.replace[K, V](k, v)""").map(_.message),
+      Nil,
+    )
+    assertEquals(
+      typeCheckErrors("""def modify[R <: HList](r: R, k: String)(
+        using s: Selector.Aux[R, k.type, Int], m: Modifier[R, k.type, Int, String]
+      ): m.Out = r.updateWith(k)(_.toString)""").map(_.message),
+      Nil,
+    )
   }
 
   test("a lookup to replace an element of an abstract kind is refused") {

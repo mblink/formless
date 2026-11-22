@@ -41,7 +41,7 @@ object ElemOp {
   private def elemOpImpl0[T <: HList: Type, U: Type, Op <: ElemOp.Op: Type](
     using Quotes,
   ): Either[formless.record.Lookup.LookupError, Expr[ElemOp[T, U, Op]]] = {
-    val lookup = formless.record.Lookup.Walk[T, U, =:=]
+    val lookup = formless.record.Lookup.Walk[T, U, =:=](formless.record.Lookup.Target.Element)
     import lookup.q.reflect.*
 
     val hnil = TypeRepr.of[HNil]
