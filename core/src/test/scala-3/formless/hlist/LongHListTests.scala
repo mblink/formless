@@ -55,4 +55,14 @@ class LongHListTests extends FunSuite {
     assertEquals(original, 50000)
     assertEquals(replaced.unsafeApply(middle), "50000")
   }
+
+  test("known-value replacement shares the suffix on both sides of the short copy limit") {
+    List(256, 257).foreach { index =>
+      val changed = HList.setAt(values, index, "replaced")
+      assertEquals(changed.unsafeApply(index), "replaced")
+      val (_, previousSuffix) = HList.splitAfter(values, index)
+      val (_, currentSuffix) = HList.splitAfter(changed, index)
+      assert(currentSuffix eq previousSuffix)
+    }
+  }
 }

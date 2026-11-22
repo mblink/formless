@@ -834,7 +834,7 @@ private[formless] sealed trait FieldUpdate[T <: HList, F] extends Updater[T, F]
 object FieldUpdate {
   private[formless] final class Replace[T <: HList, F, O](index: Int) extends FieldUpdate[T, F] {
     final type Out = O
-    def apply(t: T, f: F): O = HList.updatedAt(t, index, _ => f).asInstanceOf[O]
+    def apply(t: T, f: F): O = HList.setAt(t, index, f).asInstanceOf[O]
   }
 
   private[formless] final class Append[T <: HList, F, O] extends FieldUpdate[T, F] {

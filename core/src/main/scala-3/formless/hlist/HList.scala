@@ -26,15 +26,20 @@ sealed trait HList extends Product, Serializable {
   }
 
   private[formless] final def unsafeApply(idx: Int): Any = {
-    @annotation.tailrec def loop[H <: HList](h: H, i: Int): Any =
-      h match {
-        case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${runtimeLength - 1})")
-        case h :: t =>
-          if (i == 0) h
-          else loop(t, i - 1)
+    def outOfBounds: Nothing =
+      throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${runtimeLength - 1})")
+
+    @annotation.tailrec def seek(h: HList, i: Int): Any =
+      if (i == 0) h match {
+        case c: ::[?, ?] => c.head
+        case HNil => outOfBounds
+      }
+      else h match {
+        case c: ::[?, ?] => seek(c.tail, i - 1)
+        case HNil => outOfBounds
       }
 
-    loop(this, idx)
+    seek(this, idx)
   }
 }
 
@@ -117,7 +122,7 @@ object HList {
     loop(l, 0)
   }
 
-  private val DirectCopyLimit = 256
+  private inline val DirectCopyLimit = 256
 
   /**
    * The elements of `l` before index `idx`, and the rest of `l` from `idx` on, which is shared rather than copied so a
@@ -141,6 +146,59 @@ object HList {
 
   private def prependAll(prefix: Array[Any], rest: HList): HList = prefix.foldRight(rest)(_ :: _)
 
+  /** The first `idx` elements copied before `rest`. Only called for a previously checked short prefix. */
+  private def copyPrefix(l: HList, idx: Int, rest: HList): HList = {
+    // The caller limits idx, so at most DirectCopyLimit / 2 frames are needed.
+    def pairs(h: HList, remaining: Int): HList =
+      if (remaining == 0) rest
+      else h match {
+        case first: ::[?, ?] => first.tail match {
+          case second: ::[?, ?] =>
+            val copied = pairs(second.tail, remaining - 2)
+            new ::(first.head, new ::(second.head, copied))
+          case HNil => rest
+        }
+        case HNil => rest
+      }
+
+    if (idx % 2 == 0) pairs(l, idx)
+    else l match {
+      case first: ::[?, ?] =>
+        val copied = pairs(first.tail, idx - 1)
+        new ::(first.head, copied)
+      case HNil => rest
+    }
+  }
+
+  private def suffixAt(l: HList, idx: Int): HList = {
+    @annotation.tailrec def loop(h: HList, remaining: Int): HList =
+      if (remaining == 0) h
+      else h match {
+        case c: ::[?, ?] => loop(c.tail, remaining - 1)
+        case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength})")
+      }
+    loop(l, idx)
+  }
+
+  private inline def editCell[R](at: HList)(inline edit: (::[Any, HList]) => R, inline empty: => Nothing): R =
+    at match {
+      case cell: ::[?, ?] => edit(cell)
+      case HNil => empty
+    }
+
+  // The editor sees only the target cell and chooses its new suffix. Short edits avoid the prefix array.
+  private inline def editAt[R](l: HList, idx: Int)(inline edit: (::[Any, HList], HList => HList) => R): R = {
+    def missing: Nothing =
+      throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength - 1})")
+
+    if (idx <= DirectCopyLimit) {
+      editCell(suffixAt(l, idx))(cell => edit(cell, rest => copyPrefix(l, idx, rest)), missing)
+    } else {
+      val (heads, rest) = splitAt(l, idx)
+      editCell(rest)(cell => edit(cell, rest => prependAll(heads, rest)), missing)
+    }
+  }
+
   /** The element at `idx` and the elements before it, with the rest of `l` after it */
   private def cellAt(l: HList, idx: Int): (Array[Any], ::[Any, HList]) =
     splitAt(l, idx) match {
@@ -157,46 +215,19 @@ object HList {
     prependAll(prefix, f(c.head.asInstanceOf[A]) :: c.tail)
   }
 
+  /** Replaces a known element. The short path copies the prefix without an intermediate array or function from the caller. */
+  private[formless] def setAt(l: HList, idx: Int, value: Any): HList =
+    editAt(l, idx)((cell, prepend) => prepend(new ::(value, cell.tail)))
+
   /** The elements of `l` before index `idx`, and the rest of `l` from `idx` on, which is shared */
-  private[formless] def splitBefore(l: HList, idx: Int): (HList, HList) = {
-    // Copy two cells per recursive call. The caller handles a possible odd first cell.
-    def prefixPairs(h: HList, remaining: Int): HList =
-      if (remaining == 0) HNil
-      else h match {
-        case first: ::[?, ?] => first.tail match {
-          case second: ::[?, ?] =>
-            val rest = prefixPairs(second.tail, remaining - 2)
-            new ::(first.head, new ::(second.head, rest))
-          case HNil => HNil
-        }
-        case HNil => HNil
-      }
-
-    @annotation.tailrec def suffix(h: HList, remaining: Int): HList =
-      if (remaining == 0) h
-      else h match {
-        case c: ::[?, ?] => suffix(c.tail, remaining - 1)
-        case HNil => throw new IndexOutOfBoundsException(s"$idx is out of bounds (min 0, max ${l.runtimeLength})")
-      }
-
-    // Build short prefixes directly. Keep the iterative array path for deep splits to bound the JVM stack.
+  private[formless] def splitBefore(l: HList, idx: Int): (HList, HList) =
     if (idx <= DirectCopyLimit) {
-      // Finding the suffix first establishes that all the cells to copy are present.
-      val rest = suffix(l, idx)
-      val prefix =
-        if (idx % 2 == 0) prefixPairs(l, idx)
-        else l match {
-          case first: ::[?, ?] =>
-            val copied = prefixPairs(first.tail, idx - 1)
-            new ::(first.head, copied)
-          case HNil => HNil
-        }
-      (prefix, rest)
+      val rest = suffixAt(l, idx)
+      (copyPrefix(l, idx, HNil), rest)
     } else {
       val (heads, rest) = splitAt(l, idx)
       (prependAll(heads, HNil), rest)
     }
-  }
 
   /** The elements of `l` before index `idx` in reverse, and the rest of `l` from `idx` on, which is shared */
   private[formless] def reverseSplitBefore(l: HList, idx: Int): (HList, HList) = {
@@ -220,11 +251,11 @@ object HList {
   private[formless] def reverseSplitAfter(l: HList, idx: Int): (HList, HList) = reverseSplitBefore(l, idx + 1)
 
   /** The element at `idx`, read as an `A` as in `updatedAt`, and `l` with `f` of it in its place */
-  private[formless] def replacedAt[A](l: HList, idx: Int, f: A => Any): (A, HList) = {
-    val (prefix, c) = cellAt(l, idx)
-    val a = c.head.asInstanceOf[A]
-    (a, prependAll(prefix, f(a) :: c.tail))
-  }
+  private[formless] def replacedAt[A](l: HList, idx: Int, f: A => Any): (A, HList) =
+    editAt(l, idx) { (cell, prepend) =>
+      val old = cell.head.asInstanceOf[A]
+      (old, prepend(new ::(f(old), cell.tail)))
+    }
 
   /** `l` with `x` inserted at index `idx`, which may be `l`'s length; the elements from `idx` on are shared */
   private[formless] def insertedAt(l: HList, idx: Int, x: Any): HList = {
@@ -317,9 +348,14 @@ object HList {
   // Copy short prefixes on the stack. For longer ones use one array, preserving the suffix by reference.
   private def concat0(x: HList, y: HList, remaining: Int): HList = x match {
     case HNil => y
-    case h :: t =>
+    case first: ::[?, ?] =>
       if (remaining == 0) prependAll(x.toArray, y)
-      else h :: concat0(t, y, remaining - 1)
+      else first.tail match {
+        case second: ::[?, ?] =>
+          val rest = concat0(second.tail, y, remaining - 2)
+          new ::(first.head, new ::(second.head, rest))
+        case HNil => new ::(first.head, y)
+      }
   }
 
   def concat[X <: HList, Y <: HList](x: X, y: Y): Concat[X, Y] =
