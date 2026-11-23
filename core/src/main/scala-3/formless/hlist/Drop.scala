@@ -1,9 +1,8 @@
 package formless.hlist
 
-import compiletime.ops.int.>=
-
 /**
- * Type class supporting removal of the first `N` elements of this `HList`. Available only if this `HList` has at least `N` elements.
+ * Type class supporting removal of the first `N` elements of this `HList`. The count must be between zero and the
+ * length of the list, inclusive.
  */
 trait Drop[T, N] extends DepFn1[T], Serializable
 
@@ -13,7 +12,7 @@ object Drop {
   inline def apply[T, N](using d: Drop[T, N]): Drop.Aux[T, N, d.Out] = d
 
   given dropHList[T <: HList, N <: Int](
-    using ev: (HList.Size[T] >= N) =:= true,
+    using ev: HList.CountInBounds[T, N],
     n: ValueOf[N],
   ): Drop.Aux[T, N, HList.Drop[T, N]] =
     new Drop[T, N] {

@@ -6,12 +6,144 @@ import formless.test._
 import formless.testutil._
 
 class HListTests extends FunSuite with HListTestsCompat {
-  type SI = Set[Int] :: HNil
+  object subtract extends Poly2 {
+    implicit val subtractInts: Case.Aux[Int, Int, Int] = at[Int, Int](_ - _)
+  }
+
+  case class Point(x: Int, name: String)
+
+  test("foldRight associates from the right and uses the seed last") {
+    assertEquals((10 :: 3 :: 2 :: HNil).foldRight(1)(subtract), 8)
+  }
+
+  test("foldRight returns the seed for an empty HList") {
+    assertEquals(HNil.foldRight(7)(subtract), 7)
+  }
+
+  test("reduceLeft associates from the left") {
+    assertEquals((10 :: 3 :: 2 :: HNil).reduceLeft(subtract), 5)
+  }
+
+  test("reduceRight associates from the right") {
+    assertEquals((10 :: 3 :: 2 :: HNil).reduceRight(subtract), 9)
+  }
+
+  test("zipOne stops when the HList of tails runs out first") {
+    val tails = (true :: HNil) :: HNil
+    assertEquals((1 :: "a" :: HNil).zipOne(tails), (1 :: true :: HNil) :: HNil)
+  }
+
+  test("zipOne stops when the HList of heads runs out first") {
+    val tails = (true :: HNil) :: (2 :: HNil) :: HNil
+    assertEquals(("a" :: HNil).zipOne(tails), ("a" :: true :: HNil) :: HNil)
+  }
+
+  test("Filter retains matching values in order") {
+    val filter = Filter[Int :: String :: Int :: HNil, Int]
+    assertEquals(filter(1 :: "a" :: 2 :: HNil), 1 :: 2 :: HNil)
+  }
+
+  test("FilterNot retains nonmatching values in order") {
+    val filterNot = FilterNot[String :: Int :: Boolean :: HNil, Int]
+    assertEquals(filterNot("a" :: 1 :: true :: HNil), "a" :: true :: HNil)
+  }
+
+  test("Comapped strips the shared type constructor from each element") {
+    val comapped = Comapped[Option[Int] :: Option[String] :: HNil, Option]
+    val _ = implicitly[comapped.Out =:= (Int :: String :: HNil)]
+  }
+
+  test("ToEither represents four alternatives with right-nested Either") {
+    val toEither = ToEither[Int :: String :: Boolean :: Char :: HNil]
+    val _ = implicitly[toEither.Out =:= Either[Int, Either[String, Either[Boolean, Char]]]]
+  }
+
+  test("ToEither represents a single alternative with a Nothing right side") {
+    val toEither = ToEither[Int :: HNil]
+    val _ = implicitly[toEither.Out =:= Either[Int, Nothing]]
+  }
+
+  test("ToEither represents no alternatives with Nothing") {
+    val toEither = ToEither[HNil]
+    val _ = implicitly[toEither.Out =:= Nothing]
+  }
+
+  test("unify preserves an empty HList") {
+    assertEquals(HNil.unify, HNil)
+  }
+
+  test("IsHCons extracts the head") {
+    val cons = IsHCons[Int :: String :: HNil]
+    assertEquals(cons.head(1 :: "a" :: HNil), 1)
+  }
+
+  test("IsHCons extracts the tail") {
+    val cons = IsHCons[Int :: String :: HNil]
+    assertEquals(cons.tail(1 :: "a" :: HNil), "a" :: HNil)
+  }
+
+  test("a polymorphic case accepts its arguments as an HList") {
+    assertEquals(subtract.subtractInts(10 :: 3 :: HNil), 7)
+  }
+
+  test("a nullary polymorphic function invokes its selected case") {
+    object label extends Poly0 {
+      implicit val labelString: Case0[String] = at[String]("east")
+    }
+    val result: String = label.apply
+    assertEquals(result, "east")
+  }
+
+  test("Generic.from constructs a product from its positional fields") {
+    val generic = Generic[Point]
+    assertEquals(generic.from(2 :: "east" :: HNil), Point(2, "east"))
+  }
+
+  test("SelectMany follows the requested indices including duplicates") {
+    val select = SelectMany[Int :: String :: Boolean :: HNil, 2 :: 0 :: 2 :: HNil]
+    assertEquals(select(1 :: "a" :: true :: HNil), true :: 1 :: true :: HNil)
+  }
+
+  test("++: prepends the left HList in order") {
+    assertEquals((1 :: "a" :: HNil) ++: (true :: HNil), 1 :: "a" :: true :: HNil)
+  }
+
+  test("at accepts a literal index as a value") {
+    assertEquals((1 :: "a" :: HNil).at(1), "a")
+  }
+
+  test("take accepts a literal index as a type") {
+    assertEquals((1 :: "a" :: true :: HNil).take[2], 1 :: "a" :: HNil)
+  }
+
+  test("drop accepts a literal index as a type") {
+    assertEquals((1 :: "a" :: true :: HNil).drop[2], true :: HNil)
+  }
+
+  test("split accepts a literal index as a type") {
+    assertEquals((1 :: "a" :: true :: HNil).split[2], (1 :: "a" :: HNil, true :: HNil))
+  }
+
+  test("reverse_split reverses the prefix at a type-level index") {
+    assertEquals((1 :: "a" :: true :: HNil).reverse_split[2], ("a" :: 1 :: HNil, true :: HNil))
+  }
+
+  test("HNil renders as HNil") {
+    assertEquals(HNil.toString, "HNil")
+  }
+
+  test("a nested HList head is parenthesized in toString") {
+    assertEquals(((1 :: HNil) :: "a" :: HNil).toString, "(1 :: HNil) :: a :: HNil")
+  }
+
+  test("mkString preserves both delimiters for an empty HList") {
+    assertEquals(HNil.mkString("[", ", ", "]"), "[]")
+    val list: HList = HNil
+    assertEquals(list.mkString("[", ", ", "]"), "[]")
+  }
+
   type OI = Option[Int] :: HNil
 
-  type III = Int :: Int :: Int :: HNil
-
-  type SISS = Set[Int] :: Set[String] :: HNil
   type OIOS = Option[Int] :: Option[String] :: HNil
 
   type ISII = Int :: String :: Int :: Int :: HNil
@@ -32,7 +164,6 @@ class HListTests extends FunSuite with HListTestsCompat {
   type FF = Fruit :: Fruit :: HNil
   type AP = Apple :: Pear :: HNil
   type BP = Banana :: Pear :: HNil
-  type AF = Apple :: Fruit :: HNil
   type FFFF = Fruit :: Fruit :: Fruit :: Fruit :: HNil
   type APAP = Apple :: Pear :: Apple :: Pear :: HNil
   type APBP = Apple :: Pear :: Banana :: Pear :: HNil
@@ -49,10 +180,6 @@ class HListTests extends FunSuite with HListTestsCompat {
   val bp: BP = b :: p :: HNil
   val apap: APAP = a :: p :: a :: p :: HNil
   val apbp: APBP = a :: p :: b :: p :: HNil
-  val apapList = List(a, p, a, p)
-  val apbpList = List(a, p, b, p)
-  val apapArray = Array(a, p, a, p)
-  val apbpArray = Array(a, p, b, p)
 
   trait Ctv[-T]
   type CICSCICICD = Ctv[Int] :: Ctv[String] :: Ctv[Int] :: Ctv[Int] :: Ctv[Double] :: HNil
@@ -1596,10 +1723,11 @@ class HListTests extends FunSuite with HListTestsCompat {
         (1 :: HNil).zipWith(2 :: HNil)(empty)
       """)
 
-      @annotation.unused
       object noIntFn extends Poly2 {
         implicit val caseDoubleDouble: Case.Aux[Double, Double, Double] = at[Double, Double](_ + _)
       }
+
+      assertEquals((1.0 :: HNil).zipWith(2.0 :: HNil)(noIntFn), 3.0 :: HNil)
 
       illTyped("""
         (1 :: HNil).zipWith(2 :: HNil)(noIntFn)
@@ -2067,7 +2195,6 @@ class HListTests extends FunSuite with HListTestsCompat {
   object smear extends Poly2 {
     implicit val caseIntInt: Case.Aux[Int, Int, Int] = at((x: Int, y: Int) => x + y)
     implicit val caseStringInt: Case.Aux[String, Int, Int] = at((x: String, y: Int) => x.toInt + y)
-    implicit val caseIntString: Case.Aux[Int, String, Int] = at((x: Int, y: String) => x + y.toInt)
   }
 
   test("ScanLeft") {

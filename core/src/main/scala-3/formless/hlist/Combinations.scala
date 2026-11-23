@@ -19,7 +19,7 @@ trait CombinationsLP {
 
 object Combinations extends CombinationsLP {
   inline def apply[N, L](using c: Combinations[N, L]): Combinations.Aux[N, L, c.Out] = c
-  inline def apply[N, L](@annotation.nowarn("msg=unused") n: N, @annotation.nowarn("msg=unused") l: L)(
+  inline def apply[N, L](@annotation.nowarn("msg=unused") n: N, l: L)(
     using c: Combinations[N, L],
   ): c.Out = c(l)
 

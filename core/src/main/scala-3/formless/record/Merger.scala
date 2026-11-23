@@ -3,8 +3,9 @@ package formless.record
 import formless.hlist.{::, DepFn2, HList, HNil}
 
 /**
- * Type class support record merging.
+ * Type class supporting record merging.
  */
+@scala.annotation.implicitNotFound("Cannot merge record ${L} with ${M}: a shared key may have different value types or the field lookup could be undecidable. Use updateWith to make the value types agree, remove the field first, or use mergeWith to combine the values.")
 trait Merger[L, M] extends DepFn2[L, M], Serializable
 
 object Merger {
@@ -25,7 +26,7 @@ object Merger {
     }
 
   given updateMerger[K <: Singleton, V, L, M <: HList, U](
-    using u: Updater.Aux[L, K ->> V, U],
+    using u: Updater[L, K ->> V] { type Out = U },
     mu: Merger[U, M],
   ): Merger.Aux[L, (K ->> V) :: M, mu.Out] =
     new Merger[L, (K ->> V) :: M] {

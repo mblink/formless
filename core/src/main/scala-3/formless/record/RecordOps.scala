@@ -14,7 +14,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Returns the value associated with the singleton typed key k. Only available if this record has a field with
    * with keyType equal to the singleton type K.
    */
-  final def apply[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using s: Selector[T, K]): s.Out = s(t)
+  final def apply[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using MaybeRecord[T])(using s: Selector[T, K]): s.Out = s(t)
 
   /**
    * Returns the value associated with the singleton typed key k. Only available if this record has a field with
@@ -23,24 +23,29 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   final def fieldAt[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using s: Selector[T, K]): K ->> s.Out = label[K](s(t))
 
   /**
-   * Updates or adds to this record a field with key k. The new field has a value of type V. Only available if this
-   * record has a field with keyType equal to the singleton type K.
+   * Replaces a field of the same key and value type, or appends the field if the key is absent.
    */
   final def updated[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(using u: Updater[T, K ->> V]): u.Out = u(t, label[K](v))
 
   /**
    * Replaces the value of field k with a value of the same type. Only available if this record has a field with
-   * keyType equal to the singleton type K and valueType equal to V.
+   * keyType equal to the singleton type K and field type equal to K ->> V.
    */
-  final def replace[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(
-    using s: Selector.Aux[T, K, V],
+  final def replace[K <: Singleton, V](@annotation.nowarn("msg=unused") k: K, v: V)(using MaybeRecord[T])(
+    using s: Selector[T, K] { type Out = V },
     u: Updater[T, K ->> V],
   ): u.Out = u(t, label[K](v))
 
   /**
-   * Updates a field having a value with type A by given function.
+   * Not record syntax: `replace` on a record takes a key and a value. It's here so that `replace(value)` on a plain
+   * `HList`, the `HList` method this syntax hides, explains why instead of reporting a missing argument.
    */
-  final def updateWith[K, B](k: K)(using s: Selector[T, k.type])(f: s.Out => B)(using m: Modifier[T, k.type, s.Out, B]): m.Out = m(t, f)
+  final def replace[V](@annotation.nowarn("msg=unused") v: V)(using MaybeRecord[T])(using ev: ReplaceTakesAKey[T]): ev.Out = ev.out
+
+  /**
+   * Updates a field with a function from its selected value type. The field's type must match that key and value exactly.
+   */
+  final def updateWith[K, B](k: K)(using MaybeRecord[T])(using s: Selector[T, k.type])(f: s.Out => B)(using m: Modifier[T, k.type, s.Out, B]): m.Out = m(t, f)
 
   /**
    * Remove the field associated with the singleton typed key k, returning both the corresponding value and the updated
@@ -49,7 +54,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
   final def remove[K <: Singleton](@annotation.nowarn("msg=unused") k: K)(using r: Remover[T, K]): r.Out = r(t)
 
   /**
-   * Updates or adds to this record a field of type F.
+   * Replaces a field of the same key and type, or appends the field if the key is absent.
    */
   final def +[F](f: F)(using u: Updater[T, F]): u.Out = u(t, f)
 
@@ -57,10 +62,10 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Remove the field associated with the singleton typed key k, returning the updated record. Only available if this
    * record has a field with keyType equal to the singleton type K.
    */
-  final def -[K <: Singleton, R, V, O](@annotation.nowarn("msg=unused") k: K)(using r: Remover.Aux[T, K, R], ev: R <:< (V, O)): O = r(t)._2
+  final def -[K <: Singleton, R, V, O](@annotation.nowarn("msg=unused") k: K)(using r: Remover[T, K] { type Out = R }, ev: R <:< (V, O)): O = r(t)._2
 
   /**
-   * Returns the union of this record and another record.
+   * Merges records whose shared keys have the same value types, taking their values from the right record.
    */
   final def merge[M](m: M)(using mg: Merger[T, M]): mg.Out = mg(t, m)
 
@@ -104,7 +109,7 @@ final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
    * Returns a `Map` whose keys and values are typed as the Lub of the keys
    * and values of this record.
    */
-  final def toMap[K, V](using tm: ToMap.Aux[T, K, V]): Map[K, V] = tm(t)
+  final def toMap[K, V](using tm: ToMap[T] { type Key = K; type Value = V }): Map[K, V] = tm(t)
 
   /**
    * Maps a higher rank function across the values of this record.

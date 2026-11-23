@@ -8,6 +8,14 @@ import formless.testutil._
 trait HListTestsCompat { self: HListTests =>
   final type &[A, B] = A with B
 
+  test("count operations reject a negative literal") {
+    illTyped("IntToNat.intToNatInst[-1]", ".*Use a nonnegative literal Int[.]")
+    illTyped("(1 :: HNil).take[-1]")
+    illTyped("(1 :: HNil).drop[-1]")
+    illTyped("(1 :: HNil).split[-1]")
+    illTyped("(1 :: HNil).reverse_split[-1]")
+  }
+
   test("Unifier") {
     type PWS = Product with Serializable with Fruit
 

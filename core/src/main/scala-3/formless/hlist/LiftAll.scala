@@ -18,12 +18,6 @@ object LiftAll {
   def apply[F[_]]: Curried[F] = new Curried[F]
   def apply[F[_], In](using l: LiftAll[F, In]): LiftAll.Aux[F, In, l.Out] = l
 
-  @deprecated("Retained for binary compatibility", "0.7.0")
-  private[hlist] final class Inst[F[_], T, O](o: O) extends LiftAll[F, T], Serializable {
-    final type Out = O
-    final val instances = o
-  }
-
   given liftAllHNil[F[_]]: LiftAll.Aux[F, HNil, HNil] =
     new LiftAll[F, HNil] {
       type Out = HNil

@@ -20,6 +20,13 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    */
   final def length(implicit len: Length[L]): len.Out = len()
 
+  /** Displays all elements of this HList in a string using start, end, and separator strings. */
+  final def mkString(start: String, sep: String, end: String)(
+    implicit toTraversable: ToTraversable[L, List] = shapeless.HList.hlistOps(l).mkString$default$4(start, sep, end),
+  ): String =
+    if (l eq HNil) start + end
+    else shapeless.HList.hlistOps(l).mkString(start, sep, end)(toTraversable)
+
   /**
     * Repeats this `HList` N times.
     */
