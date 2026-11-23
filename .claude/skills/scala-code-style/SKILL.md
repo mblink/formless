@@ -56,6 +56,7 @@ Push correctness into the types so the compiler rejects wrong code, and let it d
 - Use the cheapest tool that rules out the bug: plain givens, then `Mirror` and `scala.compiletime` ops, then quoted macros. Type-level machinery costs compile time on every user's build, so add no given, overload or derivation that nothing uses.
 - A missing instance or a default parameter must never silently mean "do nothing". A parameter whose value matters gets no default.
 - Require only the evidence you use, and none the compiler can derive.
+- Public syntax and type class instances may require only public evidence. Generic user code passes evidence explicitly (`def f[R <: HList](r: R)(using s: Selector[R, K])`), so requiring a `private[formless]` type it can't name breaks it at compile time. Changing which evidence a public method requires is a source break: check it against BondLink before merging.
 - Name escape hatches `unsafe*` (e.g. `unsafeApply`) so they're greppable. Every evidence type gets an `@implicitNotFound` message saying what's wrong and how to fix it. Syntax methods summon evidence as `TC[A, B] { type Out = O }`, not through an `Aux` alias, which the message can't see through.
 
 ## Scala 3 and cross-building idioms
