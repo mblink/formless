@@ -3,7 +3,8 @@ import formless._
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val scala213 = "2.13.18"
-lazy val scala3 = "3.3.8"
+// Scala 3.3.9 fixes the Scaladoc signature crash on JDK 25: https://github.com/scala/scala3/pull/25779
+lazy val scala3 = "3.3.9"
 lazy val scala3Next = "3.8.4"
 lazy val scala3NextAxis = new VirtualAxis.WeakAxis {
   val idSuffix = "Next"
