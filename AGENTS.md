@@ -71,5 +71,12 @@ Follow `.claude/skills/scala-code-style/SKILL.md`. In short:
 
 ## Publishing
 
-Releases go to Maven Central under `com.bondlink`. Set `ThisBuild / version` in `build.sbt`, merge to `main`, and push a tag `v<version>`. CI builds and tests the tag, checks that the tag matches the build's version, then runs `sbt publishCentral`, which signs every artifact, stages it, and uploads and releases the bundle on the Central Portal. It needs the repository secrets `PGP_SECRET` (a base64-encoded, ASCII-armored private key), `PGP_PASSPHRASE`, and `SONATYPE_USERNAME` and `SONATYPE_PASSWORD` (a Central Portal user token). After the first release, set `mimaPreviousArtifacts` in `build.sbt` to it.
+Releases are published to BondLink's S3 Maven repo (`s3://bondlink-maven-repo`, served at https://maven.bondlink-cdn.com) with the `sbt-s3-publish` plugin. Set `ThisBuild / version` in `build.sbt`, merge to `main`, then from an up-to-date `main`:
 
+1. `sbt +publish` builds and stages every published artifact (`formless` for JVM, Scala.js and Scala Native, each for Scala 2.13 and 3) in `~/.cache/sbt-s3-publish`. Nothing is uploaded yet. Staging never overwrites a non-SNAPSHOT version: if an earlier attempt staged the same version, delete `~/.cache/sbt-s3-publish/com/bondlink/formless*/<version>` first, and check that the log says the Scala version you expect.
+2. `sbt +s3Release` uploads the staged artifacts. It needs AWS credentials that can write to the bucket.
+3. Check each artifact's POM and jar are served from https://maven.bondlink-cdn.com/com/bondlink/, then push the tag `v<version>` on the published commit.
+
+Maven Central publishing is set up but not in use yet. Pushing a `v*` tag runs CI's "Publish Artifacts" job, which checks that the tag matches the build's version and runs `sbt publishCentral` (sign, stage, upload and release on the Central Portal). It needs the repository secrets `PGP_SECRET` (a base64-encoded, ASCII-armored private key), `PGP_PASSPHRASE`, and `SONATYPE_USERNAME` and `SONATYPE_PASSWORD` (a Central Portal user token), and the `com.bondlink` namespace verified on Central. Until those exist the job fails at signing and publishes nothing.
+
+After a release, set `mimaPreviousArtifacts` in `build.sbt` to it so later versions are checked for binary compatibility.
