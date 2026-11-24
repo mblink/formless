@@ -11,7 +11,7 @@ addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
 addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12")
 addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.9.1")
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "2.3.1")
-addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
+addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.2")
 
 // Finds code nothing uses; see "Unused code" in AGENTS.md
 addSbtPlugin("bondlink" % "find-unused-plugin" % "0.7.0")
