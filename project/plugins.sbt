@@ -9,7 +9,7 @@ addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.4.0")
 addSbtPlugin("org.portable-scala" % "sbt-scala-native-crossproject" % "1.4.0")
 addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
 addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12")
-addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.9.1")
+addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.9.2")
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "2.3.1")
 addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
 
