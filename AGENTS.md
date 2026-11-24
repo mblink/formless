@@ -8,16 +8,18 @@ formless is a generic programming library (HLists, records, tagged types) for Sc
 
 ## Build & test
 
-sbt with `sbt-projectmatrix`. The root project aggregates every `core` and `docs` project, so `sbt test` runs them all; for a faster loop, pick one matrix project:
+sbt with `sbt-projectmatrix`. The root project aggregates every `core` and `docs` project and `linkage`, so `sbt test` runs them all; for a faster loop, pick one matrix project:
 
 | Project | Platform / Scala |
 |---|---|
 | `core` | JVM, 2.13 |
 | `core3` | JVM, Scala 3 LTS (3.3.x, the default `scalaVersion`) |
 | `coreNext3` | JVM, Scala 3 Next (3.8.x) — tested, not published |
+| `coreLatest3` | JVM, the newest Scala 3 (3.10.x) — tested, not published |
 | `coreJS`, `coreJS3` | Scala.js |
 | `coreNative`, `coreNative3` | Scala Native |
 | `docs3` | mdoc docs project |
+| `linkage` | JVM, `core`'s JVM test suite compiled with the newest Scala 3 against `core3`'s main classes, as a user's build links against the published jar; catches signatures two compilers erase differently |
 
 Common commands:
 

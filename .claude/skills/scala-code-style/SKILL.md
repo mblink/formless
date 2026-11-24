@@ -88,7 +88,7 @@ Push correctness into the types so the compiler rejects wrong code, and let it d
 
 ## Verification
 
-- Make no completion claim without fresh command output whose exit code you've read. Run `sbt core3/test coreNext3/test core/test` at least, and `sbt test` for anything touching shared or platform code. Lookup macro changes need a clean build, since zinc keeps stale macro expansions.
+- Make no completion claim without fresh command output whose exit code you've read. Run `sbt core3/test coreNext3/test coreLatest3/test core/test linkage/test` at least, and `sbt test` for anything touching shared or platform code. Lookup macro changes need a clean build, since zinc keeps stale macro expansions.
 - "Bug fixed" means the failure was reproduced, then shown gone, then shown to come back when the fix is removed.
 - Changing a shared helper means running its owner's tests and checking every call site.
 - Say what the evidence doesn't prove.
