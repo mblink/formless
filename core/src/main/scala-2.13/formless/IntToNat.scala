@@ -30,7 +30,8 @@ private class IntToNatMacros(val c: Context) {
       }
 
     val (natType, natTree) = intType match {
-      case ConstantType(Constant(i: Int)) => go(i, tq"_root_.shapeless._0")
+      case ConstantType(Constant(i: Int)) if i >= 0 => go(i, tq"_root_.shapeless._0")
+      case ConstantType(Constant(_: Int)) => c.abort(c.enclosingPosition, s"$intType is negative. Use a nonnegative literal Int.")
       case _ => c.abort(c.enclosingPosition, s"$intType is not a literal Int type")
     }
 

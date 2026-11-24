@@ -12,6 +12,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+    tags: [v*]
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -23,13 +24,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        scala: [3.3.8]
-        java:
-          - temurin@8
-          - temurin@11
-          - temurin@17
-          - temurin@21
-          - temurin@25
+        scala: [3.3.9]
+        java: [temurin@17, temurin@21, temurin@25]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout current branch (full)
@@ -37,25 +33,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Java (temurin@8)
-        if: matrix.java == 'temurin@8'
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 8
-          cache: sbt
-
-      - name: Setup Java (temurin@11)
-        if: matrix.java == 'temurin@11'
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 11
-          cache: sbt
-
       - name: Setup Java (temurin@17)
         if: matrix.java == 'temurin@17'
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
@@ -63,7 +43,7 @@ jobs:
 
       - name: Setup Java (temurin@21)
         if: matrix.java == 'temurin@21'
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -71,7 +51,7 @@ jobs:
 
       - name: Setup Java (temurin@25)
         if: matrix.java == 'temurin@25'
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 25
@@ -84,7 +64,7 @@ jobs:
         run: sbt '++ ${{ matrix.scala }}; githubWorkflowCheck'
 
       - name: Build project
-        run: sbt test
+        run: sbt -J-Xss2m test
 
       - name: Check binary compatibility
         if: matrix.java == 'temurin@25'
@@ -93,3 +73,69 @@ jobs:
       - name: Build docs
         if: matrix.java == 'temurin@25'
         run: sbt mdoc
+
+      - name: Check compile-time performance
+        if: matrix.java == 'temurin@25'
+        run: sbt perf3/test
+
+      - name: Check test coverage
+        if: matrix.java == 'temurin@25'
+        run: sbt -J-Xss2m coverage core3/test core3/coverageReport
+
+      - name: Check for unused code
+        if: matrix.java == 'temurin@25'
+        run: sbt -J-Xss2m findUnusedAll
+
+  publish:
+    name: Publish Artifacts
+    needs: [build]
+    if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v'))
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        scala: [3.3.9]
+        java: [temurin@17]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java (temurin@17)
+        if: matrix.java == 'temurin@17'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: sbt
+
+      - name: Setup Java (temurin@21)
+        if: matrix.java == 'temurin@21'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: sbt
+
+      - name: Setup Java (temurin@25)
+        if: matrix.java == 'temurin@25'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: sbt
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Publish to Maven Central
+        env:
+          PGP_SECRET: ${{ secrets.PGP_SECRET }}
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        run: |
+          test "${GITHUB_REF_NAME}" = "v$(sbt -batch -error 'print core3/version' | tail -n 1)" || { echo "tag ${GITHUB_REF_NAME} doesn't match the build's version"; exit 1; }
+          echo "$PGP_SECRET" | base64 --decode | gpg --batch --import
+          sbt publishCentral

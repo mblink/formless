@@ -19,7 +19,7 @@ object ZipConst {
   private def zipConst[C, T <: HList](c: C, t: T): ZipConstT[C, T] =
     t match {
       case _: HNil => HNil
-      case x: (h :: t) => (x.head.asInstanceOf[h], c) :: zipConst[C, t](c, x.tail.asInstanceOf[t])
+      case x: (h :: t) => (x.head, c) :: zipConst[C, t](c, x.tail)
     }
 
   given zipConstHList[C, L <: HList]: ZipConst.Aux[C, L, ZipConstT[C, L]] =

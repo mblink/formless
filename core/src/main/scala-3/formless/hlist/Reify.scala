@@ -10,12 +10,6 @@ object Reify {
 
   type Aux[T, O] = Reify[T] { type Out = O }
 
-  @deprecated("Retained for binary compatibility", "0.7.0")
-  private[hlist] final class Inst[T](t: T) extends Reify[T], Serializable {
-    final type Out = T
-    final def apply(): Out = t
-  }
-
   given reifyHNil: Reify.Aux[HNil, HNil] =
     new Reify[HNil] {
       type Out = HNil

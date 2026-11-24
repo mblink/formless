@@ -1,0 +1,77 @@
+package formless
+
+import formless.hlist.*
+import formless.record.{->>, FieldOp, LacksKey, Remover, Selector, Updater}
+import munit.FunSuite
+import scala.compiletime.testing.typeCheckErrors
+
+object LookupCrashTests {
+  trait Cyclic { type L <: Int :: L }
+  trait Growing { type L[A] <: Int :: L[List[A]] }
+}
+
+/** Lookups that once crashed the compiler, or never finished, are refused with a compile error instead */
+class LookupCrashTests extends FunSuite with LookupAssertions {
+  import LookupCrashTests.*
+
+  test("list types whose bounds refer to themselves are refused") {
+    refused("""def f(c: Cyclic) = Selector[c.L, "a"]""")
+    refused("""def f(c: Cyclic) = LacksKey[c.L, "a"]""")
+    refused("""def f(c: Growing) = Updater[c.L[Int], "a" ->> Int]""")
+    refused("""def f(c: Growing) = NotContains[c.L[Int], String]""")
+    refused("""def f(c: Growing) = ReverseSplitRight[c.L[Int], Int]""")
+  }
+
+  test("lookups inside a method without a result type are refused cleanly, for every operation") {
+    refused("""def f[H] = Remove[H :: HNil, Int]""")
+    refused("""def f[H] = Replacer[H :: HNil, Int, String]""")
+    refused("""def f[H] = SplitLeft[H :: HNil, Int]""")
+    refused("""def f[H] = SplitRight[H :: Int :: H :: HNil, Int]""")
+    refused("""def f[H] = NotContains[H :: HNil, Int]""")
+    refused("""def f[H] = Updater[H :: HNil, "a" ->> Int]""")
+    refused("""def f[V] = LacksKey[("a" ->> V) :: HNil, "a"]""")
+    refused("""def f[H] = Remover[H :: HNil, "a"]""")
+  }
+
+  test("a value whose type refers to itself is refused cleanly") {
+    refused("""object O { val k = LacksKey[(k.type ->> Int) :: HNil, "b"] }""")
+    refused("""object O { val k = Remove[k.type :: HNil, Int] }""")
+  }
+
+  test("operations the macros don't know don't type-check, and an abstract one is refused") {
+    refused("""ElemOp.elemOpInst[Int :: HNil, Int, String]""")
+    refused("""FieldOp.fieldOpInst[("a" ->> Int) :: HNil, "a" ->> Any, String]""")
+    refused("""def f[O <: FieldOp.Op] = FieldOp.fieldOpInst[("a" ->> Int) :: HNil, "a" ->> Any, O]""")
+    refused("""def f[O <: ElemOp.Op] = ElemOp.elemOpInst[Int :: HNil, Int, O]""")
+  }
+
+  test("Remove keeps the arms of a union of lists apart, so reinsert only takes what it can rebuild") {
+    type L = (String :: Int :: String :: HNil) | (Boolean :: Int :: Boolean :: HNil)
+    val r = Remove[L, Int]
+    summon[r.Out =:= (Int, (String :: String :: HNil) | (Boolean :: Boolean :: HNil))]
+    assertEquals(r.reinsert((42, "x" :: "y" :: HNil)), "x" :: 42 :: "y" :: HNil)
+    // `reinsert` only takes a list from one arm, so mixing arms is a type error
+    val errs = typeCheckErrors("""val r = Remove[(String :: Int :: String :: HNil) | (Boolean :: Int :: Boolean :: HNil), Int]; r.reinsert((42, "x" :: true :: HNil))""").map(_.message)
+    assert(errs.exists(_.contains("Required: Boolean")), errs.mkString("\n"))
+  }
+
+  test("Remove is refused for an element of an abstract list's upper bound, which reinsert couldn't rebuild") {
+    refused("""def f[L <: Int :: String :: HNil] = Remove[L, String]""")
+    // An element before an abstract tail is the list's own, so it can be put back
+    assertEquals(typeCheckErrors("""def f[T <: HList] = Remove[Int :: String :: T, String]""").map(_.message), Nil)
+  }
+
+  test("Remove is refused when reinsert couldn't give back the list it was given") {
+    // The arms have different types at the index, so an element from one could be put back into the other
+    refused("""Remove[(Int :: String :: HNil) | (String :: Int :: HNil), Int | String]""")
+    // The element is inside a singleton tail, which reinsert would rebuild rather than give back
+    refused("""val t = true :: 2.0 :: HNil; Remove[Int :: t.type, Boolean]""")
+    refused("""val t = "s" :: HNil; Remove[Int :: ((String :: HNil) & t.type), String]""")
+    // An element before a singleton tail can be put back, sharing the tail
+    val tail = true :: 2.0 :: HNil
+    val r = Remove[Int :: tail.type, Int]
+    val back = r.reinsert(r(::[Int, tail.type](1, tail)))
+    val sameTail: tail.type = back.tail
+    assert(sameTail eq tail)
+  }
+}

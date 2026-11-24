@@ -15,16 +15,6 @@ object choose extends Poly1 {
   implicit def apply[T]: Case.Aux[Set[T], Option[T]] = at(_.headOption)
 }
 
-/** Polymorphic function creating singleton `List`s. */
-object list extends Poly1 {
-  implicit def apply[T]: Case.Aux[T, List[T]] = at(List(_))
-}
-
-/** Polymorphic function returning the head of a `List`. */
-object headOption extends Poly1 {
-  implicit def apply[T]: Case.Aux[List[T], Option[T]] = at(_.headOption)
-}
-
 /** Polymorphic function which injects a value into an `Option`. */
 object option extends Poly1 {
   implicit def apply[T]: Case.Aux[T, Option[T]] = at(Option(_))

@@ -13,7 +13,7 @@ final class ReplaceTypeAux[L, U](private val l: L) extends AnyVal {
 }
 
 final class UpdatedTypeAux[L, U](private val l: L) extends AnyVal {
-  final def apply[V, Out <: HList](v: V)(using r: Replacer.Aux[L, U, V, (U, Out)]): Out = r(l, v)._2
+  final def apply[V, R <: HList](v: V)(using r: Replacer[L, U, V] { type Out = (U, R) }): R = r(l, v)._2
 }
 
 final class HListOps[L <: HList](private val l: L) extends AnyVal {
@@ -52,30 +52,19 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    */
   final def reverse_:::[P <: HList](prefix: P)(using p: ReversePrepend[P, L]): p.Out = p(prefix, l)
 
-  /**
-   * Returns the `N`th element of this `HList`. An explicit type argument must be provided. Available only if there is
-   * evidence that this `HList` has at least `N` elements.
-   */
-  // TODO - this doesn't work b/c `HList#apply` already exists in scala 3
-  final def apply[N <: Int](using n: ValueOf[N]): HList.Elem[L, N] = l.unsafeApply(n.value).asInstanceOf[HList.Elem[L, N]]
+  /** Returns the element at the in-bounds zero-based index supplied as a singleton type. */
+  final def apply[N <: Int & Singleton](using HList.Index[L, N]): HList.Elem[L, N] = at[N]
 
-  /**
-   * Returns the `N`th element of this `HList`. Available only if there is evidence that this `HList` has at least `N`
-   * elements.
-   */
-  final def apply(n: Int): HList.Elem[L, n.type] = l.unsafeApply(n).asInstanceOf[HList.Elem[L, n.type]]
+  /** Returns the element at the in-bounds zero-based singleton index `n`. */
+  final def apply(n: Int)(using HList.Index[L, n.type]): HList.Elem[L, n.type] = at[n.type]
 
-  /**
-   * Returns the `N`th element of this `HList`. An explicit type argument must be provided. Available only if there is
-   * evidence that this `HList` has at least `N` elements.
-   */
-  final def at[N <: Int](using n: ValueOf[N]): HList.Elem[L, N] = l.unsafeApply(n.value).asInstanceOf[HList.Elem[L, N]]
+  /** Returns the element at the in-bounds zero-based index supplied as a singleton type. */
+  final def at[N <: Int & Singleton](using index: HList.Index[L, N]): HList.Elem[L, N] =
+    // The index proof warrants the result type, which the erased traversal can't express.
+    l.unsafeApply(index.value).asInstanceOf[HList.Elem[L, N]]
 
-  /**
-   * Returns the `N`th element of this `HList`. Available only if there is evidence that this `HList` has at least `N`
-   * elements.
-   */
-  final def at(n: Int): HList.Elem[L, n.type] = l.unsafeApply(n).asInstanceOf[HList.Elem[L, n.type]]
+  /** Returns the element at the in-bounds zero-based singleton index `n`. */
+  final def at(n: Int)(using HList.Index[L, n.type]): HList.Elem[L, n.type] = at[n.type]
 
   /**
    * Returns the last element of this `HList`. Available only if there is evidence that this `HList` is composite.
@@ -191,13 +180,13 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
    * The `Elem` suffix is here to avoid creating an ambiguity with RecordOps#updated and should be removed if
    * SI-5414 is resolved in a way which eliminates the ambiguity.
    */
-  final def updatedElem[U, Out <: HList](u: U)(using r: Replacer.Aux[L, U, U, (U, Out)]): Out = r(l, u)._2
+  final def updatedElem[U, R <: HList](u: U)(using r: Replacer[L, U, U] { type Out = (U, R) }): R = r(l, u)._2
 
   /**
    * Replaces the first element of type `U` of this `HList` with the result of its transformation to a `V` via the
    * supplied function. Available only if there is evidence that this `HList` has an element of type `U`.
    */
-  final def updateWith[U, V, Out <: HList](f: U => V)(using m: Modifier.Aux[L, U, V, (U, Out)]): Out = m(l, f)._2
+  final def updateWith[U, V, R <: HList](f: U => V)(using m: Modifier[L, U, V] { type Out = (U, R) }): R = m(l, f)._2
 
   /**
    * Replaces the `N`th element of this `HList` with the result of calling the supplied function on it.
@@ -453,14 +442,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
   /**
    * Compute the length of this `HList` as a runtime Int value.
    */
-  final def runtimeLength: Int = {
-    @annotation.tailrec def loop(l: HList, acc: Int): Int = l match {
-      case HNil => acc
-      case _ :: t => loop(t, acc + 1)
-    }
-
-    loop(l, 0)
-  }
+  final def runtimeLength: Int = HList.count(l)
 
   /**
    * Convert this `HList` to a `List[Any]`.
@@ -516,7 +498,7 @@ final class HListOps[L <: HList](private val l: L) extends AnyVal {
   final def mkString(start: String, sep: String, end: String): String = {
     @annotation.tailrec
     def go(acc: String, sub: HList): String = sub match {
-      case HNil => ""
+      case HNil => acc
       case h :: HNil => acc ++ h.toString
       case h :: t => go(acc ++ h.toString + sep, t)
     }

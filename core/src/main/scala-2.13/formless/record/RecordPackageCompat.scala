@@ -21,22 +21,27 @@ final class FormlessDynamicRecordOps[T <: HList](t: T) extends Dynamic {
 }
 
 final class FormlessRecordOps[T <: HList](private val t: T) extends AnyVal {
+  final def updated[V](k: shapeless.Witness, v: V)(implicit u: Updater[T, k.T ->> V]): u.Out =
+    u(t, label[k.T](v))
+
+  final def +[F](f: F)(implicit u: Updater[T, F]): u.Out = u(t, f)
+
+  final def merge[M <: HList](m: M)(implicit mg: Merger[T, M]): mg.Out = mg(t, m)
+
   final def record: FormlessDynamicRecordOps[T] = new FormlessDynamicRecordOps[T](t)
 }
 
-private[formless] sealed trait RecordPackageCompatLP {
+private[formless] sealed trait RecordSyntaxLP {
   @inline final implicit def hlistToRecordOps[T <: HList](t: T): shapeless.syntax.RecordOps[T] =
     new shapeless.syntax.RecordOps[T](t)
 }
 
-private[formless] trait RecordPackageCompat extends RecordPackageCompatLP {
+/** Building fields and the record syntax, without the record type classes; see `formless.record.syntax` */
+private[formless] trait RecordSyntax extends RecordSyntaxLP {
   final type ->>[K, +V] = tagged.TranslucentTagged[V, K]
 
   final def field[K]: FormlessLabelPartialAp[K] = new FormlessLabelPartialAp[K]
   final def label[K]: FormlessLabelPartialAp[K] = new FormlessLabelPartialAp[K]
-
-  final type FieldPoly = shapeless.FieldPoly
-  final type FieldOf[V] = shapeless.FieldOf[V]
 
   @inline final implicit def toFormlessSingletonOps[K <: Singleton](k: K): FormlessSingletonOps[K] = new FormlessSingletonOps[K](k)
   @inline final implicit def toFormlessLabelledOps[K, V](kv: K ->> V): FormlessLabelledOps[K, V] = new FormlessLabelledOps[K, V](kv)
@@ -46,6 +51,11 @@ private[formless] trait RecordPackageCompat extends RecordPackageCompatLP {
 
   @inline final implicit def toFormlessMapOps[K, V](m: Map[K, V]): shapeless.syntax.std.MapOps[K, V] =
     new shapeless.syntax.std.MapOps(m)
+}
+
+private[formless] trait RecordPackageCompat extends RecordSyntax {
+  final type FieldPoly = shapeless.FieldPoly
+  final type FieldOf[V] = shapeless.FieldOf[V]
 
   final type AlignByKeys[T <: HList, K <: HList] = shapeless.ops.record.AlignByKeys[T, K]
   final val AlignByKeys: shapeless.ops.record.AlignByKeys.type = shapeless.ops.record.AlignByKeys
@@ -64,9 +74,6 @@ private[formless] trait RecordPackageCompat extends RecordPackageCompatLP {
 
   final type MapValues[F, L <: HList] = shapeless.ops.record.MapValues[F, L]
   final val MapValues: shapeless.ops.record.MapValues.type = shapeless.ops.record.MapValues
-
-  final type Merger[L <: HList, M <: HList] = shapeless.ops.record.Merger[L, M]
-  final val Merger: shapeless.ops.record.Merger.type = shapeless.ops.record.Merger
 
   final type MergeWith[L <: HList, M <: HList, F] = shapeless.ops.record.MergeWith[L, M, F]
   final val MergeWith: shapeless.ops.record.MergeWith.type = shapeless.ops.record.MergeWith
@@ -100,9 +107,6 @@ private[formless] trait RecordPackageCompat extends RecordPackageCompatLP {
 
   final type UnzipFields[L <: HList] = shapeless.ops.record.UnzipFields[L]
   final val UnzipFields: shapeless.ops.record.UnzipFields.type = shapeless.ops.record.UnzipFields
-
-  final type Updater[T <: HList, F] = shapeless.ops.record.Updater[T, F]
-  final val Updater: shapeless.ops.record.Updater.type = shapeless.ops.record.Updater
 
   final type Values[L <: HList] = shapeless.ops.record.Values[L]
   final val Values: shapeless.ops.record.Values.type = shapeless.ops.record.Values
