@@ -766,17 +766,25 @@ private[formless] object Lookup {
 }
 
 /**
+ * The runtime value of the evidence the lookup macros prove, `FieldAbsent` and `MaybeRecord`. Their opaque types are
+ * backed by this object, not by `Unit`, because Scala 3 compilers disagree on how a method returning an opaque type over
+ * `Unit` erases (`BoxedUnit` in 3.3 and 3.8, `void` in 3.10), so code compiled by a newer compiler couldn't link against the
+ * published jar.
+ */
+private[formless] object Proven
+
+/**
  * Evidence that no field `head` of the record `T` satisfies `Cmp[head, F]`, whatever its abstract types turn out to be.
  * Unlike the absence of a lookup that succeeds, it does not resolve for a record with an abstract tail, with an element
  * that might match once its type parameters are known, or with a field that satisfies `Cmp[head, F]` but that `FieldOp`
  * can't use.
  */
 @scala.annotation.implicitNotFound("Cannot prove that no element of ${T} matches ${F}")
-private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Unit
+private[formless] opaque type FieldAbsent[T <: HList, F, Cmp[_, _]] = Proven.type
 
 object FieldAbsent {
   // Inside the opaque type's scope, so the proof is made without a cast; the macro below is the only caller
-  private[formless] def proof[T <: HList, F, Cmp[_, _]]: FieldAbsent[T, F, Cmp] = ()
+  private[formless] def proof[T <: HList, F, Cmp[_, _]]: FieldAbsent[T, F, Cmp] = Proven
 
   private def fieldAbsentImpl[T <: HList: Type, F: Type, Cmp[_, _]: Type](using Quotes): Expr[FieldAbsent[T, F, Cmp]] =
     Lookup.guarded("prove a field absent from a record")(fieldAbsentImpl0[T, F, Cmp])
@@ -969,10 +977,10 @@ object ReplaceAt {
  * `HList`s also have, require it, so using them on a plain `HList` explains why instead of reporting a missing field.
  */
 @scala.annotation.implicitNotFound("${T} has no record fields, so this `apply`, `updateWith` or `replace` is the record syntax that importing formless.record adds to every HList, not the HList method of the same name. To call the HList method, write formless.hlist.HList.toHListOps(list).updateWith(...), or don't import the record syntax in this file.")
-private[formless] opaque type MaybeRecord[T <: HList] = Unit
+private[formless] opaque type MaybeRecord[T <: HList] = Proven.type
 
 object MaybeRecord {
-  private[formless] inline def proof[T <: HList]: MaybeRecord[T] = ()
+  private[formless] inline def proof[T <: HList]: MaybeRecord[T] = Proven
 
   private def maybeRecordImpl[T <: HList: Type](using Quotes): Expr[MaybeRecord[T]] =
     Lookup.guarded("check for record fields")(maybeRecordImpl0[T])

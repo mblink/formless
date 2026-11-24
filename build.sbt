@@ -6,14 +6,18 @@ lazy val scala213 = "2.13.18"
 // Scala 3.3.9 fixes the Scaladoc signature crash on JDK 25: https://github.com/scala/scala3/pull/25779
 lazy val scala3 = "3.3.9"
 lazy val scala3Next = "3.8.4"
-lazy val scala3NextAxis = new VirtualAxis.WeakAxis {
-  val idSuffix = "Next"
-  val directorySuffix = "next"
+// The newest Scala 3; it erases some signatures differently from the LTS, which the `linkage` tests check
+lazy val scala3Latest = "3.10.1"
+def testedScala3Axis(suffix: String) = new VirtualAxis.WeakAxis {
+  val idSuffix = suffix
+  val directorySuffix = suffix.toLowerCase
 }
+lazy val scala3NextAxis = testedScala3Axis("Next")
+lazy val scala3LatestAxis = testedScala3Axis("Latest")
 lazy val scalaVersions = Seq(scala213, scala3)
 
 ThisBuild / scalaVersion := scala3
-ThisBuild / version := "0.9.0"
+ThisBuild / version := "0.9.1"
 
 // GitHub Actions config
 // formless builds and is tested on Java 17 and newer; the checks that need only one Java version run on the newest
@@ -177,7 +181,22 @@ lazy val baseSettings = Seq(
 
 lazy val root = project.in(file("."))
   .settings(baseSettings)
-  .aggregate((core.projectRefs ++ docs.projectRefs): _*)
+  .aggregate((core.projectRefs ++ docs.projectRefs :+ (linkage: ProjectReference)): _*)
+
+// Runs `core`'s JVM test suite compiled with the newest Scala 3 against the Scala 3 LTS build of `core`'s main classes,
+// the one that is published, as a user's build links against the released jar. `core`'s own test projects compile the
+// library and its tests with one compiler, so they can't see two compilers disagree on how a method erases.
+lazy val linkage = project.in(file("linkage"))
+  .settings(baseSettings ++ jvmSettings)
+  .settings(
+    scalaVersion := scala3Latest,
+    libraryDependencies ++= Seq(munit.value, scalacheck.value),
+    Test / unmanagedSourceDirectories := Seq("scala", "scala-3", "scalajvm").map(dir =>
+      (ThisBuild / baseDirectory).value / "core" / "src" / "test" / dir
+    ),
+    Test / sourceGenerators += generatedTestSources.taskValue,
+  )
+  .dependsOn(core.jvm(scala3))
 
 lazy val publishSettings = Seq(
   publish / skip := false,
@@ -199,16 +218,35 @@ lazy val munit = Def.setting("org.scalameta" %%% "munit" % "1.3.6" % Test)
 lazy val shapeless = Def.setting("com.chuusai" %%% "shapeless" % "2.3.13")
 lazy val scalacheck = Def.setting("org.scalacheck" %%% "scalacheck" % "1.20.0" % Test)
 
-lazy val core = projectMatrix.in(file("core"))
-  // Tested against Scala 3 Next too, but published only for the LTS
-  .jvmPlatform(
-    scalaVersions = Seq(scala3Next),
-    axisValues = Seq(scala3NextAxis),
-    settings = jvmSettings ++ Seq(
-      publish / skip := true,
-      mimaPreviousArtifacts := Set(),
-    ),
+lazy val generatedTestSources = Def.task {
+  val srcManaged = (Test / sourceManaged).value / "generated"
+
+  def gen(scalaF: String, generator: SourceGenerator) = {
+    println(s"Generating ${srcManaged / scalaF} with $generator")
+    IO.write(srcManaged / scalaF, generator())
+    srcManaged / scalaF
+  }
+
+  Seq(
+    gen("Util.scala", SourceGenerator.Util),
+    gen("HListSelectorTest.scala", SourceGenerator.HListSelectorTest),
+    gen("RecordSelectorTest.scala", SourceGenerator.RecordSelectorTest),
+    gen("UpdaterTest.scala", SourceGenerator.UpdaterTest),
+    gen("ModifierTest.scala", SourceGenerator.ModifierTest),
+    gen("RenamerTest.scala", SourceGenerator.RenamerTest),
+    gen("RemoverTest.scala", SourceGenerator.RemoverTest),
   )
+}
+
+lazy val testedOnlySettings = jvmSettings ++ Seq(
+  publish / skip := true,
+  mimaPreviousArtifacts := Set(),
+)
+
+lazy val core = projectMatrix.in(file("core"))
+  // Tested against Scala 3 Next and the newest Scala 3 too, but published only for the LTS
+  .jvmPlatform(scalaVersions = Seq(scala3Next), axisValues = Seq(scala3NextAxis), settings = testedOnlySettings)
+  .jvmPlatform(scalaVersions = Seq(scala3Latest), axisValues = Seq(scala3LatestAxis), settings = testedOnlySettings)
   .jvmPlatform(scalaVersions = scalaVersions, settings = jvmSettings)
   .jsPlatform(scalaVersions = scalaVersions)
   .nativePlatform(scalaVersions = scalaVersions)
@@ -229,25 +267,7 @@ lazy val core = projectMatrix.in(file("core"))
       ),
       Seq(),
     ),
-    Test / sourceGenerators += Def.task {
-      val srcManaged = (Test / sourceManaged).value / "generated"
-
-      def gen(scalaF: String, generator: SourceGenerator) = {
-        println(s"Generating ${srcManaged / scalaF} with $generator")
-        IO.write(srcManaged / scalaF, generator())
-        srcManaged / scalaF
-      }
-
-      Seq(
-        gen("Util.scala", SourceGenerator.Util),
-        gen("HListSelectorTest.scala", SourceGenerator.HListSelectorTest),
-        gen("RecordSelectorTest.scala", SourceGenerator.RecordSelectorTest),
-        gen("UpdaterTest.scala", SourceGenerator.UpdaterTest),
-        gen("ModifierTest.scala", SourceGenerator.ModifierTest),
-        gen("RenamerTest.scala", SourceGenerator.RenamerTest),
-        gen("RemoverTest.scala", SourceGenerator.RemoverTest),
-      )
-    },
+    Test / sourceGenerators += generatedTestSources.taskValue,
   )
 
 // Compile-time regression tests: compiles generated workloads and checks the memory the compiler allocates. Not part of
